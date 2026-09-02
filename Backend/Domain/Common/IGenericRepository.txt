@@ -1,0 +1,8 @@
+﻿namespace Domain.Common;
+
+public interface IGenericRepository<T>
+{
+   Task<T> Get(Guid id);
+    Task Add(T entity);
+    Task Remove(Guid id);
+}
