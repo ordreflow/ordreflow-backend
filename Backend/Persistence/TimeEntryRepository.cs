@@ -1,6 +1,6 @@
-﻿
-using Domain.Entities;
+﻿using Domain.Entities;
 using Domain.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Persistence;
 
 
@@ -28,4 +28,18 @@ public class TimeEntryRepository : ITimeEntryRepository
 
         return timeEntry;
     }
+    
+    public async Task<IEnumerable<TimeEntry>> GetByDateRangeAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        var timeEntries = await _context.TimeEntries
+            .Where(te => te.Date >= startDate && te.Date <= endDate)
+            .ToListAsync(cancellationToken);
+
+        return timeEntries;
+    }
+
+    
 }
