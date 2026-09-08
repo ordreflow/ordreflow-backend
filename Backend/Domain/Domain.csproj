@@ -6,4 +6,14 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\OperationResultPattern\OperationResultPattern.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="ValueObjects\Case\" />
+      <Folder Include="ValueObjects\TimeSheet\" />
+      <Folder Include="ValueObjects\UserValues\" />
+    </ItemGroup>
+
 </Project>
