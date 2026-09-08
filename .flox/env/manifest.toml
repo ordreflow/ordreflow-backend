@@ -1,0 +1,5 @@
+schema-version = "1.15.0"
+
+[install]
+dotnet-sdk.pkg-path = "dotnetCorePackages.sdk_8_0_1xx-bin"
+dotnet-sdk.version = "8.0.130"

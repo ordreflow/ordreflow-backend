@@ -1,0 +1,102 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "schema-version": "1.15.0",
+    "install": {
+      "dotnet-sdk": {
+        "pkg-path": "dotnetCorePackages.sdk_8_0_1xx-bin",
+        "version": "8.0.130"
+      }
+    },
+    "options": {}
+  },
+  "packages": [
+    {
+      "attr_path": "dotnetCorePackages.sdk_8_0_1xx-bin",
+      "broken": false,
+      "derivation": "/nix/store/b6cwi7rh1l2xnp433j2rrrsnap0v2qwg-dotnet-sdk-wrapped-8.0.130.drv",
+      "description": ".NET SDK 8.0.130 (wrapper)",
+      "install_id": "dotnet-sdk",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=dc5d91f840324650bac8c379428c7037a416959a",
+      "name": "dotnet-sdk-wrapped-8.0.130",
+      "pname": "sdk_8_0_1xx-bin",
+      "rev": "dc5d91f840324650bac8c379428c7037a416959a",
+      "rev_count": 1068949,
+      "rev_date": "2026-09-07T03:47:24Z",
+      "scrape_date": "2026-09-08T04:57:38.803403Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.0.130",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/az7cvmbdpxgi2n2qxqhp1i72jnwgwmb5-dotnet-sdk-wrapped-8.0.130"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "dotnetCorePackages.sdk_8_0_1xx-bin",
+      "broken": false,
+      "derivation": "/nix/store/xyg73v2mi4242vfvb1m40y949bs9dql7-dotnet-sdk-wrapped-8.0.130.drv",
+      "description": ".NET SDK 8.0.130 (wrapper)",
+      "install_id": "dotnet-sdk",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=dc5d91f840324650bac8c379428c7037a416959a",
+      "name": "dotnet-sdk-wrapped-8.0.130",
+      "pname": "sdk_8_0_1xx-bin",
+      "rev": "dc5d91f840324650bac8c379428c7037a416959a",
+      "rev_count": 1068949,
+      "rev_date": "2026-09-07T03:47:24Z",
+      "scrape_date": "2026-09-08T05:29:51.032375Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.0.130",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/bhdl51ihx794wd2b9624y6x0j8l4ls54-dotnet-sdk-wrapped-8.0.130"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "dotnetCorePackages.sdk_8_0_1xx-bin",
+      "broken": false,
+      "derivation": "/nix/store/syigw8y61pdxabb35ni28d43gwd6impl-dotnet-sdk-wrapped-8.0.130.drv",
+      "description": ".NET SDK 8.0.130 (wrapper)",
+      "install_id": "dotnet-sdk",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=dc5d91f840324650bac8c379428c7037a416959a",
+      "name": "dotnet-sdk-wrapped-8.0.130",
+      "pname": "sdk_8_0_1xx-bin",
+      "rev": "dc5d91f840324650bac8c379428c7037a416959a",
+      "rev_count": 1068949,
+      "rev_date": "2026-09-07T03:47:24Z",
+      "scrape_date": "2026-09-08T06:06:45.514047Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.0.130",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/1k1a4jn51bgcavak3mzb9lm8g0szvk0w-dotnet-sdk-wrapped-8.0.130"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}

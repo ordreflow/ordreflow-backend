@@ -33,12 +33,24 @@ The backend is not responsible for:
 - OpenAPI/Swagger
 
 The complete stack is documented in the shared [technology stack documentation](https://github.com/ordreflow/ordreflow-docs/blob/main/docs/technology-stack.md).
+The shared [development environment documentation](https://github.com/ordreflow/ordreflow-docs/blob/main/docs/development-environment.md)
+describes the Flox and WSL conventions.
 
 ## Repository Relationships
 
 - [Frontend](https://github.com/ordreflow/ordreflow-frontend)
 - [Shared documentation](https://github.com/ordreflow/ordreflow-docs)
 - [GitHub Project](https://github.com/orgs/ordreflow/projects)
+
+## Project Structure
+
+- `Backend/Backend.sln` — backend solution
+- `Backend/WebApi/` — ASP.NET Core API
+- `Backend/Persistence/` — EF Core context, repositories, and migrations
+- `.flox/env/manifest.toml` — Flox environment definition
+- `.flox/env/manifest.lock` — locked Flox package resolution
+- `.config/dotnet-tools.json` — repository-local .NET tools
+- `global.json` — required .NET SDK version
 
 ## Planned Architecture
 
@@ -53,7 +65,63 @@ Frontend components should not access `DbContext` directly. The API should expos
 
 ## Current Status
 
-This repository is currently in the initial setup phase. The project structure, local run instructions, database configuration, migration commands, and test commands will be added when the API is scaffolded.
+The API project, initial persistence setup, and first EF Core migration are
+present. Database configuration, local service startup, and test commands are
+still being completed.
+
+## Running Locally
+
+Install [Flox](https://flox.dev/docs/install-flox/install/) before setting up
+the repository. The committed Flox environment provides .NET SDK `8.0.130`.
+The root `global.json` keeps the .NET CLI on that version.
+
+From the repository root, activate the environment:
+
+```bash
+flox activate
+```
+
+Run the remaining commands inside the activated shell:
+
+```bash
+dotnet --version
+dotnet tool restore
+dotnet restore Backend/Backend.sln
+dotnet build Backend/Backend.sln
+dotnet run --project Backend/WebApi
+```
+
+The version check should print `8.0.130`. The API's HTTP and HTTPS URLs are
+listed in `Backend/WebApi/Properties/launchSettings.json`; Swagger is available
+at `/swagger` when the API is running in Development.
+
+The repository-local `dotnet-ef` tool is pinned to `8.0.13` to match the EF Core
+design package. After database environment variables and a local PostgreSQL
+instance are configured, migrations can be inspected or applied with commands
+such as:
+
+```bash
+dotnet ef migrations list --project Backend/Persistence --startup-project Backend/WebApi
+dotnet ef database update --project Backend/Persistence --startup-project Backend/WebApi
+```
+
+The backend currently expects `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`,
+and `DB_PASSWORD`. A Compose file and a documented local database setup will be
+added separately.
+
+## Updating the Development Environment
+
+Use Flox from the repository root when changing environment packages:
+
+```bash
+flox search <package>
+flox install <package>
+```
+
+Commit changes to `.flox/env/manifest.toml` and `.flox/env/manifest.lock`
+together. Restore repository-local .NET tools with `dotnet tool restore` inside
+the activated Flox environment. Flox runtime, cache, log, and telemetry files
+are local-only.
 
 ## Planned POC Endpoints
 
