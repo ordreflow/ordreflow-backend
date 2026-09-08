@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
+namespace Backend.TimeEntries;
 
-namespace WebAPI.TimeEntries;
 
 public class CreateTimeEntry(
     ICommandDispatcher Dispatcher,
