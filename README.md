@@ -72,8 +72,9 @@ still being completed.
 ## Running Locally
 
 Install [Flox](https://flox.dev/docs/install-flox/install/) before setting up
-the repository. The committed Flox environment provides .NET SDK `8.0.130`.
+the repository. The committed Flox environment provides .NET SDK `8.0.100`.
 The root `global.json` keeps the .NET CLI on that version.
+## If the specific dotnet version is not installed the global json will rollforward in availble version of dotnet sdk within .Net8 so it require you to have a version between 8 and 8 of .Net
 
 From the repository root, activate the environment:
 
