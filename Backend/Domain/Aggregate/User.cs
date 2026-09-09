@@ -79,9 +79,14 @@ public sealed class User
 
 	public bool CanManageCases => CanManageUsers;
 
-	public Result ChangeRole(User actor, UserRole role)
+	public Result ChangeRole(
+		TenantId actorTenantId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		UserRole role)
 	{
-		if (actor is null || actor.TenantId != TenantId || actor.Role != UserRole.Admin || actor.Status != UserStatus.Active)
+		if (actorTenantId is null || actorTenantId != TenantId ||
+			actorRole != UserRole.Admin || actorStatus != UserStatus.Active)
 			return Result.Failure(new Error("RoleChangeForbidden", "Only an active admin from this tenant can change roles."));
 
 		if (role is not UserRole.Employee and not UserRole.Manager and not UserRole.Admin)

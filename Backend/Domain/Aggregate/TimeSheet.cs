@@ -13,9 +13,7 @@ public sealed class TimeSheet
 	public UserId UserId { get; private set; } = null!;
 	public int Year { get; private set; }
 	public int Month { get; private set; }
-	public TimeSheetStatus Status { get; private set; }
 	public DateTime CreatedAt { get; private set; }
-	public DateTime? SubmittedAt { get; private set; }
 	public IReadOnlyCollection<TimeEntry> Entries => _entries.AsReadOnly();
 	public decimal TotalHours => _entries.Sum(entry => entry.Hours);
 
@@ -23,30 +21,23 @@ public sealed class TimeSheet
 	{
 	}
 
-	private TimeSheet(TenantId tenantId, User user, int year, int month)
+	private TimeSheet(TenantId tenantId, UserId userId, int year, int month)
 	{
 		Id = TimeSheetId.Create(Guid.NewGuid()).Value;
 		TenantId = tenantId;
-		UserId = user.Id;
+		UserId = userId;
 		Year = year;
 		Month = month;
-		Status = TimeSheetStatus.Draft;
 		CreatedAt = DateTime.UtcNow;
 	}
 
-	public static Result<TimeSheet> Create(TenantId tenantId, User user, int year, int month)
+	public static Result<TimeSheet> Create(TenantId tenantId, UserId userId, int year, int month)
 	{
 		if (tenantId is null)
 			return Result<TimeSheet>.Failure(new Error("TenantRequired", "A timesheet must belong to a tenant."));
 
-		if (user is null)
+		if (userId is null)
 			return Result<TimeSheet>.Failure(new Error("UserRequired", "A timesheet must belong to a user."));
-
-		if (user.TenantId != tenantId)
-			return Result<TimeSheet>.Failure(new Error("TenantMismatch", "User and timesheet must belong to the same tenant."));
-
-		if (user.Status != UserStatus.Active)
-			return Result<TimeSheet>.Failure(new Error("UserInactive", "An inactive user cannot have a timesheet."));
 
 		if (year < 1 || year > 9999)
 			return Result<TimeSheet>.Failure(new Error("InvalidYear", "Timesheet year must be between 1 and 9999."));
@@ -54,22 +45,16 @@ public sealed class TimeSheet
 		if (month < 1 || month > 12)
 			return Result<TimeSheet>.Failure(new Error("InvalidMonth", "Timesheet month must be between 1 and 12."));
 
-		return Result<TimeSheet>.Success(new TimeSheet(tenantId, user, year, month));
+		return Result<TimeSheet>.Success(new TimeSheet(tenantId, userId, year, month));
 	}
 
-	public Result AddEntry(TimeEntry entry, Case workCase)
+	internal Result AddEntry(UserId employeeId, TimeEntry entry)
 	{
-		if (Status != TimeSheetStatus.Draft)
-			return Result.Failure(new Error("TimeSheetNotDraft", "Entries can only be added to a draft timesheet."));
+		if (employeeId is null || employeeId != UserId)
+			return Result.Failure(new Error("EntryOwnerMismatch", "Only the timesheet owner can add entries."));
 
 		if (entry is null)
 			return Result.Failure(new Error("TimeEntryRequired", "Time entry is required."));
-
-		if (workCase is null || workCase.TenantId != TenantId)
-			return Result.Failure(new Error("TenantMismatch", "Case and timesheet must belong to the same tenant."));
-
-		if (!workCase.ContainsWorkItem(entry.WorkId))
-			return Result.Failure(new Error("WorkItemNotFound", "Work item does not belong to the selected case."));
 
 		var entryDate = entry.Date.Date;
 		if (entryDate.Year != Year || entryDate.Month != Month)
@@ -98,10 +83,28 @@ public sealed class TimeSheet
 			.Sum(entry => entry.Hours);
 	}
 
-	public Result ChangeEntryHours(TimeEntry entry, decimal hours)
+	public decimal GetDayTotal(DateOnly date) =>
+		_entries
+			.Where(entry => DateOnly.FromDateTime(entry.Date) == date)
+			.Sum(entry => entry.Hours);
+
+	public IReadOnlyCollection<TimeEntry> GetEntriesForDay(DateOnly date) =>
+		_entries
+			.Where(entry => DateOnly.FromDateTime(entry.Date) == date)
+			.ToArray();
+
+	public IReadOnlyCollection<TimeEntry> GetEntriesForWeek(DateOnly weekStart) =>
+		_entries
+			.Where(entry =>
+				DateOnly.FromDateTime(entry.Date) >= weekStart &&
+				DateOnly.FromDateTime(entry.Date) < weekStart.AddDays(7))
+			.ToArray();
+
+	public Result ChangeEntryHours(UserId employeeId, TimeEntry entry, decimal hours)
 	{
-		if (!CanEdit(entry))
-			return Result.Failure(new Error("TimeSheetNotEditable", "Only entries in a draft timesheet can be edited."));
+		var accessResult = CanEdit(employeeId, entry);
+		if (accessResult.IsFailure)
+			return accessResult;
 
 		var dailyHours = _entries
 			.Where(existing => existing != entry && existing.Date.Date == entry.Date.Date)
@@ -112,10 +115,68 @@ public sealed class TimeSheet
 		return entry.ChangeHours(hours);
 	}
 
-	public Result ChangeEntryDate(TimeEntry entry, DateTime date)
+	public Result ApproveEntry(
+		TenantId approverTenantId,
+		UserId approverId,
+		UserRole approverRole,
+		UserStatus approverStatus,
+		TimeEntry entry)
 	{
-		if (!CanEdit(entry))
-			return Result.Failure(new Error("TimeSheetNotEditable", "Only entries in a draft timesheet can be edited."));
+		if (!CanManageEntry(approverTenantId, approverId, approverRole, approverStatus, entry))
+			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin from this tenant can approve this time entry."));
+
+		return entry.Approve();
+	}
+
+	public Result RejectEntry(
+		TenantId approverTenantId,
+		UserId approverId,
+		UserRole approverRole,
+		UserStatus approverStatus,
+		TimeEntry entry)
+	{
+		if (!CanManageEntry(approverTenantId, approverId, approverRole, approverStatus, entry))
+			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin from this tenant can reject this time entry."));
+
+		return entry.Reject();
+	}
+
+	public Result ReopenEntry(
+		TenantId actorTenantId,
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		TimeEntry entry)
+	{
+		if (actorTenantId is null || actorTenantId != TenantId || entry is null || !_entries.Contains(entry))
+			return Result.Failure(new Error("EntryAccessForbidden", "The time entry does not belong to this timesheet."));
+
+		var isManager = actorStatus == UserStatus.Active &&
+			(actorRole is UserRole.Manager or UserRole.Admin);
+		if (actorId != UserId && !isManager)
+			return Result.Failure(new Error("EntryAccessForbidden", "Only the owner or a manager from this tenant can reopen this time entry."));
+
+		return entry.Reopen();
+	}
+
+	public Result LockEntry(
+		TenantId approverTenantId,
+		UserId approverId,
+		UserRole approverRole,
+		UserStatus approverStatus,
+		TimeEntry entry)
+	{
+		if (!CanManageEntry(approverTenantId, approverId, approverRole, approverStatus, entry))
+			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin from this tenant can lock this time entry."));
+
+		return entry.Lock();
+	}
+
+	public Result ChangeEntryDate(UserId employeeId, TimeEntry entry, DateTime date)
+	{
+		var accessResult = CanEdit(employeeId, entry);
+		if (accessResult.IsFailure)
+			return accessResult;
 
 		if (date.Year != Year || date.Month != Month)
 			return Result.Failure(new Error("EntryOutsidePeriod", "Entry date must belong to the timesheet month."));
@@ -129,81 +190,47 @@ public sealed class TimeSheet
 		return entry.ChangeDate(date);
 	}
 
-	public Result ChangeEntryComment(TimeEntry entry, string? comment)
+	public Result ChangeEntryComment(UserId employeeId, TimeEntry entry, string? comment)
 	{
-		if (!CanEdit(entry))
-			return Result.Failure(new Error("TimeSheetNotEditable", "Only entries in a draft timesheet can be edited."));
+		var accessResult = CanEdit(employeeId, entry);
+		if (accessResult.IsFailure)
+			return accessResult;
 
 		return entry.ChangeComment(comment);
 	}
 
-	private bool CanEdit(TimeEntry entry) =>
-		Status == TimeSheetStatus.Draft && entry is not null && _entries.Contains(entry);
-
-	public Result Submit()
+	public Result ChangeEntryTime(UserId employeeId, TimeEntry entry, TimeSpan? startTime, TimeSpan? endTime)
 	{
-		if (Status != TimeSheetStatus.Draft)
-			return Result.Failure(new Error("TimeSheetNotDraft", "Only a draft timesheet can be submitted."));
+		var accessResult = CanEdit(employeeId, entry);
+		if (accessResult.IsFailure)
+			return accessResult;
 
-		if (_entries.Count == 0)
-			return Result.Failure(new Error("TimeSheetEmpty", "A timesheet must contain at least one entry."));
+		return entry.ChangeTime(startTime, endTime);
+	}
 
-		Status = TimeSheetStatus.Submitted;
-		SubmittedAt = DateTime.UtcNow;
+	private Result CanEdit(UserId employeeId, TimeEntry entry)
+	{
+		if (employeeId is null || employeeId != UserId)
+			return Result.Failure(new Error("EntryOwnerMismatch", "Only the timesheet owner can edit this time entry."));
+
+		if (entry is null || !_entries.Contains(entry))
+			return Result.Failure(new Error("EntryNotFound", "The time entry does not belong to this timesheet."));
+
+		if (entry.Status is not (TimeEntryStatus.Draft or TimeEntryStatus.Rejected))
+			return Result.Failure(new Error("TimeEntryNotEditable", "Only draft or rejected time entries can be edited."));
+
 		return Result.Success();
 	}
 
-	public Result Reopen(User actor)
-	{
-		if (actor is null || actor.TenantId != TenantId)
-			return Result.Failure(new Error("TenantMismatch", "User and timesheet must belong to the same tenant."));
+	private bool CanManageEntry(
+		TenantId actorTenantId,
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		TimeEntry entry) =>
+		actorTenantId is not null && actorTenantId == TenantId &&
+		actorId is not null && actorStatus == UserStatus.Active &&
+		(actorRole is UserRole.Manager or UserRole.Admin) &&
+		entry is not null && _entries.Contains(entry);
 
-		var canReopen = Status == TimeSheetStatus.Rejected && actor.Id == UserId ||
-			Status == TimeSheetStatus.Submitted && actor.CanManageUsers;
-		if (!canReopen)
-			return Result.Failure(new Error("TimeSheetNotReopenable", "Only a submitted or rejected timesheet can be reopened."));
-
-		Status = TimeSheetStatus.Draft;
-		SubmittedAt = null;
-		return Result.Success();
-	}
-
-	public Result Approve(User approver)
-	{
-		if (!CanApprove(approver))
-			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin from this tenant can approve."));
-
-		if (Status != TimeSheetStatus.Submitted)
-			return Result.Failure(new Error("TimeSheetNotSubmitted", "Only a submitted timesheet can be approved."));
-
-		Status = TimeSheetStatus.Approved;
-		return Result.Success();
-	}
-
-	public Result Reject(User approver)
-	{
-		if (!CanApprove(approver))
-			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin from this tenant can reject."));
-
-		if (Status != TimeSheetStatus.Submitted)
-			return Result.Failure(new Error("TimeSheetNotSubmitted", "Only a submitted timesheet can be rejected."));
-
-		Status = TimeSheetStatus.Rejected;
-		return Result.Success();
-	}
-
-	public Result Lock(User approver)
-	{
-		if (!CanApprove(approver))
-			return Result.Failure(new Error("LockForbidden", "Only an active manager or admin from this tenant can lock."));
-
-		if (Status != TimeSheetStatus.Approved)
-			return Result.Failure(new Error("TimeSheetNotApproved", "Only an approved timesheet can be locked."));
-
-		Status = TimeSheetStatus.Locked;
-		return Result.Success();
-	}
-
-	private bool CanApprove(User user) =>
-		user is not null && user.TenantId == TenantId && user.CanManageUsers;
 }

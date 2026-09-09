@@ -29,20 +29,29 @@ public sealed class Case
 		CreatedAt = DateTime.UtcNow;
 	}
 
-	public static Result<Case> Create(User actor, CaseName name)
+	public static Result<Case> Create(
+		TenantId actorTenantId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		CaseName name)
 	{
-		if (actor is null || !actor.CanManageCases)
+		if (actorTenantId is null || actorStatus != UserStatus.Active ||
+			(actorRole is not UserRole.Manager and not UserRole.Admin))
 			return Result<Case>.Failure(new Error("CaseCreationForbidden", "Only an active manager or admin can create cases."));
 
 		if (name is null)
 			return Result<Case>.Failure(new Error("CaseNameRequired", "Case name is required."));
 
-		return Result<Case>.Success(new Case(actor.TenantId, name));
+		return Result<Case>.Success(new Case(actorTenantId, name));
 	}
 
-	public Result Rename(User actor, CaseName name)
+	public Result Rename(
+		TenantId actorTenantId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		CaseName name)
 	{
-		if (!CanManage(actor))
+		if (!CanManage(actorTenantId, actorRole, actorStatus))
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can rename cases."));
 
 		if (name is null)
@@ -55,9 +64,9 @@ public sealed class Case
 		return Result.Success();
 	}
 
-	public Result Close(User actor)
+	public Result Close(TenantId actorTenantId, UserRole actorRole, UserStatus actorStatus)
 	{
-		if (!CanManage(actor))
+		if (!CanManage(actorTenantId, actorRole, actorStatus))
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can close cases."));
 
 		if (Status == CaseStatus.Closed)
@@ -68,9 +77,9 @@ public sealed class Case
 		return Result.Success();
 	}
 
-	public Result Reopen(User actor)
+	public Result Reopen(TenantId actorTenantId, UserRole actorRole, UserStatus actorStatus)
 	{
-		if (!CanManage(actor))
+		if (!CanManage(actorTenantId, actorRole, actorStatus))
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can reopen cases."));
 
 		if (Status == CaseStatus.Open)
@@ -120,15 +129,34 @@ public sealed class Case
 	public bool ContainsWorkItem(WorkId workId) =>
 		workId is not null && _workItems.Any(item => item.Id == workId);
 
-	private bool CanManage(User actor) =>
-		actor is not null && actor.TenantId == TenantId && actor.CanManageCases;
+	internal Result CanRegisterTime(WorkId workId)
+	{
+		if (Status == CaseStatus.Closed)
+			return Result.Failure(new Error("CaseClosed", "Entries cannot be added to a closed case."));
+
+		if (!ContainsWorkItem(workId))
+			return Result.Failure(new Error("WorkItemNotFound", "Work item does not belong to the selected case."));
+
+		return Result.Success();
+	}
+
+	private bool CanManage(
+		TenantId actorTenantId,
+		UserRole actorRole,
+		UserStatus actorStatus) =>
+		actorTenantId is not null &&
+		actorTenantId == TenantId &&
+		actorStatus == UserStatus.Active &&
+		(actorRole is UserRole.Manager or UserRole.Admin);
 
 	public Result<WorkCase> AddWorkItem(
-		User actor,
+		TenantId actorTenantId,
+		UserRole actorRole,
+		UserStatus actorStatus,
 		string title,
 		string description)
 	{
-		if (actor is null || actor.TenantId != TenantId || !actor.CanManageCases)
+		if (!CanManage(actorTenantId, actorRole, actorStatus))
 			return Result<WorkCase>.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can create work items."));
 
 		var workItemResult = WorkCase.Create(title, description);
@@ -141,9 +169,13 @@ public sealed class Case
 			: workItemResult;
 	}
 
-	public Result RemoveWorkItem(User actor, WorkId workId)
+	public Result RemoveWorkItem(
+		TenantId actorTenantId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		WorkId workId)
 	{
-		if (actor is null || actor.TenantId != TenantId || !actor.CanManageCases)
+		if (!CanManage(actorTenantId, actorRole, actorStatus))
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can remove work items."));
 
 		return RemoveWorkItem(workId);
