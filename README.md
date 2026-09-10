@@ -72,9 +72,9 @@ still being completed.
 ## Running Locally
 
 Install [Flox](https://flox.dev/docs/install-flox/install/) before setting up
-the repository. The committed Flox environment provides .NET SDK `8.0.100`.
-The root `global.json` keeps the .NET CLI on that version.
-## If the specific dotnet version is not installed the global json will rollforward in availble version of dotnet sdk within .Net8 so it require you to have a version between 8 and 8 of .Net
+the repository. The committed Flox environment provides the exact .NET SDK
+version `8.0.406`. The root `global.json` keeps the .NET CLI on that exact
+version.
 
 From the repository root, activate the environment:
 
@@ -92,7 +92,7 @@ dotnet build Backend/Backend.sln
 dotnet run --project Backend/WebApi
 ```
 
-The version check should print `8.0.130`. The API's HTTP and HTTPS URLs are
+The version check should print `8.0.406`. The API's HTTP and HTTPS URLs are
 listed in `Backend/WebApi/Properties/launchSettings.json`; Swagger is available
 at `/swagger` when the API is running in Development.
 

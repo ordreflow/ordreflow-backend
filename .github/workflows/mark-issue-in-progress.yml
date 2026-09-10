@@ -1,0 +1,194 @@
+name: Mark Issue In Progress
+
+on:
+  create:
+
+permissions: {}
+
+env:
+  PROJECT_TITLE: BPR - Backlog
+
+jobs:
+  mark-issue-in-progress:
+    if: ${{ github.event.ref_type == 'branch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-issues: read
+          permission-organization-projects: write
+
+      - name: Mark issue in progress
+        uses: actions/github-script@v7
+        env:
+          BRANCH_NAME: ${{ github.event.ref }}
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const branchName = process.env.BRANCH_NAME;
+            const branchMatch = /^(feature|fix|docs|chore)\/(\d+)-(.+)$/i.exec(branchName);
+
+            if (!branchMatch) {
+              core.warning(`Branch '${branchName}' does not match the required issue branch format; skipping.`);
+              return;
+            }
+
+            const issueNumber = Number.parseInt(branchMatch[2], 10);
+            const organization = context.repo.owner;
+            const repository = context.repo.repo;
+
+            const projectQuery = `
+              query($organization: String!) {
+                organization(login: $organization) {
+                  projectsV2(first: 100) {
+                    nodes {
+                      id
+                      number
+                      title
+                      fields(first: 100) {
+                        nodes {
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            name
+                            options {
+                              id
+                              name
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const projectData = await github.graphql(projectQuery, { organization });
+            const project = projectData.organization.projectsV2.nodes.find(
+              (candidate) => candidate.title === process.env.PROJECT_TITLE,
+            );
+
+            if (!project) {
+              core.setFailed(`Project '${process.env.PROJECT_TITLE}' was not found in organization '${organization}'.`);
+              return;
+            }
+
+            const issueData = await github.graphql(
+              `
+                query($owner: String!, $repository: String!, $issueNumber: Int!) {
+                  repository(owner: $owner, name: $repository) {
+                    issue(number: $issueNumber) {
+                      id
+                      number
+                      title
+                    }
+                  }
+                }
+              `,
+              { owner: organization, repository, issueNumber },
+            );
+
+            const issue = issueData.repository.issue;
+
+            if (!issue) {
+              core.warning(`Issue #${issueNumber} was not found in ${organization}/${repository}; skipping.`);
+              return;
+            }
+
+            const itemsQuery = `
+              query($organization: String!, $projectNumber: Int!, $cursor: String) {
+                organization(login: $organization) {
+                  projectV2(number: $projectNumber) {
+                    items(first: 100, after: $cursor) {
+                      nodes {
+                        id
+                        content {
+                          ... on Issue {
+                            id
+                            number
+                            repository {
+                              nameWithOwner
+                            }
+                          }
+                        }
+                      }
+                      pageInfo {
+                        hasNextPage
+                        endCursor
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const projectItems = [];
+            let cursor = null;
+
+            do {
+              const itemsData = await github.graphql(itemsQuery, {
+                organization,
+                projectNumber: project.number,
+                cursor,
+              });
+              const items = itemsData.organization.projectV2.items;
+              projectItems.push(...items.nodes);
+              cursor = items.pageInfo.hasNextPage ? items.pageInfo.endCursor : null;
+            } while (cursor);
+
+            const projectItem = projectItems.find((item) => item.content?.id === issue.id);
+
+            if (!projectItem) {
+              core.warning(`Issue #${issueNumber} is not an item in '${process.env.PROJECT_TITLE}'; skipping.`);
+              return;
+            }
+
+            const statusField = project.fields.nodes.find(
+              (field) => field?.name === 'Status' && Array.isArray(field.options),
+            );
+            const inProgressOption = statusField?.options.find(
+              (option) => option.name === 'In Progress',
+            );
+
+            if (!statusField || !inProgressOption) {
+              core.setFailed(`Project '${process.env.PROJECT_TITLE}' does not have a Status option named 'In Progress'.`);
+              return;
+            }
+
+            await github.graphql(
+              `
+                mutation(
+                  $projectId: ID!,
+                  $itemId: ID!,
+                  $fieldId: ID!,
+                  $optionId: String!
+                ) {
+                  updateProjectV2ItemFieldValue(
+                    input: {
+                      projectId: $projectId
+                      itemId: $itemId
+                      fieldId: $fieldId
+                      value: { singleSelectOptionId: $optionId }
+                    }
+                  ) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }
+              `,
+              {
+                projectId: project.id,
+                itemId: projectItem.id,
+                fieldId: statusField.id,
+                optionId: inProgressOption.id,
+              },
+            );
+
+            core.notice(`Set ${organization}/${repository}#${issueNumber} to In Progress in '${process.env.PROJECT_TITLE}'.`);
