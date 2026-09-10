@@ -92,6 +92,10 @@ An entity protects its own state through private setters, factory methods, and d
 Value objects are used for values with special meaning. A domain identifier or an email address is not treated as arbitrary text or a random `Guid`. This creates a clearer model and keeps value validation in one place.
 
 ### CQRS-Inspired Application Layer
+Install [Flox](https://flox.dev/docs/install-flox/install/) before setting up
+the repository. The committed Flox environment provides the exact .NET SDK
+version `8.0.406`. The root `global.json` keeps the .NET CLI on that exact
+version.
 
 The Application layer uses a command-based structure:
 
@@ -104,7 +108,9 @@ This is CQRS-inspired because each state-changing action is represented by a com
 
 ## Responsibilities of Each Project
 
-### WebApi
+The version check should print `8.0.406`. The API's HTTP and HTTPS URLs are
+listed in `Backend/WebApi/Properties/launchSettings.json`; Swagger is available
+at `/swagger` when the API is running in Development.
 
 `WebApi` is the presentation layer. It contains:
 
@@ -306,4 +312,8 @@ The backend is organized around a stable core and outer adapters:
 - The Result pattern makes expected failures explicit.
 - Dependency injection assembles implementations during startup.
 
-This structure makes the solution easier to test because Domain can be tested independently, and easier to change because web and database technology are not mixed directly into domain rules.
+- PostgreSQL is the database system.
+- EF Core migrations must be committed with the backend code.
+- Connection strings and credentials must be supplied through environment-specific configuration.
+- Secrets must not be committed to the repository.
+- The POC should use real PostgreSQL persistence rather than only an in-memory test database.
