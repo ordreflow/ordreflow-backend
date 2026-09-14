@@ -6,7 +6,6 @@ namespace Domain.Aggregate;
 public sealed class User
 {
 	public UserId Id { get; private set; } = null!;
-	public TenantId TenantId { get; private set; } = null!;
 	public PersonName Name { get; private set; } = null!;
 	public EmailAddress Email { get; private set; } = null!;
 	public UserRole Role { get; private set; }
@@ -17,10 +16,9 @@ public sealed class User
 	{
 	}
 
-	private User(TenantId tenantId, PersonName name, EmailAddress email, UserRole role)
+	private User(PersonName name, EmailAddress email, UserRole role)
 	{
 		Id = UserId.Create(Guid.NewGuid()).Value;
-		TenantId = tenantId;
 		Name = name;
 		Email = email;
 		Role = role;
@@ -28,36 +26,29 @@ public sealed class User
 		CreatedAt = DateTime.UtcNow;
 	}
 
-	public static Result<User> Create(TenantId tenantId, PersonName name, EmailAddress email)
+	public static Result<User> Create(PersonName name, EmailAddress email)
 	{
-		if (tenantId is null)
-			return Result<User>.Failure(new Error("TenantRequired", "A user must belong to a tenant."));
-
 		if (name is null)
 			return Result<User>.Failure(new Error("NameRequired", "User name is required."));
 
 		if (email is null)
 			return Result<User>.Failure(new Error("EmailRequired", "User email is required."));
 
-		return Result<User>.Success(new User(tenantId, name, email, UserRole.Employee));
+		return Result<User>.Success(new User(name, email, UserRole.Employee));
 	}
 
 	public static Result<User> Create(
-		TenantId tenantId,
 		PersonName name,
 		EmailAddress email,
 		UserRole role)
 	{
-		if (tenantId is null)
-			return Result<User>.Failure(new Error("TenantRequired", "A user must belong to a tenant."));
-
 		if (name is null)
 			return Result<User>.Failure(new Error("NameRequired", "User name is required."));
 
 		if (email is null)
 			return Result<User>.Failure(new Error("EmailRequired", "User email is required."));
 
-		return Result<User>.Success(new User(tenantId, name, email, role));
+		return Result<User>.Success(new User(name, email, role));
 	}
 
 	public Result<User> CreateUser(
@@ -71,7 +62,7 @@ public sealed class User
 		if (Role == UserRole.Manager && role != UserRole.Employee)
 			return Result<User>.Failure(new Error("RoleCreationForbidden", "Managers can only create employees."));
 
-		return Create(TenantId, name, email, role);
+		return Create(name, email, role);
 	}
 
 	public bool CanManageUsers => Status == UserStatus.Active &&
@@ -80,14 +71,12 @@ public sealed class User
 	public bool CanManageCases => CanManageUsers;
 
 	public Result ChangeRole(
-		TenantId actorTenantId,
 		UserRole actorRole,
 		UserStatus actorStatus,
 		UserRole role)
 	{
-		if (actorTenantId is null || actorTenantId != TenantId ||
-			actorRole != UserRole.Admin || actorStatus != UserStatus.Active)
-			return Result.Failure(new Error("RoleChangeForbidden", "Only an active admin from this tenant can change roles."));
+		if (actorRole != UserRole.Admin || actorStatus != UserStatus.Active)
+			return Result.Failure(new Error("RoleChangeForbidden", "Only an active admin can change roles."));
 
 		if (role is not UserRole.Employee and not UserRole.Manager and not UserRole.Admin)
 			return Result.Failure(new Error("InvalidRole", "The selected user role is invalid."));

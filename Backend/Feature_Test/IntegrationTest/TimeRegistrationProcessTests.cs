@@ -12,15 +12,9 @@ public class TimeRegistrationProcessTests
 	{
 		Console.WriteLine("=== Time registration process ===");
 
-		var companyName = CompanyName.Create("Elektronik A/S");
-		var subdomain = Subdomain.Create("elektronik");
-		var tenant = Tenant.Create(companyName.Value, subdomain.Value).Value;
-		Console.WriteLine($"1. Tenant created: {tenant.Name.Value}");
-
 		var managerName = PersonName.Create("Manager Mads").Value;
 		var managerEmail = EmailAddress.Create("manager@elektronik.dk").Value;
 		var manager = User.Create(
-			tenant.Id,
 			managerName,
 			managerEmail,
 			UserRole.Manager).Value;
@@ -38,14 +32,12 @@ public class TimeRegistrationProcessTests
 		Console.WriteLine($"3. Employee created by manager: {employee.Name.Value}");
 
 		var caseResult = Case.Create(
-			manager.TenantId,
 			manager.Role,
 			manager.Status,
 			CaseName.Create("Reparation af styringsenhed").Value);
 
 		Assert.True(caseResult.IsSuccess);
 		var workCaseResult = caseResult.Value.AddWorkItem(
-			manager.TenantId,
 			manager.Role,
 			manager.Status,
 			"Udskift printkort",
@@ -56,7 +48,6 @@ public class TimeRegistrationProcessTests
 		Console.WriteLine($"4. Manager created case and work item: {workCase.Title}");
 
 		var timeSheet = TimeSheet.Create(
-			tenant.Id,
 			employee.Id,
 			2026,
 			9).Value;
@@ -73,7 +64,6 @@ public class TimeRegistrationProcessTests
 		var registrationService = new TimeRegistrationDomainService();
 		var addEntryResult = registrationService.Register(
 			timeSheet,
-			employee.TenantId,
 			employee.Id,
 			employee.Status,
 			caseResult.Value,
@@ -85,7 +75,6 @@ public class TimeRegistrationProcessTests
 		Console.WriteLine($"6. Employee registered {timeEntry.Hours} hours");
 
 		var approveEntryResult = timeSheet.ApproveEntry(
-			manager.TenantId,
 			manager.Id,
 			manager.Role,
 			manager.Status,
@@ -96,7 +85,6 @@ public class TimeRegistrationProcessTests
 		Console.WriteLine("7. Manager approved time entry");
 
 		var lockEntryResult = timeSheet.LockEntry(
-			manager.TenantId,
 			manager.Id,
 			manager.Role,
 			manager.Status,

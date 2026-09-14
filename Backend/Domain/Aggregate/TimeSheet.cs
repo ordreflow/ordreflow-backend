@@ -9,7 +9,6 @@ public sealed class TimeSheet
 	private readonly List<TimeEntry> _entries = new();
 
 	public TimeSheetId Id { get; private set; } = null!;
-	public TenantId TenantId { get; private set; } = null!;
 	public UserId UserId { get; private set; } = null!;
 	public int Year { get; private set; }
 	public int Month { get; private set; }
@@ -21,21 +20,17 @@ public sealed class TimeSheet
 	{
 	}
 
-	private TimeSheet(TenantId tenantId, UserId userId, int year, int month)
+	private TimeSheet(UserId userId, int year, int month)
 	{
 		Id = TimeSheetId.Create(Guid.NewGuid()).Value;
-		TenantId = tenantId;
 		UserId = userId;
 		Year = year;
 		Month = month;
 		CreatedAt = DateTime.UtcNow;
 	}
 
-	public static Result<TimeSheet> Create(TenantId tenantId, UserId userId, int year, int month)
+	public static Result<TimeSheet> Create(UserId userId, int year, int month)
 	{
-		if (tenantId is null)
-			return Result<TimeSheet>.Failure(new Error("TenantRequired", "A timesheet must belong to a tenant."));
-
 		if (userId is null)
 			return Result<TimeSheet>.Failure(new Error("UserRequired", "A timesheet must belong to a user."));
 
@@ -45,7 +40,7 @@ public sealed class TimeSheet
 		if (month < 1 || month > 12)
 			return Result<TimeSheet>.Failure(new Error("InvalidMonth", "Timesheet month must be between 1 and 12."));
 
-		return Result<TimeSheet>.Success(new TimeSheet(tenantId, userId, year, month));
+		return Result<TimeSheet>.Success(new TimeSheet(userId, year, month));
 	}
 
 	internal Result AddEntry(UserId employeeId, TimeEntry entry)
@@ -116,58 +111,54 @@ public sealed class TimeSheet
 	}
 
 	public Result ApproveEntry(
-		TenantId approverTenantId,
 		UserId approverId,
 		UserRole approverRole,
 		UserStatus approverStatus,
 		TimeEntry entry)
 	{
-		if (!CanManageEntry(approverTenantId, approverId, approverRole, approverStatus, entry))
-			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin from this tenant can approve this time entry."));
+		if (!CanManageEntry(approverId, approverRole, approverStatus, entry))
+			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin can approve this time entry."));
 
 		return entry.Approve();
 	}
 
 	public Result RejectEntry(
-		TenantId approverTenantId,
 		UserId approverId,
 		UserRole approverRole,
 		UserStatus approverStatus,
 		TimeEntry entry)
 	{
-		if (!CanManageEntry(approverTenantId, approverId, approverRole, approverStatus, entry))
-			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin from this tenant can reject this time entry."));
+		if (!CanManageEntry(approverId, approverRole, approverStatus, entry))
+			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin can reject this time entry."));
 
 		return entry.Reject();
 	}
 
 	public Result ReopenEntry(
-		TenantId actorTenantId,
 		UserId actorId,
 		UserRole actorRole,
 		UserStatus actorStatus,
 		TimeEntry entry)
 	{
-		if (actorTenantId is null || actorTenantId != TenantId || entry is null || !_entries.Contains(entry))
+		if (entry is null || !_entries.Contains(entry))
 			return Result.Failure(new Error("EntryAccessForbidden", "The time entry does not belong to this timesheet."));
 
 		var isManager = actorStatus == UserStatus.Active &&
 			(actorRole is UserRole.Manager or UserRole.Admin);
 		if (actorId != UserId && !isManager)
-			return Result.Failure(new Error("EntryAccessForbidden", "Only the owner or a manager from this tenant can reopen this time entry."));
+			return Result.Failure(new Error("EntryAccessForbidden", "Only the owner or a manager can reopen this time entry."));
 
 		return entry.Reopen();
 	}
 
 	public Result LockEntry(
-		TenantId approverTenantId,
 		UserId approverId,
 		UserRole approverRole,
 		UserStatus approverStatus,
 		TimeEntry entry)
 	{
-		if (!CanManageEntry(approverTenantId, approverId, approverRole, approverStatus, entry))
-			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin from this tenant can lock this time entry."));
+		if (!CanManageEntry(approverId, approverRole, approverStatus, entry))
+			return Result.Failure(new Error("ApprovalForbidden", "Only an active manager or admin can lock this time entry."));
 
 		return entry.Lock();
 	}
@@ -223,12 +214,10 @@ public sealed class TimeSheet
 	}
 
 	private bool CanManageEntry(
-		TenantId actorTenantId,
 		UserId actorId,
 		UserRole actorRole,
 		UserStatus actorStatus,
 		TimeEntry entry) =>
-		actorTenantId is not null && actorTenantId == TenantId &&
 		actorId is not null && actorStatus == UserStatus.Active &&
 		(actorRole is UserRole.Manager or UserRole.Admin) &&
 		entry is not null && _entries.Contains(entry);

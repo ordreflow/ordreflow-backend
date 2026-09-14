@@ -41,7 +41,7 @@ Medarbejderen kan ikke:
 
 - Oprette eller lukke en sag.
 - Oprette eller fjerne Work Items.
-- Vælge en anden tenant.
+- Skifte virksomhedskontekst.
 - Registrere tid på en lukket sag.
 - Godkende eller låse egne registreringer.
 - Redigere en `Approved` eller `Locked` registrering.
@@ -50,9 +50,9 @@ Medarbejderen kan ikke:
 
 Manageren kan:
 
-- Oprette og vedligeholde sager i egen tenant.
-- Oprette og vedligeholde Work Items på sager i egen tenant.
-- Se medarbejdernes registreringer i egen tenant løbende.
+- Oprette og vedligeholde sager i virksomheden.
+- Oprette og vedligeholde Work Items på virksomhedens sager.
+- Se medarbejdernes registreringer i virksomheden løbende.
 - Godkende eller afvise den enkelte `TimeEntry`.
 - Låse godkendte `TimeEntry`-objekter.
 - Lukke og genåbne sager.
@@ -63,26 +63,24 @@ Manageren skal ikke godkende hver registrering, før medarbejderen kan gemme den
 
 Administratoren har de samme funktioner som manageren og kan desuden administrere brugere og roller efter de gældende regler.
 
-Administratorens handlinger er altid begrænset til egen tenant.
+Administratorens handlinger foregår inden for den ene virksomhed.
 
 ---
 
-## 2. Tenant og adgangsafgrænsning
+## 2. Virksomhed og adgangsafgrænsning
 
-OrdreFlow er et multi-tenant-system. Alle brugere, sager, Work Items, TimeSheets og TimeEntries hører til en tenant.
-
-En bruger må kun arbejde med data fra sin egen tenant.
+OrdreFlow bruges af én virksomhed. Alle brugere, sager, Work Items, TimeSheets og TimeEntries hører til den samme virksomhed.
 
 Ved enhver skrivehandling kontrolleres blandt andet:
 
 - Den aktuelle bruger er identificeret af backend.
 - Den aktuelle bruger er aktiv.
-- Brugerens tenant matcher objektets tenant.
+- Brugeren arbejder inden for virksomhedens fælles datagrundlag.
 - Medarbejderen kun arbejder på sit eget `TimeSheet`.
-- Manageren eller administratoren kun godkender entries i egen tenant.
-- Et ID fra et request ikke kan bruges til at hente eller ændre data fra en anden tenant.
+- Manageren eller administratoren godkender entries inden for virksomheden.
+- Et ID fra et request må stadig ikke kunne bruges til at hente eller ændre data, som brugeren ikke har adgang til.
 
-`TenantId` skal komme fra den aktuelle bruger eller backendens kontekst. Den må ikke vælges frit i medarbejderens brugergrænseflade.
+Virksomheden er fastlagt af systemets konfiguration og skal ikke vælges i brugergrænsefladen.
 
 ---
 
@@ -100,7 +98,7 @@ Ved oprettelsen kontrollerer systemet, at brugeren:
 
 - Er aktiv.
 - Har rollen `Manager` eller `Admin`.
-- Opretter sagen i sin egen tenant.
+- Opretter sagen i virksomheden.
 - Angiver et gyldigt sagsnavn.
 
 En ny sag får status:
@@ -111,7 +109,7 @@ Open
 
 En `Open` sag kan indeholde Work Items og kan bruges til nye tidsregistreringer.
 
-Resultatet for manageren er, at sagen kan ses i sagsoversigten. Resultatet for medarbejderen er, at sagen senere kan vælges i tidsregistreringskalenderen, hvis medarbejderen har adgang til den gennem backendens tenant-filtrering.
+Resultatet for manageren er, at sagen kan ses i sagsoversigten. Resultatet for medarbejderen er, at sagen senere kan vælges i tidsregistreringskalenderen, hvis medarbejderen har adgang til den gennem backendens rolle- og ejerskabskontrol.
 
 ---
 
@@ -233,9 +231,9 @@ Domain Service kontrollerer regler, der går på tværs af flere aggregates:
 
 - `TimeSheet` findes.
 - Medarbejderen ejer `TimeSheet`.
-- Medarbejderen tilhører samme tenant som `TimeSheet`.
+- Medarbejderen ejer det pågældende `TimeSheet`.
 - Medarbejderen er aktiv.
-- Sagen tilhører samme tenant som `TimeSheet`.
+- Sagen er en del af virksomhedens fælles datagrundlag.
 - Sagen er åben.
 - Work Item tilhører den valgte sag.
 
@@ -309,7 +307,7 @@ Ugens total                          7,5 timer
 
 ## 9. Managerens løbende oversigt
 
-Manageren eller administratoren kan løbende se medarbejdernes registreringer i egen tenant.
+Manageren eller administratoren kan løbende se medarbejdernes registreringer i virksomheden.
 
 Eksempel:
 
@@ -376,7 +374,7 @@ Approved
 Locked
 ```
 
-En medarbejder fra en anden tenant kan ikke redigere entry’en, selv om personen kender dens ID.
+En medarbejder kan ikke redigere en anden brugers entry, selv om personen kender dens ID.
 
 ---
 
@@ -390,7 +388,7 @@ Ved godkendelse kontrolleres:
 
 - Manageren er aktiv.
 - Manageren har rollen `Manager` eller `Admin`.
-- Manageren tilhører samme tenant.
+- Manageren har den nødvendige rolle og er aktiv.
 - Entry’en tilhører det valgte `TimeSheet`.
 - Entry’en har status `Draft`.
 
@@ -515,7 +513,7 @@ Når sagen er genåbnet, kan nye registreringer igen oprettes, hvis de øvrige r
 | Intet Work Item valgt | Registreringen gemmes ikke. Brugeren skal vælge et Work Item. |
 | Work Item tilhører en anden sag | Registreringen afvises. |
 | Sagen er lukket | Registreringen afvises. |
-| Sagen tilhører en anden tenant | Registreringen afvises uden at lække data. |
+| Brugeren ikke har adgang til sagen | Registreringen afvises uden at lække data. |
 | Medarbejderen er inaktiv | Registreringen og ændringen afvises. |
 | Timer er 0 eller negative | Registreringen afvises. |
 | En enkelt entry er over 24 timer | Registreringen afvises. |
@@ -525,7 +523,7 @@ Når sagen er genåbnet, kan nye registreringer igen oprettes, hvis de øvrige r
 | Kommentar er over 1000 tegn | Registreringen afvises. |
 | Entry er Approved | Medarbejderen kan ikke redigere den. |
 | Entry er Locked | Medarbejderen kan ikke redigere den. |
-| Medarbejderen forsøger at bruge et fremmed ID | Backend afviser handlingen gennem tenant- og ejerskabskontrol. |
+| Medarbejderen forsøger at bruge et fremmed ID | Backend afviser handlingen gennem ejerskabs- og adgangskontrol. |
 
 ---
 
@@ -533,13 +531,13 @@ Når sagen er genåbnet, kan nye registreringer igen oprettes, hvis de øvrige r
 
 | Situation | Resultat |
 |---|---|
-| Manager forsøger at se en anden tenant | Ingen adgang til data. |
+| Manager forsøger at se data uden den nødvendige adgang | Ingen adgang til data. |
 | Employee forsøger at godkende | Handlingen afvises. |
 | Inaktiv manager forsøger at godkende | Handlingen afvises. |
 | Manager forsøger at godkende en allerede godkendt entry | Handlingen afvises. |
 | Manager forsøger at låse en Draft entry | Handlingen afvises. |
 | Manager forsøger at låse en Rejected entry | Handlingen afvises. |
-| Manager forsøger at godkende en entry fra en anden tenant | Handlingen afvises. |
+| Manager forsøger at godkende en entry uden den nødvendige adgang | Handlingen afvises. |
 | Manager forsøger at godkende en entry, der ikke tilhører timesheet | Handlingen afvises. |
 | Manager lukker en sag, der allerede er lukket | Handlingen afvises. |
 | Employee forsøger at lukke en sag | Handlingen afvises. |
@@ -551,7 +549,7 @@ Når sagen er genåbnet, kan nye registreringer igen oprettes, hvis de øvrige r
 ### Forudsætninger
 
 ```text
-Tenant: VS Automatic
+Virksomhed: VS Automatic
 Manager: Mads
 Medarbejder: Peter
 ```
@@ -663,7 +661,7 @@ Manageren ved:
 Virksomheden får:
 
 - Sporbare tidsregistreringer.
-- Tenant-isolerede data.
+- Data samlet for én virksomhed.
 - Godkendelse på den enkelte registrering.
 - Historik over godkendte og låste entries.
 - Mulighed for daglige, ugentlige og månedlige summer.

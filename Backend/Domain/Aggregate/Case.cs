@@ -9,7 +9,6 @@ public sealed class Case
 	private readonly List<WorkCase> _workItems = new();
 
 	public CaseId Id { get; private set; } = null!;
-	public TenantId TenantId { get; private set; } = null!;
 	public CaseName Name { get; private set; } = null!;
 	public CaseStatus Status { get; private set; }
 	public DateTime CreatedAt { get; private set; }
@@ -20,39 +19,36 @@ public sealed class Case
 	{
 	}
 
-	private Case(TenantId tenantId, CaseName name)
+	private Case(CaseName name)
 	{
 		Id = CaseId.Create(Guid.NewGuid()).Value;
-		TenantId = tenantId;
 		Name = name;
 		Status = CaseStatus.Open;
 		CreatedAt = DateTime.UtcNow;
 	}
 
 	public static Result<Case> Create(
-		TenantId actorTenantId,
 		UserRole actorRole,
 		UserStatus actorStatus,
 		CaseName name)
 	{
-		if (actorTenantId is null || actorStatus != UserStatus.Active ||
+		if (actorStatus != UserStatus.Active ||
 			(actorRole is not UserRole.Manager and not UserRole.Admin))
 			return Result<Case>.Failure(new Error("CaseCreationForbidden", "Only an active manager or admin can create cases."));
 
 		if (name is null)
 			return Result<Case>.Failure(new Error("CaseNameRequired", "Case name is required."));
 
-		return Result<Case>.Success(new Case(actorTenantId, name));
+		return Result<Case>.Success(new Case(name));
 	}
 
 	public Result Rename(
-		TenantId actorTenantId,
 		UserRole actorRole,
 		UserStatus actorStatus,
 		CaseName name)
 	{
-		if (!CanManage(actorTenantId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can rename cases."));
+		if (!CanManage(actorRole, actorStatus))
+			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can rename cases."));
 
 		if (name is null)
 			return Result.Failure(new Error("CaseNameRequired", "Case name is required."));
@@ -64,10 +60,10 @@ public sealed class Case
 		return Result.Success();
 	}
 
-	public Result Close(TenantId actorTenantId, UserRole actorRole, UserStatus actorStatus)
+	public Result Close(UserRole actorRole, UserStatus actorStatus)
 	{
-		if (!CanManage(actorTenantId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can close cases."));
+		if (!CanManage(actorRole, actorStatus))
+			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can close cases."));
 
 		if (Status == CaseStatus.Closed)
 			return Result.Failure(new Error("CaseAlreadyClosed", "Case is already closed."));
@@ -77,10 +73,10 @@ public sealed class Case
 		return Result.Success();
 	}
 
-	public Result Reopen(TenantId actorTenantId, UserRole actorRole, UserStatus actorStatus)
+	public Result Reopen(UserRole actorRole, UserStatus actorStatus)
 	{
-		if (!CanManage(actorTenantId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can reopen cases."));
+		if (!CanManage(actorRole, actorStatus))
+			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can reopen cases."));
 
 		if (Status == CaseStatus.Open)
 			return Result.Failure(new Error("CaseAlreadyOpen", "Case is already open."));
@@ -141,23 +137,19 @@ public sealed class Case
 	}
 
 	private bool CanManage(
-		TenantId actorTenantId,
 		UserRole actorRole,
 		UserStatus actorStatus) =>
-		actorTenantId is not null &&
-		actorTenantId == TenantId &&
 		actorStatus == UserStatus.Active &&
 		(actorRole is UserRole.Manager or UserRole.Admin);
 
 	public Result<WorkCase> AddWorkItem(
-		TenantId actorTenantId,
 		UserRole actorRole,
 		UserStatus actorStatus,
 		string title,
 		string description)
 	{
-		if (!CanManage(actorTenantId, actorRole, actorStatus))
-			return Result<WorkCase>.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can create work items."));
+		if (!CanManage(actorRole, actorStatus))
+			return Result<WorkCase>.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can create work items."));
 
 		var workItemResult = WorkCase.Create(title, description);
 		if (workItemResult.IsFailure)
@@ -170,13 +162,12 @@ public sealed class Case
 	}
 
 	public Result RemoveWorkItem(
-		TenantId actorTenantId,
 		UserRole actorRole,
 		UserStatus actorStatus,
 		WorkId workId)
 	{
-		if (!CanManage(actorTenantId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin from this tenant can remove work items."));
+		if (!CanManage(actorRole, actorStatus))
+			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can remove work items."));
 
 		return RemoveWorkItem(workId);
 	}
