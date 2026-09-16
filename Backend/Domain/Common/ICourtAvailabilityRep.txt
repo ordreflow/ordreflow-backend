@@ -1,6 +1,0 @@
-﻿public interface IExternalCourtAvailabilityService
-{
-    Task<bool> IsCourtAvailableAsync(CourtId courtId, 
-                                     DateTime from, 
-                                     DateTime to);
-}

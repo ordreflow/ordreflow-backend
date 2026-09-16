@@ -29,10 +29,6 @@ public class AppDbContext : DbContext
                 .HasColumnName("id")
                 .ValueGeneratedOnAdd();
 
-            entity.Property(x => x.WorkItemId)
-                .HasColumnName("work_item_id")
-                .IsRequired();
-
             entity.Property(x => x.Date)
                 .HasColumnName("date")
                 .IsRequired();
