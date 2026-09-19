@@ -17,14 +17,12 @@ public static class DependencyInjection
         services.AddScoped<Dispatcher>();
 
         // 2. Register the Decorator, passing the real Dispatcher into it as the inner ICommandDispatcher
-        services.AddScoped<ICommandDispatcher, Dispatcher>();
-       /* services.AddScoped<ICommandDispatcher>(provider =>
+        services.AddScoped<ICommandDispatcher>(provider =>
         {
             var innerDispatcher = provider.GetRequiredService<Dispatcher>();
             var unitOfWork = provider.GetRequiredService<IUnitOfWork>();
             return new UnitOfWorkCommandDispatcherDecorator(innerDispatcher, unitOfWork);
         });
-        */
 
         // 3. Register all ICommandHandler implementations in this assembly
         var assembly = Assembly.GetExecutingAssembly();
