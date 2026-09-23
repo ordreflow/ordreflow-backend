@@ -33,6 +33,7 @@ builder.Services.AddApplication();
 builder.Services.AddMappings();
 // Repositories
 builder.Services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddControllers();
 
 // Swagger
