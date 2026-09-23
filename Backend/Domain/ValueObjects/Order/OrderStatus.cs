@@ -1,6 +1,6 @@
 namespace Domain.ValueObjects;
 
-public enum CaseStatus
+public enum OrderStatus
 {
     Open = 1,
     Closed = 2

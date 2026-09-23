@@ -1,710 +1,1003 @@
-# Forretningsproces for tidsregistrering i OrdreFlow
+# Time Registration Domain Model
 
-Dette dokument beskriver hele forretningsprocessen for tidsregistrering i OrdreFlow. Processen går fra oprettelse af sager og arbejdsopgaver til medarbejderens registrering, managerens godkendelse og den endelige låsning af de enkelte tidsregistreringer.
+Dette dokument beskriver den nuværende Domain-model og den forventede forretningsadfærd for OrdreFlow.
 
-Processen er baseret på følgende princip:
+Systemet er et single-company system. Der findes derfor ikke `Tenant`, `TenantId` eller virksomhedsskift i Domain.
+
+## Overordnet model
+
+Den centrale model består af tre Aggregate Roots:
 
 ```text
-Manager/Admin opretter grunddata
-        ->
-Medarbejderen registrerer sin egen tid
-        ->
-Registreringen gemmes straks som Draft
-        ->
-Manager/Admin kan se registreringen
-        ->
-Manager/Admin godkender den enkelte TimeEntry
-        ->
-TimeEntry bliver Approved eller Rejected
-        ->
-En Approved TimeEntry kan låses
+User
+ │
+ ├── ManagerId
+ │
+ ▼
+Order
+ └── Task[]
+
+TimeEntry
+ ├── EmployeeId
+ ├── TaskId
+ └── TimeEntryReview[]
 ```
 
-En `TimeSheet` er en månedlig beholder for medarbejderens registreringer. Den enkelte `TimeEntry` er den enhed, som medarbejderen opretter, redigerer og får godkendt.
+Relationerne mellem objekterne er:
+
+```text
+User.ManagerId   -> User.UserId
+
+Order.ManagerId  -> User.UserId
+
+Task.OrderId     -> Order.Id
+
+TimeEntry.EmployeeId -> User.UserId
+TimeEntry.TaskId     -> Task.TaskId
+```
+
+`Order` ejer sine `Task`-objekter, og `TimeEntry` ejer sine `TimeEntryReview`-objekter.
+
+Der bruges ikke `TimeSheet`, månedlige timesheets eller faste lønperioder som en del af Domain-modellen.
 
 ---
 
-## 1. Roller og ansvar
+# Roller
 
-### Medarbejder
+## Employee
 
-Medarbejderen kan:
+En medarbejder kan:
 
-- Logge ind og se sin egen kalender.
-- Se egne registreringer pr. dag og uge.
-- Vælge eksisterende sager og Work Items.
-- Oprette egne tidsregistreringer.
-- Redigere egne `Draft`- og `Rejected`-registreringer.
-- Se status på egne registreringer.
+* Se de Orders, som tilhører medarbejderens manager-scope.
+* Se Tasks på disse Orders.
+* Oprette en TimeEntry på en Task, som tilhører medarbejderens manager.
+* Se egne TimeEntries.
+* Se egne TimeEntries for en valgt uge.
+* Se den samlede tid for en valgt uge.
+* Redigere egne åbne eller returnerede TimeEntries.
+* Se årsagen, hvis en TimeEntry er returneret.
+* Sende en rettet TimeEntry ind igen.
 
-Medarbejderen kan ikke:
+En medarbejder kan kun registrere tid på en Task, hvis den tilhørende Order har samme manager som medarbejderens `ManagerId`.
 
-- Oprette eller lukke en sag.
-- Oprette eller fjerne Work Items.
-- Skifte virksomhedskontekst.
-- Registrere tid på en lukket sag.
-- Godkende eller låse egne registreringer.
-- Redigere en `Approved` eller `Locked` registrering.
+Den centrale adgangsregel er:
 
-### Manager
-
-Manageren kan:
-
-- Oprette og vedligeholde sager i virksomheden.
-- Oprette og vedligeholde Work Items på virksomhedens sager.
-- Se medarbejdernes registreringer i virksomheden løbende.
-- Godkende eller afvise den enkelte `TimeEntry`.
-- Låse godkendte `TimeEntry`-objekter.
-- Lukke og genåbne sager.
-
-Manageren skal ikke godkende hver registrering, før medarbejderen kan gemme den. Godkendelse sker efterfølgende.
-
-### Administrator
-
-Administratoren har de samme funktioner som manageren og kan desuden administrere brugere og roller efter de gældende regler.
-
-Administratorens handlinger foregår inden for den ene virksomhed.
+```text
+employee.ManagerId == order.ManagerId
+```
 
 ---
 
-## 2. Virksomhed og adgangsafgrænsning
+## Manager
 
-OrdreFlow bruges af én virksomhed. Alle brugere, sager, Work Items, TimeSheets og TimeEntries hører til den samme virksomhed.
+En manager kan:
 
-Ved enhver skrivehandling kontrolleres blandt andet:
+* Oprette Orders.
+* Omdøbe og vedligeholde egne Orders.
+* Lukke og genåbne egne Orders.
+* Oprette Tasks på egne Orders.
+* Ændre Tasks på egne Orders.
+* Fjerne Tasks fra egne Orders.
+* Se TimeEntries for medarbejdere i managerens scope.
+* Acceptere TimeEntries.
+* Returnere TimeEntries med en forklaring.
+* Finalisere accepterede TimeEntries.
 
-- Den aktuelle bruger er identificeret af backend.
-- Den aktuelle bruger er aktiv.
-- Brugeren arbejder inden for virksomhedens fælles datagrundlag.
-- Medarbejderen kun arbejder på sit eget `TimeSheet`.
-- Manageren eller administratoren godkender entries inden for virksomheden.
-- Et ID fra et request må stadig ikke kunne bruges til at hente eller ændre data, som brugeren ikke har adgang til.
+En manager kan kun administrere Orders, hvor:
 
-Virksomheden er fastlagt af systemets konfiguration og skal ikke vælges i brugergrænsefladen.
+```text
+order.ManagerId == manager.UserId
+```
+
+En manager kan kun reviewe en medarbejders TimeEntry, hvis medarbejderen har manageren som sin manager:
+
+```text
+employee.ManagerId == manager.UserId
+```
 
 ---
 
-## 3. Manageren opretter en sag
+## Administrator
 
-Processen starter med, at en manager eller administrator opretter en sag.
+En administrator kan:
+
+* Oprette brugere.
+* Ændre brugerroller.
+* Tilknytte medarbejdere til managers.
+* Udføre managerfunktioner, hvis systemets adgangsregler tillader det.
+
+Administratorens rettigheder til andre brugere kontrolleres af Domain-regler og Application-laget.
+
+---
+
+# Order
+
+`Order` er den overordnede ordre eller sag i systemet.
+
+En Order er et Aggregate Root og ejer sine Tasks.
 
 Eksempel:
 
 ```text
-Sag: Kunde ABC - Produktionsanlaeg
-``` 
+Order: Kunde ABC - Produktionsanlæg
 
-Ved oprettelsen kontrollerer systemet, at brugeren:
+Tasks:
+- Fejlfinding
+- Udskift printkort
+- Test anlæg
+- Dokumentation
+```
 
-- Er aktiv.
-- Har rollen `Manager` eller `Admin`.
-- Opretter sagen i virksomheden.
-- Angiver et gyldigt sagsnavn.
+En Order indeholder blandt andet:
 
-En ny sag får status:
+```text
+OrderId
+ManagerId
+Name
+Status
+CreatedAt
+ClosedAt
+Tasks
+```
+
+En Order starter som:
 
 ```text
 Open
 ```
 
-En `Open` sag kan indeholde Work Items og kan bruges til nye tidsregistreringer.
+og kan senere blive:
 
-Resultatet for manageren er, at sagen kan ses i sagsoversigten. Resultatet for medarbejderen er, at sagen senere kan vælges i tidsregistreringskalenderen, hvis medarbejderen har adgang til den gennem backendens rolle- og ejerskabskontrol.
+```text
+Closed
+```
+
+En åben Order kan:
+
+* Få nye Tasks.
+* Få Tasks fjernet.
+* Blive omdøbt.
+* Modtage nye TimeEntries.
+
+En lukket Order:
+
+* Kan ikke få nye Tasks.
+* Kan ikke få Tasks fjernet.
+* Kan ikke omdøbes.
+* Accepterer ikke nye TimeEntries.
+
+Kun en aktiv manager kan administrere egne Orders.
+
+En aktiv administrator kan administrere Orders efter systemets adgangsregler.
 
 ---
 
-## 4. Manageren opretter Work Items
+# Task
 
-Manageren eller administratoren opretter de konkrete arbejdsopgaver på sagen.
+`Task` repræsenterer det konkrete arbejde, der udføres på en Order.
+
+`Task` er en Entity inde i `Order`-aggregatet og har derfor ikke sit eget Aggregate Root.
+
+En Task indeholder blandt andet:
+
+```text
+TaskId
+OrderId
+Title
+Description
+```
+
+Relationen er:
+
+```text
+Order
+ └── Task
+      └── OrderId
+```
+
+En Task tilhører præcis én Order.
 
 Eksempel:
 
 ```text
-Sag: Kunde ABC - Produktionsanlaeg
+Order: Kunde ABC - Produktionsanlæg
 
-Work Items:
-- Fejlfinding
-- Udskift printkort
-- Test anlaeg
-- Dokumentation
+Task:
+  "Udskift printkort"
 ```
 
-Et Work Item har blandt andet:
+Tasken kan ikke eksistere som en del af flere Orders.
 
-- `WorkId`
-- `CaseId`
-- Titel
-- Beskrivelse
+Når en Task oprettes gennem:
 
-Et Work Item tilhører præcis én sag. Det er ikke nødvendigvis tildelt én bestemt medarbejder. Flere medarbejdere kan registrere tid på samme Work Item.
+```text
+Order.AddWorkItem(...)
+```
 
-Når et Work Item tilføjes, kontrollerer `Case` blandt andet:
+oprettes Tasken og tilknyttes Orderens `OrderId`.
 
-- Sagen er åben.
-- Work Item har en gyldig titel.
-- Beskrivelsen er gyldig.
-- Work Item ikke allerede er knyttet til en anden sag.
-
-Hvis sagen er lukket, kan der ikke tilføjes eller fjernes Work Items.
+I Domain-koden bruges `Task` som navnet på entiteten. Selvom navnet kan kollidere med `System.Threading.Tasks.Task`, håndteres dette med namespace alias, hvor det er nødvendigt.
 
 ---
 
-## 5. Medarbejderen åbner sin kalender
+# Manager-scope
 
-Når medarbejderen logger ind, åbner systemet medarbejderens kalender eller ugeoversigt.
+Der gemmes ikke individuelle medarbejdertildelinger på Task.
 
-Systemet finder automatisk det relevante månedlige `TimeSheet` for medarbejderen. Medarbejderen skal ikke selv oprette eller vælge et `TimeSheet`.
+I stedet bestemmes medarbejderens adgang gennem relationen:
 
-Hvis det relevante `TimeSheet` ikke findes, opretter Application-laget det automatisk gennem Domain-reglerne.
-
-Kalenderen viser:
-
-- Den aktuelle uge.
-- Mulighed for forrige og næste uge.
-- Mulighed for at gå tilbage til den aktuelle uge.
-- Medarbejderens egne registreringer pr. dag.
-- Dagens total.
-- Ugens total.
-- Status for hver `TimeEntry`.
+```text
+User.ManagerId
+        │
+        ▼
+Order.ManagerId
+```
 
 Eksempel:
 
 ```text
-Mine timer - Uge 37
+Manager Mads
+     │
+     ├── Peter
+     └── Anna
 
-Mandag 07/09
-Kunde ABC - Produktionsanlaeg
-Udskift printkort                    4,0 timer    Draft
-Dagens total                         4,0 timer
+Order 100
+ManagerId = Mads
 
-Tirsdag 08/09
-Ingen registreringer
-
-Ugens total                          4,0 timer
+Task 42
+OrderId = Order 100
 ```
 
-Kalenderen bruger backendens data som source of truth. Den lokale brugergrænseflade må ikke være den permanente kilde til registreringerne.
+Både Peter og Anna kan arbejde på Tasks på Order 100, fordi deres `ManagerId` matcher Orderens `ManagerId`.
+
+Der findes derfor ikke:
+
+```text
+Task.AssignedEmployeeIds
+```
+
+eller tilsvarende individuelle tildelinger på Task.
 
 ---
 
-## 6. Medarbejderen opretter en TimeEntry
+# TimeEntry
 
-Medarbejderen trykker på `Registrer tid` og udfylder formularen.
+`TimeEntry` er en Aggregate Root og repræsenterer selve tidsregistreringen.
+
+En TimeEntry tilhører en medarbejder og peger på den konkrete Task, som arbejdet blev udført på.
+
+En TimeEntry indeholder:
+
+```text
+TimeEntryId
+EmployeeId
+TaskId
+Date
+Hours
+Comment
+Status
+Reviews
+```
+
+Relationerne er:
+
+```text
+TimeEntry.EmployeeId -> User.UserId
+TimeEntry.TaskId     -> Task.TaskId
+Task.OrderId         -> Order.Id
+```
+
+TimeEntry behøver derfor ikke selv indeholde:
+
+```text
+OrderId
+```
+
+fordi Order kan findes gennem Task:
+
+```text
+TimeEntry
+    │
+    └── TaskId
+          │
+          ▼
+        Task
+          │
+          └── OrderId
+                │
+                ▼
+              Order
+```
+
+TimeEntry skal heller ikke indeholde:
+
+```text
+TimeSheetId
+Year
+Month
+PayrollPeriodId
+```
+
+---
+
+# Oprettelse af TimeEntry
+
+`TimeEntry.Create()` er ansvarlig for at oprette selve TimeEntry-domainobjektet og validere de regler, der kun vedrører TimeEntry.
 
 Eksempel:
 
-| Felt | Eksempel |
-|---|---|
-| Sag | Kunde ABC - Produktionsanlaeg |
-| Work Item | Udskift printkort |
-| Dato | 09-09-2026 |
-| Timer | 7,5 |
-| Starttid | 08:00 |
-| Sluttid | 15:30 |
-| Kommentar | Udskiftede og testede printkort |
-
-Medarbejderen vælger først sagen. Derefter viser systemet kun Work Items, der tilhører den valgte sag.
-
-Medarbejderen kan ikke oprette en ny sag eller et nyt Work Item fra formularen.
-
-Hvis virksomheden har brug for interne registreringer, skal manageren oprette en fælles sag, for eksempel:
-
-```text
-Sag: Intern tid
-
-Work Items:
-- Administration
-- Møder
-- Kursus
-- Kørsel
+```csharp
+var timeEntryResult = TimeEntry.Create(
+    employee.UserId,
+    task.TaskId,
+    command.Date,
+    command.Hours,
+    command.Comment);
 ```
 
-En almindelig registrering kræver derfor stadig en sag og et Work Item.
+`TimeEntry.Create()` kontrollerer blandt andet:
 
----
+* EmployeeId findes.
+* TaskId findes.
+* Datoen er gyldig.
+* Timerne er større end 0.
+* Timerne overstiger ikke 24 timer.
+* Kommentaren overholder maksimal længde.
 
-## 7. Validering af en ny registrering
+Hvis oprettelsen lykkes, returneres:
 
-Når medarbejderen trykker `Gem`, sendes requesten til backend. Application-laget henter de relevante aggregates og kalder `TimeRegistrationDomainService`.
+```text
+Result<TimeEntry>
+```
 
-Domain Service kontrollerer regler, der går på tværs af flere aggregates:
-
-- `TimeSheet` findes.
-- Medarbejderen ejer `TimeSheet`.
-- Medarbejderen ejer det pågældende `TimeSheet`.
-- Medarbejderen er aktiv.
-- Sagen er en del af virksomhedens fælles datagrundlag.
-- Sagen er åben.
-- Work Item tilhører den valgte sag.
-
-`TimeEntry` kontrollerer sine egne regler:
-
-- Work Item er påkrævet.
-- Dato er påkrævet.
-- Timer er større end 0.
-- Timer er højst 24 for en enkelt entry.
-- Starttid og sluttid er gyldige.
-- Hvis begge tider er udfyldt, er sluttid efter starttid.
-- Kommentar er højst 1000 tegn.
-
-`TimeSheet` kontrollerer sine egne regler:
-
-- Datoen ligger i samme år og måned som `TimeSheet`.
-- Den samlede tid for datoen overstiger ikke 24 timer.
-- Entry kan knyttes til det aktuelle `TimeSheet`.
-
-Valideringen sker på backend og i Domain. Brugergrænsefladens validering er kun en hjælp til brugeren og må ikke være den eneste beskyttelse.
-
----
-
-## 8. Succesfuld gemning
-
-Hvis alle regler er opfyldt, gemmes `TimeEntry` straks i databasen.
-
-Status bliver:
+med en TimeEntry i status:
 
 ```text
 Draft
 ```
 
-Det er vigtigt, at gemning og godkendelse er to forskellige handlinger:
+`TimeEntry.Create()` gemmer ikke noget i databasen.
 
-```text
-Gem registrering:
-TimeEntry gemmes
-TimeEntry.Status = Draft
-Manager behøver ikke være til stede
-```
-
-Der ændres ikke automatisk status til `Approved`.
-
-Efter gemning henter frontend den valgte uge igen fra backend. Den nye registrering vises derefter i kalenderen.
-
-Eksempel:
-
-```text
-Onsdag 09/09
-Kunde ABC - Produktionsanlaeg
-Udskift printkort                    7,5 timer    Draft
-Dagens total                         7,5 timer
-Ugens total                          7,5 timer
-```
-
-### Resultat for medarbejderen
-
-- Registreringen er gemt.
-- Den kan ses i kalenderen.
-- Den har status `Draft`.
-- Medarbejderen kan fortsætte med flere registreringer.
-
-### Resultat for manageren
-
-- Den nye registrering kan hentes i managerens oversigt.
-- Manageren kan se den, selvom den ikke er godkendt.
-- Manageren behøver ikke godkende registreringen, før den gemmes.
+Persistence sker først senere gennem Repository og Unit of Work.
 
 ---
 
-## 9. Managerens løbende oversigt
+# Registrering af tid
 
-Manageren eller administratoren kan løbende se medarbejdernes registreringer i virksomheden.
+Registrering af tid involverer flere Aggregate Roots og koordineres derfor af `TimeRegistrationDomainService`.
 
-Eksempel:
+Processen er:
 
 ```text
-Medarbejder: Peter Hansen
-Dato: 09-09-2026
-Sag: Kunde ABC - Produktionsanlaeg
-Work Item: Udskift printkort
-Timer: 7,5
-Status: Draft
+1. Frontend sender TimeEntry-request.
+2. WebAPI mapper request til Command.
+3. Application sender Command gennem ICommandDispatcher.
+4. Handler finder den aktuelle User.
+5. Handler finder den relevante Order og Task.
+6. Handler kalder TimeEntry.Create().
+7. TimeEntry oprettes i memory med status Draft.
+8. TimeRegistrationDomainService validerer registreringen.
+9. Order.CanRegisterTime() kontrollerer Order-specifikke regler.
+10. Repository tilføjer TimeEntry.
+11. UnitOfWork gemmer ændringen i databasen.
 ```
 
-Managerens oversigt kan filtreres på:
-
-- Medarbejder.
-- Dato.
-- Uge.
-- Sag.
-- Work Item.
-- Status.
-
-En manager ser registreringen ved næste hentning af data. Automatisk opdatering uden refresh kræver senere polling eller en realtidsmekanisme; det ændrer ikke den underliggende forretningsproces.
-
-Manageren kan se medarbejdernes entries, men kan ikke ændre medarbejderens registrering direkte som en almindelig redigering. Manageren bruger i stedet godkend, afvis eller lås.
-
----
-
-## 10. Redigering før godkendelse
-
-Medarbejderen kan redigere sin egen `TimeEntry`, når status er:
+Flowet kan illustreres således:
 
 ```text
-Draft
-```
-
-En afvist entry med status `Rejected` kan også åbnes igen og rettes.
-
-Medarbejderen kan ændre:
-
-- Timer.
-- Dato.
-- Starttid.
-- Sluttid.
-- Kommentar.
-
-Alle ændringer går gennem `TimeSheet`, som kontrollerer ejerskab, status, månedsperiode og daglig timegrænse.
-
-### Eksempel på redigering
-
-```text
-Før:
-7,5 timer, kommentar: Udskiftede printkort
-
-Efter:
-8,0 timer, kommentar: Udskiftede og testede printkort
-```
-
-Efter en vellykket ændring er status fortsat `Draft`, og kalenderen hentes igen fra backend.
-
-En medarbejder kan ikke redigere:
-
-```text
-Approved
-Locked
-```
-
-En medarbejder kan ikke redigere en anden brugers entry, selv om personen kender dens ID.
-
----
-
-## 11. Godkendelse af den enkelte TimeEntry
-
-Manager eller administrator åbner sin oversigt og vælger en konkret registrering.
-
-Godkendelsen gælder kun den valgte `TimeEntry`, ikke hele medarbejderens månedlige `TimeSheet`.
-
-Ved godkendelse kontrolleres:
-
-- Manageren er aktiv.
-- Manageren har rollen `Manager` eller `Admin`.
-- Manageren har den nødvendige rolle og er aktiv.
-- Entry’en tilhører det valgte `TimeSheet`.
-- Entry’en har status `Draft`.
-
-Ved succes sker statusændringen:
-
-```text
-Draft -> Approved
-```
-
-### Resultat for manageren
-
-- Registreringen vises som godkendt.
-- Den kan ikke længere redigeres af medarbejderen.
-- Den kan senere låses.
-
-### Resultat for medarbejderen
-
-- Kalenderen viser status `Approved`.
-- Redigeringsknappen fjernes eller deaktiveres.
-- Registreringen er stadig synlig som historik.
-
-En medarbejder kan ikke godkende sin egen entry.
-
----
-
-## 12. Afvisning og rettelse
-
-Hvis en manager finder en fejl, afvises den enkelte entry.
-
-Eksempel på årsag:
-
-```text
-Kommentar mangler.
-Forkert Work Item.
-Forkert antal timer.
-Registreringen ligger på en forkert dato.
-```
-
-Statusændringen er:
-
-```text
-Draft -> Rejected
-```
-
-Efter afvisning kan medarbejderen se:
-
-- At entry’en er afvist.
-- Eventuel afvisningsforklaring, hvis den er gemt af systemet.
-- Hvilke oplysninger der skal rettes.
-
-Medarbejderen retter entry’en og gemmer den igen. Når den er rettet, kan den sendes til ny behandling.
-
-Det tilladte forløb er:
-
-```text
-Draft -> Rejected -> Draft -> Approved
-```
-
-En afvist entry bliver ikke automatisk godkendt efter redigering. Manageren skal godkende den igen.
-
----
-
-## 13. Låsning af en godkendt registrering
-
-Når en entry er godkendt, kan manager eller administrator låse den.
-
-Statusændringen er:
-
-```text
-Approved -> Locked
-```
-
-En låst entry er endelig:
-
-- Medarbejderen kan ikke redigere den.
-- Manageren kan ikke ændre den gennem almindelig redigering.
-- Den kan bruges som afsluttet historik og rapporteringsgrundlag.
-
-Det samlede statusflow er:
-
-```text
-Draft -----------------> Approved -----------------> Locked
-  |
-  +---------------------> Rejected -----------------> Draft
-```
-
----
-
-## 14. Lukning af en sag
-
-Når arbejdet på sagen er afsluttet, kan Manager eller Admin lukke sagen.
-
-Statusændringen er:
-
-```text
-Open -> Closed
-```
-
-Efter lukning:
-
-- Nye Work Items kan ikke oprettes.
-- Work Items kan ikke fjernes.
-- Sagen kan ikke omdøbes.
-- Nye tidsregistreringer på sagen afvises.
-- Eksisterende TimeEntries bevares som historik.
-
-En lukket sag kan genåbnes af Manager eller Admin:
-
-```text
-Closed -> Open
-```
-
-Når sagen er genåbnet, kan nye registreringer igen oprettes, hvis de øvrige regler er opfyldt.
-
----
-
-## 15. Alle fejlscenarier for medarbejderen
-
-| Situation | Resultat |
-|---|---|
-| Ingen sag valgt | Registreringen gemmes ikke. Brugeren skal vælge en sag. |
-| Intet Work Item valgt | Registreringen gemmes ikke. Brugeren skal vælge et Work Item. |
-| Work Item tilhører en anden sag | Registreringen afvises. |
-| Sagen er lukket | Registreringen afvises. |
-| Brugeren ikke har adgang til sagen | Registreringen afvises uden at lække data. |
-| Medarbejderen er inaktiv | Registreringen og ændringen afvises. |
-| Timer er 0 eller negative | Registreringen afvises. |
-| En enkelt entry er over 24 timer | Registreringen afvises. |
-| Dagens samlede timer er over 24 | Registreringen afvises. |
-| Dato ligger i en anden måned | Registreringen afvises af `TimeSheet`. |
-| Sluttid er før eller lig med starttid | Registreringen afvises. |
-| Kommentar er over 1000 tegn | Registreringen afvises. |
-| Entry er Approved | Medarbejderen kan ikke redigere den. |
-| Entry er Locked | Medarbejderen kan ikke redigere den. |
-| Medarbejderen forsøger at bruge et fremmed ID | Backend afviser handlingen gennem ejerskabs- og adgangskontrol. |
-
----
-
-## 16. Alle fejlscenarier for manageren
-
-| Situation | Resultat |
-|---|---|
-| Manager forsøger at se data uden den nødvendige adgang | Ingen adgang til data. |
-| Employee forsøger at godkende | Handlingen afvises. |
-| Inaktiv manager forsøger at godkende | Handlingen afvises. |
-| Manager forsøger at godkende en allerede godkendt entry | Handlingen afvises. |
-| Manager forsøger at låse en Draft entry | Handlingen afvises. |
-| Manager forsøger at låse en Rejected entry | Handlingen afvises. |
-| Manager forsøger at godkende en entry uden den nødvendige adgang | Handlingen afvises. |
-| Manager forsøger at godkende en entry, der ikke tilhører timesheet | Handlingen afvises. |
-| Manager lukker en sag, der allerede er lukket | Handlingen afvises. |
-| Employee forsøger at lukke en sag | Handlingen afvises. |
-
----
-
-## 17. Samlet eksempel fra start til slut
-
-### Forudsætninger
-
-```text
-Virksomhed: VS Automatic
-Manager: Mads
-Medarbejder: Peter
-```
-
-### Grunddata
-
-Mads opretter:
-
-```text
-Sag: Kunde ABC - Produktionsanlaeg
-Work Item: Udskift printkort
-```
-
-### Medarbejderens registrering
-
-Peter logger ind og opretter:
-
-```text
-Dato: 09-09-2026
-Sag: Kunde ABC - Produktionsanlaeg
-Work Item: Udskift printkort
-Timer: 7,5
-Starttid: 08:00
-Sluttid: 15:30
-Kommentar: Udskiftede og testede printkort
-```
-
-Systemet validerer registreringen og gemmer:
-
-```text
-TimeEntry.Status = Draft
-```
-
-Peter kan straks se registreringen i sin kalender. Mads kan straks se registreringen i manageroversigten.
-
-### Managerens behandling
-
-Mads ser, at registreringen er korrekt, og godkender den:
-
-```text
-Draft -> Approved
-```
-
-Peter kan nu se registreringen som `Approved`, men kan ikke længere ændre den.
-
-Når registreringen er endeligt behandlet, låser Mads den:
-
-```text
-Approved -> Locked
-```
-
-### Afslutning
-
-Når arbejdet på sagen er færdigt, lukker Mads sagen:
-
-```text
-Open -> Closed
-```
-
-Den eksisterende registrering bliver bevaret som historik, men nye registreringer på sagen er ikke længere tilladt.
-
----
-
-## 18. Slutresultat for brugerne
-
-### Medarbejderen ser
-
-```text
-Min kalender
-
-09-09-2026
-Kunde ABC - Produktionsanlaeg
-Udskift printkort
-7,5 timer
-Status: Locked
-
-Ugens total: 7,5 timer
-```
-
-Medarbejderen ved:
-
-- Hvilken sag tiden er registreret på.
-- Hvilket Work Item tiden er registreret på.
-- Hvilken dag og uge tiden tilhører.
-- Om registreringen stadig kan rettes.
-- Om den er godkendt eller afsluttet.
-
-### Manageren ser
-
-```text
-Medarbejder: Peter Hansen
-Sag: Kunde ABC - Produktionsanlaeg
-Work Item: Udskift printkort
-Dato: 09-09-2026
-Timer: 7,5
-Status: Locked
-```
-
-Manageren ved:
-
-- Hvem der har registreret tiden.
-- Hvilken sag og opgave tiden vedrører.
-- Om registreringen er Draft, Approved, Rejected eller Locked.
-- Hvilke entries der mangler behandling.
-- Hvilke registreringer der er endeligt låst.
-
-### Virksomheden ser
-
-Virksomheden får:
-
-- Sporbare tidsregistreringer.
-- Data samlet for én virksomhed.
-- Godkendelse på den enkelte registrering.
-- Historik over godkendte og låste entries.
-- Mulighed for daglige, ugentlige og månedlige summer.
-- En proces, hvor medarbejderen ikke er afhængig af manageren for at gemme sin tid.
-
----
-
-## 19. Teknisk ansvar i arkitekturen
-
-Forretningsprocessen gennemføres gennem den eksisterende arkitektur:
-
-```text
-Blazor / klient
-        ->
-API Request
-        ->
-ObjectMapper
-        ->
+WebAPI
+   │
+   ▼
 Command
-        ->
+   │
+   ▼
+CreateTimeEntryHandler
+   │
+   ├── Hent User
+   │
+   ├── Hent Order/Task
+   │
+   ├── TimeEntry.Create()
+   │       │
+   │       ▼
+   │    TimeEntry
+   │    Status = Draft
+   │
+   ├── TimeRegistrationDomainService.Register()
+   │       │
+   │       ▼
+   │    Order.CanRegisterTime()
+   │
+   ├── TimeEntryRepository.AddAsync()
+   │
+   └── UnitOfWork.SaveChangesAsync()
+```
+
+---
+
+# Order.CanRegisterTime()
+
+`Order.CanRegisterTime()` opretter ikke en TimeEntry.
+
+Metoden validerer, om en allerede oprettet TimeEntry må registreres på Orderen.
+
+Den kontrollerer blandt andet:
+
+* Order er åben.
+* Den valgte Task findes på Orderen.
+* Medarbejderen har adgang til Orderens manager-scope.
+
+Eksempel:
+
+```csharp
+var result = order.CanRegisterTime(
+    timeEntry.TaskId,
+    employee.UserId,
+    employee.ManagerId);
+```
+
+Metoden returnerer enten:
+
+```text
+Result.Success()
+```
+
+eller:
+
+```text
+Result.Failure(...)
+```
+
+Selve TimeEntry'en er allerede oprettet af:
+
+```text
+TimeEntry.Create()
+```
+
+Hvis `CanRegisterTime()` returnerer en fejl, stopper Application-flowet, og TimeEntry'en gemmes ikke.
+
+---
+
+# Manager-scope-reglen
+
+Den vigtigste regel ved tidsregistrering er:
+
+```text
+employee.ManagerId == order.ManagerId
+```
+
+For at kunne kontrollere dette skal backend kende:
+
+```text
+User
+Order
+Task
+```
+
+Et `TaskId` fra en HTTP-request er derfor ikke nok alene.
+
+Application skal hente den relevante Order og kontrollere, at Tasken faktisk tilhører Orderen.
+
+Eksempel:
+
+```text
+Employee
+ManagerId = Mads
+
+Order
+ManagerId = Mads
+
+Task
+OrderId = Order 100
+```
+
+Registreringen er tilladt.
+
+Hvis:
+
+```text
+Employee
+ManagerId = Anders
+
+Order
+ManagerId = Mads
+```
+
+afvises registreringen.
+
+---
+
+# Statusflow
+
+TimeEntry-status følger dette flow:
+
+```text
+Draft
+  ├── Returned -> Draft
+  └── Accepted -> Finalized
+```
+
+Status betyder:
+
+### Draft
+
+TimeEntry er oprettet og kan behandles.
+
+### Returned
+
+En manager har returneret TimeEntry med en forklaring.
+
+Medarbejderen kan derefter redigere TimeEntry og resubmitte den:
+
+```text
+Returned -> Draft
+```
+
+### Accepted
+
+Manager har accepteret TimeEntry til fakturering eller eksport.
+
+En Accepted TimeEntry kan ikke længere redigeres af medarbejderen.
+
+### Finalized
+
+TimeEntry er endeligt behandlet.
+
+En Finalized TimeEntry kan ikke ændres.
+
+---
+
+# Redigering af TimeEntry
+
+En medarbejder kan kun redigere sin egen TimeEntry.
+
+TimeEntry kontrollerer:
+
+```text
+actorId == EmployeeId
+```
+
+Derudover skal status være:
+
+```text
+Draft
+```
+
+eller:
+
+```text
+Returned
+```
+
+Følgende egenskaber kan ændres:
+
+```text
+Hours
+Date
+Comment
+```
+
+Efter en Return kan medarbejderen rette TimeEntry og kalde:
+
+```text
+Resubmit()
+```
+
+som ændrer status:
+
+```text
+Returned -> Draft
+```
+
+---
+
+# TimeEntryReview
+
+`TimeEntryReview` er en Entity inde i `TimeEntry`-aggregatet.
+
+Den bruges til at gemme historikken over managerens behandling af en TimeEntry.
+
+Eksempel:
+
+```text
+TimeEntry
+ │
+ ├── Review: Returned
+ │       Reason: "Forkert antal timer"
+ │
+ ├── Review: Returned
+ │       Reason: "Kommentar mangler"
+ │
+ └── Review: Accepted
+```
+
+En review indeholder:
+
+```text
+TimeEntryReviewId
+Decision
+Reason
+ReviewedAt
+```
+
+Review behøver ikke selv indeholde en `TimeEntryId` i Domain-modellen, når den er en child entity i TimeEntry-aggregatet. Relationens foreign key kan håndteres af Persistence/EF Core.
+
+Mulige beslutninger er:
+
+```text
+Returned
+Accepted
+Finalized
+```
+
+`Reason` er påkrævet ved:
+
+```text
+Returned
+```
+
+---
+
+# Review af TimeEntry
+
+Når en manager reviewer en TimeEntry:
+
+```text
+1. Manageren henter relevante TimeEntries.
+2. Manageren vælger en Draft-entry.
+3. Domain kontrollerer managerens rolle.
+4. Domain kontrollerer managerens status.
+5. Domain kontrollerer managerens adgang til medarbejderen.
+6. Manageren accepterer eller returnerer TimeEntry.
+7. TimeEntry-status ændres.
+8. En TimeEntryReview oprettes.
+```
+
+Ved accept:
+
+```text
+Draft -> Accepted
+```
+
+Ved returnering:
+
+```text
+Draft -> Returned
+```
+
+Ved returnering skal en årsag angives.
+
+Medarbejderen kan derefter se årsagen, rette sin TimeEntry og resubmitte den:
+
+```text
+Returned -> Draft
+```
+
+En manager kan kun finalisere en accepteret TimeEntry:
+
+```text
+Accepted -> Finalized
+```
+
+---
+
+# Ugevisning og totaler
+
+Der findes ikke længere en `TimeSheet`-metode til ugevisning.
+
+Ugevisning implementeres som en query i Application/Persistence.
+
+Queryen filtrerer på:
+
+```text
+EmployeeId
+Date >= WeekStart
+Date < WeekEndExclusive
+```
+
+Den ugentlige total beregnes som:
+
+```text
+SUM(TimeEntry.Hours)
+```
+
+for de TimeEntries, der matcher medarbejderen og ugeintervallet.
+
+En uge kan derfor gå på tværs af to måneder uden at kræve et nyt Domain-objekt.
+
+Eksempel:
+
+```text
+WeekStart:
+2026-09-28
+
+WeekEndExclusive:
+2026-10-05
+```
+
+Der kan dermed være entries fra både september og oktober i samme uge.
+
+---
+
+# Eksport
+
+Eksport er en query/reporting-funktion og er ikke en Domain-entitet.
+
+En autoriseret bruger vælger:
+
+```text
+FromDate
+ToDateExclusive
+```
+
+Application/Persistence henter TimeEntries med:
+
+```text
+TimeEntry.Date >= FromDate
+TimeEntry.Date < ToDateExclusive
+```
+
+Eksporten kan filtrere på:
+
+* Dato
+* Medarbejder
+* Order
+* Task
+* Status
+
+Som udgangspunkt eksporteres:
+
+```text
+Accepted
+Finalized
+```
+
+fordi disse entries er godkendt til brug uden for systemet.
+
+En eksport-række kan indeholde:
+
+```text
+Employee
+Date
+Order
+Task
+Hours
+Comment
+Status
+```
+
+Hvis systemet senere understøtter start- og sluttidspunkt, kan disse også inkluderes i eksporten. De er ikke en del af den nuværende `TimeEntry`-model.
+
+---
+
+# Domain-ansvar og lagdeling
+
+Domain indeholder forretningsreglerne, men ikke HTTP- eller databasekode.
+
+```text
+WebAPI
+  Modtager HTTP requests og returnerer HTTP responses
+
+Application
+  Koordinerer commands og queries
+
+Domain
+  Håndhæver forretningsregler,
+  aggregate-regler og statusovergange
+
+Persistence
+  Henter og gemmer data
+```
+
+Et typisk command-flow er:
+
+```text
+Frontend
+   ↓
+WebAPI Request
+   ↓
+ObjectMapper
+   ↓
+Application Command
+   ↓
 ICommandDispatcher
-        ->
-ICommandHandler
-        ->
-Repository og Domain Service
-        ->
-Aggregate Root
-        ->
-Unit of Work / Persistence
-        ->
+   ↓
+Command Handler
+   ↓
+Domain Aggregate / Domain Service
+   ↓
+Repository Interface
+   ↓
+Persistence
+   ↓
 Database
 ```
 
-Ansvarsfordelingen er:
+Ugevisning og eksport går gennem queries:
 
-- Endpoint håndterer HTTP.
-- Mapper håndterer Request/Command/Response.
-- Handler koordinerer use casen.
-- Repository henter og gemmer data.
-- `TimeRegistrationDomainService` koordinerer tværgående regler.
-- `Case` beskytter regler for sag og Work Items.
-- `TimeSheet` beskytter regler for måned, dag og entries.
-- `TimeEntry` beskytter egne værdier og statusovergange.
-- Database gemmer det godkendte resultat.
+```text
+Frontend
+   ↓
+WebAPI Query
+   ↓
+Application Query Handler
+   ↓
+Persistence Query
+   ↓
+DTO / Export Result
+```
 
-Domænet må ikke erstattes af frontend-validering. Frontend må gerne vise hurtige fejlbeskeder, men backend og Domain skal altid kontrollere reglerne igen.
+---
+
+# Aggregate-struktur
+
+Domain-modellen består af følgende Aggregate Roots:
+
+```text
+User
+Order
+TimeEntry
+```
+
+Entities:
+
+```text
+Order
+ └── Task
+
+TimeEntry
+ └── TimeEntryReview
+```
+
+Domain Service:
+
+```text
+TimeRegistrationDomainService
+```
+
+Relationerne kan illustreres således:
+
+```text
+                 User
+                  │
+          ManagerId│
+                  │
+        ┌─────────┴─────────┐
+        │                   │
+        ▼                   │
+      Order                 │
+        │                   │
+        │ contains          │
+        ▼                   │
+      Task                  │
+        │                   │
+        │ TaskId            │
+        ▼                   │
+    TimeEntry ◄─────────────┘
+        │
+        │ contains
+        ▼
+ TimeEntryReview
+```
+
+Den vigtigste adgangsregel er:
+
+```text
+Employee.ManagerId == Order.ManagerId
+```
+
+og TimeEntry peger direkte på den konkrete Task:
+
+```text
+TimeEntry.TaskId -> Task.TaskId
+```
+
+Order findes gennem:
+
+```text
+Task.OrderId -> Order.Id
+```
+
+---
+
+# Aktuelle Domain-klasser
+
+Domain bør efter ændringerne primært indeholde:
+
+```text
+Domain
+├── Aggregate
+│   ├── User.cs
+│   ├── Order.cs
+│   └── TimeEntry.cs
+│
+├── Entities
+│   ├── Task.cs
+│   └── TimeEntryReview.cs
+│
+├── Services
+│   └── TimeRegistrationDomainService.cs
+│
+├── Interfaces
+│   └── ITimeEntryRepository.cs
+│
+├── ValueObjects
+│   ├── UserId.cs
+│   ├── OrderId.cs
+│   ├── OrderName.cs
+│   ├── TaskId.cs
+│   ├── TimeEntryId.cs
+│   └── TimeEntryReviewId.cs
+│
+└── Common
+    └── IUnitOfWork
+```
+
+Der skal ikke længere bruges:
+
+```text
+Case
+CaseId
+WorkCase
+WorkId
+TimeSheet
+TimeSheetId
+TimeSheetStatus
+Tenant
+TenantId
+PayrollPeriod
+AssignedEmployeeIds
+```
+
+---
+
+# Samlet model
+
+Den samlede Domain-model kan derfor beskrives således:
+
+```text
+User
+ ├── UserId
+ ├── ManagerId?
+ ├── Name
+ ├── Email
+ ├── Role
+ └── Status
+
+
+Order
+ ├── OrderId
+ ├── ManagerId
+ ├── Name
+ ├── Status
+ └── Tasks[]
+       │
+       └── Task
+            ├── TaskId
+            ├── OrderId
+            ├── Title
+            └── Description
+
+
+TimeEntry
+ ├── TimeEntryId
+ ├── EmployeeId
+ ├── TaskId
+ ├── Date
+ ├── Hours
+ ├── Comment
+ ├── Status
+ └── Reviews[]
+       │
+       └── TimeEntryReview
+            ├── TimeEntryReviewId
+            ├── Decision
+            ├── Reason
+            └── ReviewedAt
+```
+
+Den centrale forretningsregel er, at en medarbejder kun kan registrere tid på en Task, hvis Tasken tilhører en Order, som ligger inden for medarbejderens manager-scope.
+
+`TimeEntry.Create()` opretter selve tidsregistreringen som et Domain-objekt. `TimeRegistrationDomainService` og `Order.CanRegisterTime()` kontrollerer, om registreringen er tilladt. Repository og Unit of Work sørger derefter for persistence.
+
+Dermed er ansvarene adskilt mellem Domain, Application, WebAPI og Persistence, samtidig med at de vigtigste forretningsregler håndhæves i Domain.

@@ -4,7 +4,9 @@ using Domain.Aggregate;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+//TODO: This configuration is commented out because it need to be changed to fit the new structure
 
+/*
 public class TimeSheetConfiguration : IEntityTypeConfiguration<TimeSheet>
 {
     public void Configure(EntityTypeBuilder<TimeSheet> entity)
@@ -56,3 +58,4 @@ public class TimeSheetConfiguration : IEntityTypeConfiguration<TimeSheet>
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
+*/

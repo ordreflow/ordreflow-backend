@@ -5,7 +5,8 @@ namespace Domain.Aggregate;
 
 public sealed class User
 {
-	public UserId Id { get; private set; } = null!;
+	public UserId UserId { get; private set; } = null!;
+	public UserId? ManagerId { get; private set; }
 	public PersonName Name { get; private set; } = null!;
 	public EmailAddress Email { get; private set; } = null!;
 	public UserRole Role { get; private set; }
@@ -18,7 +19,7 @@ public sealed class User
 
 	private User(PersonName name, EmailAddress email, UserRole role)
 	{
-		Id = UserId.Create(Guid.NewGuid()).Value;
+		UserId = UserId.Create(Guid.NewGuid()).Value;
 		Name = name;
 		Email = email;
 		Role = role;
@@ -82,6 +83,21 @@ public sealed class User
 			return Result.Failure(new Error("InvalidRole", "The selected user role is invalid."));
 
 		Role = role;
+		return Result.Success();
+	}
+
+	public Result AssignManager(
+		UserId managerId,
+		UserRole actorRole,
+		UserStatus actorStatus)
+	{
+		if (actorRole != UserRole.Admin || actorStatus != UserStatus.Active)
+			return Result.Failure(new Error("ManagerAssignmentForbidden", "Only an active admin can assign managers."));
+
+		if (managerId is null || managerId == UserId)
+			return Result.Failure(new Error("InvalidManager", "A user cannot be assigned to itself as manager."));
+
+		ManagerId = managerId;
 		return Result.Success();
 	}
 

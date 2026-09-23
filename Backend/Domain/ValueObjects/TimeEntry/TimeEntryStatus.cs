@@ -3,7 +3,7 @@ namespace Domain.ValueObjects;
 public enum TimeEntryStatus
 {
     Draft = 1,
-    Approved = 2,
-    Rejected = 3,
-    Locked = 4
+    Accepted = 2,
+    Returned = 3,
+    Finalized = 4
 }
