@@ -22,7 +22,7 @@ namespace Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Domain.Aggregate.Case", b =>
+            modelBuilder.Entity("Domain.Aggregate.Order", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -166,7 +166,7 @@ namespace Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("time_sheet_id");
 
-                    b.Property<Guid>("WorkId")
+                    b.Property<Guid>("TaskId")
                         .HasColumnType("uuid")
                         .HasColumnName("work_item_id");
 
@@ -174,7 +174,7 @@ namespace Persistence.Migrations
 
                     b.HasIndex("TimeSheetId");
 
-                    b.HasIndex("WorkId");
+                    b.HasIndex("TaskId");
 
                     b.ToTable("time_entries", (string)null);
                 });
@@ -185,7 +185,7 @@ namespace Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid>("CaseId")
+                    b.Property<Guid>("OrderId")
                         .HasColumnType("uuid")
                         .HasColumnName("case_id");
 
@@ -203,7 +203,7 @@ namespace Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CaseId");
+                    b.HasIndex("OrderId");
 
                     b.ToTable("work_items", (string)null);
                 });
@@ -227,21 +227,21 @@ namespace Persistence.Migrations
 
                     b.HasOne("Domain.Entities.WorkCase", null)
                         .WithMany()
-                        .HasForeignKey("WorkId")
+                        .HasForeignKey("TaskId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("Domain.Entities.WorkCase", b =>
                 {
-                    b.HasOne("Domain.Aggregate.Case", null)
+                    b.HasOne("Domain.Aggregate.Order", null)
                         .WithMany("WorkItems")
-                        .HasForeignKey("CaseId")
+                        .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Domain.Aggregate.Case", b =>
+            modelBuilder.Entity("Domain.Aggregate.Order", b =>
                 {
                     b.Navigation("WorkItems");
                 });
