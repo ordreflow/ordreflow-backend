@@ -12,7 +12,9 @@ public class AppDbContext : DbContext
         : base(options)
     {
     }
+//TODO: This configuration is commented out because it need to be changed to fit the new structure
 
+    /*
     public DbSet<User> Users => Set<User>();
 
     public DbSet<Case> Cases => Set<Case>();
@@ -31,4 +33,5 @@ public class AppDbContext : DbContext
         // Picks up every IEntityTypeConfiguration in Persistence/Configurations.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
+    */
 }

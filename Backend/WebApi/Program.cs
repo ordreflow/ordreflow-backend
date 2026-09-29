@@ -6,7 +6,7 @@ using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using ObjectMapper;
 using Persistence;
-using ViaPadel.Infrastructure.Repositories;
+//using ViaPadel.Infrastructure.Repositories;
 using WebAPI.Common;
 
 Env.Load();
@@ -32,7 +32,7 @@ builder.Services.AddApplication();
 // Application
 builder.Services.AddMappings();
 // Repositories
-builder.Services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
+//builder.Services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddControllers();
 

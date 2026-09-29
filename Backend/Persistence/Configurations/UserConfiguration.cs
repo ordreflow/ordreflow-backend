@@ -4,7 +4,9 @@ using Domain.Aggregate;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+//TODO: This configuration is commented out because it need to be changed to fit the new structure
 
+/*
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> entity)
@@ -50,3 +52,4 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
     }
 }
+*/

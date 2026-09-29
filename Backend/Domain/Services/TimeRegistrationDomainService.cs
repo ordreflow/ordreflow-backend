@@ -1,38 +1,54 @@
 using Core.Tools.OperationResult;
 using Domain.Aggregate;
-using Domain.Entities;
 using Domain.ValueObjects;
 
 namespace Domain.Services;
 
 public sealed class TimeRegistrationDomainService
 {
-	public Result Register(
-		TimeSheet timeSheet,
-		UserId employeeId,
-		UserStatus employeeStatus,
-		Case workCase,
-		TimeEntry entry)
-	{
-		if (timeSheet is null)
-			return Result.Failure(new Error("TimeSheetRequired", "A timesheet is required."));
+    public Result Register(
+        User employee,
+        Order order,
+        TimeEntry entry)
+    {
+        if (employee is null)
+            return Result.Failure(
+                new Error(
+                    "EmployeeRequired",
+                    "An employee is required."));
 
-		if (employeeId is null || employeeId != timeSheet.UserId)
-			return Result.Failure(new Error("EntryOwnerMismatch", "Only the timesheet owner can add entries."));
+        if (employee.Status != UserStatus.Active)
+            return Result.Failure(
+                new Error(
+                    "UserInactive",
+                    "An inactive user cannot register time."));
 
-		if (employeeStatus != UserStatus.Active)
-			return Result.Failure(new Error("UserInactive", "An inactive user cannot add entries."));
+        if (order is null)
+            return Result.Failure(
+                new Error(
+                    "OrderRequired",
+                    "An order is required."));
 
-		if (workCase is null)
-			return Result.Failure(new Error("CaseRequired", "A case is required."));
+        if (entry is null)
+            return Result.Failure(
+                new Error(
+                    "TimeEntryRequired",
+                    "A time entry is required."));
 
-		if (entry is null)
-			return Result.Failure(new Error("TimeEntryRequired", "Time entry is required."));
+        if (entry.EmployeeId != employee.UserId)
+            return Result.Failure(
+                new Error(
+                    "EntryOwnerMismatch",
+                    "The employee does not own this time entry."));
 
-		var caseValidation = workCase.CanRegisterTime(entry.WorkId);
-		if (caseValidation.IsFailure)
-			return caseValidation;
+        var orderValidation = order.CanRegisterTime(
+            entry.TaskId,
+            employee.UserId,
+            employee.ManagerId);
 
-		return timeSheet.AddEntry(employeeId, entry);
-	}
+        if (orderValidation.IsFailure)
+            return orderValidation;
+
+        return Result.Success();
+    }
 }

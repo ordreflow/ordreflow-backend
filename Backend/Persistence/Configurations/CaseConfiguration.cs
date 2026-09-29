@@ -5,6 +5,8 @@ using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
+//TODO: This configuration is commented out because it need to be changed to fit the new structure
+/*
 public class CaseConfiguration : IEntityTypeConfiguration<Case>
 {
     public void Configure(EntityTypeBuilder<Case> entity)
@@ -15,12 +17,12 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
 
         entity.Property(x => x.Id)
             .HasColumnName("id")
-            .HasConversion(id => id.Value, value => CaseId.Create(value).Value)
+            .HasConversion(id => id.Value, value => OrderId.Create(value).Value)
             .ValueGeneratedNever();
 
         entity.Property(x => x.Name)
             .HasColumnName("name")
-            .HasConversion(name => name.Value, value => CaseName.Create(value).Value)
+            .HasConversion(name => name.Value, value => OrderName.Create(value).Value)
             .HasMaxLength(200)
             .IsRequired();
 
@@ -48,3 +50,4 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
+*/

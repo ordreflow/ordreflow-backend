@@ -4,7 +4,9 @@ using Domain.Entities;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+//TODO: This configuration is commented out because it need to be changed to fit the new structure
 
+/*
 public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
 {
     public void Configure(EntityTypeBuilder<TimeEntry> entity)
@@ -19,7 +21,7 @@ public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
 
         entity.Property(x => x.WorkId)
             .HasColumnName("work_item_id")
-            .HasConversion(id => id.Value, value => WorkId.Create(value).Value)
+            .HasConversion(id => id.Value, value => TaskId.Create(value).Value)
             .IsRequired();
 
         entity.Property(x => x.TimeSheetId)
@@ -61,3 +63,4 @@ public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+*/

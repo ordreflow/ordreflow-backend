@@ -1,11 +1,15 @@
 ﻿
-using Domain.Entities;
+using Domain.Aggregate;
 using Domain.Interfaces;
+
 using Persistence;
 
 
-namespace ViaPadel.Infrastructure.Repositories;
+//TODO: This configuration is commented out because it need to be changed to fit the new structure
 
+
+namespace ViaPadel.Infrastructure.Repositories;
+/*
 public class TimeEntryRepository : ITimeEntryRepository
 {
     private readonly AppDbContext _context;
@@ -19,13 +23,7 @@ public class TimeEntryRepository : ITimeEntryRepository
         TimeEntry timeEntry,
         CancellationToken cancellationToken = default)
     {
-        await _context.TimeEntries.AddAsync(
-            timeEntry,
-            cancellationToken);
-
-        await _context.SaveChangesAsync(
-            cancellationToken);
-
-        return timeEntry;
+      //not implemented yet
+      throw new NotImplementedException();
     }
-}
+}*/

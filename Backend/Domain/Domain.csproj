@@ -11,7 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="ValueObjects\Case\" />
+      <Folder Include="ValueObjects\Order\" />
       <Folder Include="ValueObjects\TimeSheet\" />
       <Folder Include="ValueObjects\UserValues\" />
     </ItemGroup>

@@ -3,50 +3,50 @@ using Domain.ValueObjects;
 
 namespace Domain.Entities;
 
-public sealed class WorkCase
+public sealed class Task
 {
-	public WorkId Id { get; private set; } = null!;
-	public CaseId? CaseId { get; private set; }
+	public TaskId TaskId { get; private set; } = null!;
+	public OrderId? OrderId { get; private set; }
 
 	public string Title { get; private set; } = null!;
 
 	public string Description { get; private set; } = null!;
 
-	private WorkCase()
+	private Task()
 	{
 	}
 
-	private WorkCase(
-		WorkId id,
+	private Task(
+		TaskId id,
 		string title,
 		string description)
 	{
-		Id = id;
+		TaskId = id;
 		Title = title;
 		Description = description;
 	}
 
-	internal Result AttachTo(CaseId caseId)
+	internal Result AttachTo(OrderId orderId)
 	{
-		if (caseId is null)
+		if (orderId is null)
 			return Result.Failure(new Error("CaseRequired", "A work item must belong to a case."));
 
-		if (CaseId is not null && CaseId != caseId)
+		if (OrderId is not null && OrderId != orderId)
 			return Result.Failure(new Error("WorkItemAlreadyOwned", "The work item already belongs to another case."));
 
-		CaseId = caseId;
+		OrderId = orderId;
 		return Result.Success();
 	}
 
-	internal void Detach() => CaseId = null;
+	internal void Detach() => OrderId = null;
 
-	public static Result<WorkCase> Create(
+	public static Result<Task> Create(
 		string title,
 		string description)
 	{
 		if (string.IsNullOrWhiteSpace(title))
 		{
-			return Result<WorkCase>.Failure(
+			return Result<Task>.Failure(
 				new Error("WorkTitleRequired", "Work item title is required."));
 		}
 
@@ -54,13 +54,13 @@ public sealed class WorkCase
 
 		if (title.Length > 200)
 		{
-			return Result<WorkCase>.Failure(
+			return Result<Task>.Failure(
 				new Error("WorkTitleTooLong", "Work item title cannot exceed 200 characters."));
 		}
 
 		if (description is null)
 		{
-			return Result<WorkCase>.Failure(
+			return Result<Task>.Failure(
 				new Error("WorkDescriptionRequired", "Work item description is required."));
 		}
 
@@ -68,13 +68,13 @@ public sealed class WorkCase
 
 		if (description.Length > 2000)
 		{
-			return Result<WorkCase>.Failure(
+			return Result<Task>.Failure(
 				new Error("WorkDescriptionTooLong", "Work item description cannot exceed 2000 characters."));
 		}
 
-		return Result<WorkCase>.Success(
-			new WorkCase(
-				WorkId.Create(Guid.NewGuid()).Value,
+		return Result<Task>.Success(
+			new Task(
+				TaskId.Create(Guid.NewGuid()).Value,
 				title,
 				description));
 	}
