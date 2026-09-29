@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Orders;
 /// <summary>
 /// Renames an open order.
 /// </summary>
-public class EditOrder : EndpointBase
+public class EditOrder
+    : ApiEndpoint
+        .WithRequest<UpdateOrderRequest>
+        .AndResponse<IResult>
 {
     [HttpPut("orders/{id:guid}")]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
@@ -18,8 +21,7 @@ public class EditOrder : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync(
-        [FromRoute] Guid id,
+    public override Task<IResult> HandleAsync(
         [FromBody] UpdateOrderRequest request)
     {
         // TODO: Application layer
@@ -33,8 +35,13 @@ public class EditOrder : EndpointBase
         // Save through UnitOfWork, map to OrderResponse, and return 404 when
         // the Case does not exist.
 
-        _ = id;
+        // The route ID is available through RouteData.Values["id"]. It is kept
+        // out of the body contract and will be parsed in the Application step.
+        var routeId = RouteData.Values["id"];
+
+        _ = routeId;
         _ = request;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

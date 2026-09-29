@@ -9,9 +9,12 @@ namespace WebAPI.endpoints.TimeEntries;
 /// <summary>
 /// Updates an editable time entry belonging to the authenticated employee.
 /// </summary>
-public class UpdateTimeEntry : EndpointBase
+public class UpdateTimeEntry
+    : ApiEndpoint
+        .WithRequest<UpdateTimeEntryRequest>
+        .AndResponse<IResult>
 {
-    [HttpPut("time_entries/{id:int}")]
+    [HttpPut("time_entries/{id:guid}")]
     
     [ProducesResponseType(typeof(TimeEntryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
@@ -20,8 +23,7 @@ public class UpdateTimeEntry : EndpointBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     
-    public IResult HandleAsync(
-        [FromRoute] int id,
+    public override Task<IResult> HandleAsync(
         [FromBody] UpdateTimeEntryRequest request)
     {
         // TODO: Application layer
@@ -37,13 +39,20 @@ public class UpdateTimeEntry : EndpointBase
         // Only Draft/Rejected entries should be editable according to the
         // current draft contract. Apply date, hours, work-item, and comment
         // changes through domain methods rather than changing properties here.
+        // The merged Domain currently treats TaskId as immutable, so changing
+        // the task during an update needs an explicit Domain decision/method.
 
         // TODO: Persistence layer
         // Add the repository query/update methods and commit through the
         // agreed UnitOfWork boundary.
 
-        _ = id;
+        // The route ID is available through RouteData.Values["id"]. It is kept
+        // out of the body contract and will be parsed in the Application step.
+        var routeId = RouteData.Values["id"];
+
+        _ = routeId;
         _ = request;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

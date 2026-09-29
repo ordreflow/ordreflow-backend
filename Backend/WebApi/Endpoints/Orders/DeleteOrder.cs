@@ -8,7 +8,10 @@ namespace WebAPI.endpoints.Orders;
 /// <summary>
 /// Placeholder for the order lifecycle operation.
 /// </summary>
-public class DeleteOrder : EndpointBase
+public class DeleteOrder
+    : ApiEndpoint
+        .WithRequest<Guid>
+        .AndResponse<IResult>
 {
     [HttpDelete("orders/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -17,7 +20,7 @@ public class DeleteOrder : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync([FromRoute] Guid id)
+    public override Task<IResult> HandleAsync([FromRoute] Guid id)
     {
         // TODO: Product decision
         // The Domain has Close/Reopen, but no Case.Delete. Confirm whether
@@ -29,6 +32,7 @@ public class DeleteOrder : EndpointBase
         // it succeeds.
 
         _ = id;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

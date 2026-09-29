@@ -1,7 +1,7 @@
 namespace WebAPI.Contracts.TimeEntries;
 
 public sealed record UpdateTimeEntryRequest(
-    int WorkItemId,
+    Guid TaskId,
     DateTime Date,
     decimal Hours,
     string? Comment);

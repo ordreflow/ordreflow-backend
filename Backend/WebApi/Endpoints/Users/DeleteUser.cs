@@ -8,7 +8,10 @@ namespace WebAPI.endpoints.Users;
 /// <summary>
 /// Deactivates a user profile. This is planned as a soft delete.
 /// </summary>
-public class DeleteUser : EndpointBase
+public class DeleteUser
+    : ApiEndpoint
+        .WithRequest<Guid>
+        .AndResponse<IResult>
 {
     [HttpDelete("users/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -17,7 +20,7 @@ public class DeleteUser : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync([FromRoute] Guid id)
+    public override Task<IResult> HandleAsync([FromRoute] Guid id)
     {
         // TODO: Authentication/authorization
         // Require an active manager/admin and define whether an actor may
@@ -31,6 +34,7 @@ public class DeleteUser : EndpointBase
         // Save through the UnitOfWork and return 204 only after success.
 
         _ = id;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

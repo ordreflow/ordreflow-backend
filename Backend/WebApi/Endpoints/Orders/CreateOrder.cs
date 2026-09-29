@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Orders;
 /// <summary>
 /// Creates an order. The Domain currently calls this concept a Case.
 /// </summary>
-public class CreateOrder : EndpointBase
+public class CreateOrder
+    : ApiEndpoint
+        .WithRequest<CreateOrderRequest>
+        .AndResponse<IResult>
 {
     [HttpPost("orders")]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status201Created)]
@@ -17,7 +20,8 @@ public class CreateOrder : EndpointBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync([FromBody] CreateOrderRequest request)
+    public override Task<IResult> HandleAsync(
+        [FromBody] CreateOrderRequest request)
     {
         // TODO: Authentication/authorization
         // Resolve the current actor and require an active manager/admin.
@@ -34,6 +38,7 @@ public class CreateOrder : EndpointBase
         // Map Case to OrderResponse and return 201 Created.
 
         _ = request;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

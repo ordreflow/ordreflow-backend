@@ -9,14 +9,17 @@ namespace WebAPI.endpoints.Orders;
 /// <summary>
 /// Lists orders visible to the authenticated actor.
 /// </summary>
-public class ViewOrders : EndpointBase
+public class ViewOrders
+    : ApiEndpoint
+        .WithoutRequest
+        .AndResponse<IResult>
 {
     [HttpGet("orders")]
     [ProducesResponseType(typeof(ViewOrdersResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync()
+    public override Task<IResult> HandleAsync()
     {
         // TODO: Authentication/authorization
         // Define whether employees see all orders or only assigned orders.
@@ -26,6 +29,7 @@ public class ViewOrders : EndpointBase
         // Add a ViewOrdersQuery and repository query with the agreed visibility
         // scope, then map the Cases to OrderResponse values.
 
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

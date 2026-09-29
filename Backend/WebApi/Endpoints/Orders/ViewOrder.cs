@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Orders;
 /// <summary>
 /// Gets one order by ID.
 /// </summary>
-public class ViewOrder : EndpointBase
+public class ViewOrder
+    : ApiEndpoint
+        .WithRequest<Guid>
+        .AndResponse<IResult>
 {
     [HttpGet("orders/{id:guid}")]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
@@ -18,13 +21,14 @@ public class ViewOrder : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync([FromRoute] Guid id)
+    public override Task<IResult> HandleAsync([FromRoute] Guid id)
     {
         // TODO: Application/Persistence layer
         // Load the Case by ID, apply the actor's visibility policy, map it to
         // OrderResponse, and return 404 when it is not visible/found.
 
         _ = id;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

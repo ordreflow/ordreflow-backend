@@ -8,9 +8,12 @@ namespace WebAPI.endpoints.TimeEntries;
 /// <summary>
 /// Deletes an editable time entry belonging to the authenticated employee.
 /// </summary>
-public class DeleteTimeEntry : EndpointBase
+public class DeleteTimeEntry
+    : ApiEndpoint
+        .WithRequest<Guid>
+        .AndResponse<IResult>
 {
-    [HttpDelete("time_entries/{id:int}")]
+    [HttpDelete("time_entries/{id:guid}")]
     
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
@@ -19,7 +22,7 @@ public class DeleteTimeEntry : EndpointBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     
-    public IResult HandleAsync([FromRoute] int id)
+    public override Task<IResult> HandleAsync([FromRoute] Guid id)
     {
         // TODO: Application layer
         // 1. Add DeleteTimeEntryCommand containing the route ID and the
@@ -37,6 +40,7 @@ public class DeleteTimeEntry : EndpointBase
         // UnitOfWork boundary.
 
         _ = id;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Users;
 /// <summary>
 /// Gets one user profile by ID.
 /// </summary>
-public class ViewUser : EndpointBase
+public class ViewUser
+    : ApiEndpoint
+        .WithRequest<Guid>
+        .AndResponse<IResult>
 {
     [HttpGet("users/{id:guid}")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
@@ -18,7 +21,7 @@ public class ViewUser : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync([FromRoute] Guid id)
+    public override Task<IResult> HandleAsync([FromRoute] Guid id)
     {
         // TODO: Authentication/authorization
         // Apply the visibility policy for the current actor.
@@ -31,6 +34,7 @@ public class ViewUser : EndpointBase
         // Return UserResponse, or 404 when the profile does not exist.
 
         _ = id;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

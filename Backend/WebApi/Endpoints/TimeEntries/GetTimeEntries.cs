@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.TimeEntries;
 /// <summary>
 /// Gets the authenticated employee's time entries for an inclusive date range.
 /// </summary>
-public class GetTimeEntries : EndpointBase
+public class GetTimeEntries
+    : ApiEndpoint
+        .WithRequest<ViewTimeEntriesRequest>
+        .AndResponse<IResult>
 {
     [HttpGet("time_entries")]
     
@@ -18,7 +21,7 @@ public class GetTimeEntries : EndpointBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     
-    public IResult HandleAsync(
+    public override Task<IResult> HandleAsync(
         [FromQuery] ViewTimeEntriesRequest request)
     {
         // TODO: Application layer
@@ -37,6 +40,7 @@ public class GetTimeEntries : EndpointBase
         // validation/not-found/authorization failures to the agreed HTTP shape.
 
         _ = request;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

@@ -8,7 +8,10 @@ namespace WebAPI.endpoints.Tasks;
 /// <summary>
 /// Removes a task/work item from its order/case.
 /// </summary>
-public class DeleteTask : EndpointBase
+public class DeleteTask
+    : ApiEndpoint
+        .WithRequest<Guid>
+        .AndResponse<IResult>
 {
     [HttpDelete("tasks/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -17,7 +20,7 @@ public class DeleteTask : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync([FromRoute] Guid id)
+    public override Task<IResult> HandleAsync([FromRoute] Guid id)
     {
         // TODO: Authentication/authorization
         // Require the approved task-management permission.
@@ -31,6 +34,7 @@ public class DeleteTask : EndpointBase
         // the operation succeeds.
 
         _ = id;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

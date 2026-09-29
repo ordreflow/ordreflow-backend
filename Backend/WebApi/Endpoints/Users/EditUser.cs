@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Users;
 /// <summary>
 /// Updates a user's profile fields.
 /// </summary>
-public class EditUser : EndpointBase
+public class EditUser
+    : ApiEndpoint
+        .WithRequest<UpdateUserRequest>
+        .AndResponse<IResult>
 {
     [HttpPut("users/{id:guid}")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
@@ -18,8 +21,7 @@ public class EditUser : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync(
-        [FromRoute] Guid id,
+    public override Task<IResult> HandleAsync(
         [FromBody] UpdateUserRequest request)
     {
         // TODO: Authentication/authorization
@@ -38,8 +40,13 @@ public class EditUser : EndpointBase
         // Save through the UnitOfWork, map the updated profile to UserResponse,
         // and return 404 when the user cannot be found.
 
-        _ = id;
+        // The route ID is available through RouteData.Values["id"]. It is kept
+        // out of the body contract and will be parsed in the Application step.
+        var routeId = RouteData.Values["id"];
+
+        _ = routeId;
         _ = request;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

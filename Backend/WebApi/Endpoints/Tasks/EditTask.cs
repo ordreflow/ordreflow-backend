@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Tasks;
 /// <summary>
 /// Updates a task/work item.
 /// </summary>
-public class EditTask : EndpointBase
+public class EditTask
+    : ApiEndpoint
+        .WithRequest<UpdateTaskRequest>
+        .AndResponse<IResult>
 {
     [HttpPut("tasks/{id:guid}")]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
@@ -18,8 +21,7 @@ public class EditTask : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync(
-        [FromRoute] Guid id,
+    public override Task<IResult> HandleAsync(
         [FromBody] UpdateTaskRequest request)
     {
         // TODO: Authentication/authorization
@@ -37,8 +39,13 @@ public class EditTask : EndpointBase
         // Save through UnitOfWork, map to TaskResponse, and return 404 when
         // the task is not found.
 
-        _ = id;
+        // The route ID is available through RouteData.Values["id"]. It is kept
+        // out of the body contract and will be parsed in the Application step.
+        var routeId = RouteData.Values["id"];
+
+        _ = routeId;
         _ = request;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

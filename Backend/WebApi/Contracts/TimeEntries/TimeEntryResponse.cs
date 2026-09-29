@@ -1,8 +1,8 @@
 namespace WebAPI.Contracts.TimeEntries;
 
 public sealed record TimeEntryResponse(
-    int Id,
-    int WorkItemId,
+    Guid Id,
+    Guid TaskId,
     DateTime Date,
     decimal Hours,
     string? Comment);

@@ -1,7 +1,7 @@
 ﻿using Application;
 using Application.Commands;
 using Core.Tools.OperationResult;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
@@ -14,16 +14,12 @@ public class CreateTimeEntry(
     IMapper Mapper)
     : ApiEndpoint
         .WithRequest<CreateTimeEntryRequest>
-        .AndResponse<
-            Results<
-                Ok<TimeEntryResponse>,
-                BadRequest<IEnumerable<Error>>>>
+        .AndResponse<IResult>
 {
     [HttpPost("time_entries")]
-    public override async Task<
-            Results<
-                Ok<TimeEntryResponse>,
-                BadRequest<IEnumerable<Error>>>>
+    [ProducesResponseType(typeof(TimeEntryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
+    public override async Task<IResult>
         HandleAsync(CreateTimeEntryRequest request)
     {
         // TODO: Authentication

@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Users;
 /// <summary>
 /// Lists user profiles visible to the authenticated actor.
 /// </summary>
-public class ViewUsers : EndpointBase
+public class ViewUsers
+    : ApiEndpoint
+        .WithoutRequest
+        .AndResponse<IResult>
 {
     [HttpGet("users")]
     [ProducesResponseType(typeof(ViewUsersResponse), StatusCodes.Status200OK)]
@@ -17,7 +20,7 @@ public class ViewUsers : EndpointBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync()
+    public override Task<IResult> HandleAsync()
     {
         // TODO: Authentication/authorization
         // Decide whether employees may see this collection or whether it is
@@ -34,6 +37,7 @@ public class ViewUsers : EndpointBase
         // TODO: Response handling
         // Map the result collection to ViewUsersResponse.
 
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

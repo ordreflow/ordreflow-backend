@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Tasks;
 /// <summary>
 /// Creates a task/work item under an order/case.
 /// </summary>
-public class CreateTask : EndpointBase
+public class CreateTask
+    : ApiEndpoint
+        .WithRequest<CreateTaskRequest>
+        .AndResponse<IResult>
 {
     [HttpPost("tasks")]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status201Created)]
@@ -18,7 +21,8 @@ public class CreateTask : EndpointBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync([FromBody] CreateTaskRequest request)
+    public override Task<IResult> HandleAsync(
+        [FromBody] CreateTaskRequest request)
     {
         // TODO: Authentication/authorization
         // Require an active manager/admin or whatever task-management policy
@@ -37,6 +41,7 @@ public class CreateTask : EndpointBase
         // return 201 Created.
 
         _ = request;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }

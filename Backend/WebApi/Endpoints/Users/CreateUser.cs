@@ -9,7 +9,10 @@ namespace WebAPI.endpoints.Users;
 /// <summary>
 /// Creates a user profile. Authentication credentials are managed separately.
 /// </summary>
-public class CreateUser : EndpointBase
+public class CreateUser
+    : ApiEndpoint
+        .WithRequest<CreateUserRequest>
+        .AndResponse<IResult>
 {
     [HttpPost("users")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
@@ -17,7 +20,8 @@ public class CreateUser : EndpointBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult HandleAsync([FromBody] CreateUserRequest request)
+    public override Task<IResult> HandleAsync(
+        [FromBody] CreateUserRequest request)
     {
         // TODO: Authentication/authorization
         // Resolve the current actor and require an active manager or admin.
@@ -38,6 +42,7 @@ public class CreateUser : EndpointBase
         // route location.
 
         _ = request;
-        return TypedResults.StatusCode(StatusCodes.Status501NotImplemented);
+        return Task.FromResult<IResult>(
+            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
     }
 }
