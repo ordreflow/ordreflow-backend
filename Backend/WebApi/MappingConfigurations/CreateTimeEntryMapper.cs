@@ -1,5 +1,5 @@
 ﻿using Application.Commands;
-using WebAPI.TimeEntries;
+using WebAPI.Contracts.TimeEntries;
 
 namespace WebAPI.MappingConfigurations;
 using ObjectMapper;
@@ -7,18 +7,18 @@ using ObjectMapper;
 
 /*
 public class CreateTimeEntryRequestToCommandMapper
-    : IMappingConfig<CreateTimeEntry.CreateTimeEntryRequest, CreateTimeEntryCommand>
+    : IMappingConfig<CreateTimeEntryRequest, CreateTimeEntryCommand>
 {
-    public CreateTimeEntryCommand Map(CreateTimeEntry.CreateTimeEntryRequest input)
+    public CreateTimeEntryCommand Map(CreateTimeEntryRequest input)
     {
        
     }
 }
 
 public class CreateTimeEntryCommandToResponseMapper
-    : IMappingConfig<CreateTimeEntryCommand, CreateTimeEntry.CreateTimeEntryResponse>
+    : IMappingConfig<CreateTimeEntryCommand, TimeEntryResponse>
 {
-    public CreateTimeEntry.CreateTimeEntryResponse Map(CreateTimeEntryCommand input)
+    public TimeEntryResponse Map(CreateTimeEntryCommand input)
     {
     
     }
