@@ -1,13 +1,18 @@
-﻿namespace Domain.Interfaces;
+﻿using Domain.Aggregate;
+using Domain.ValueObjects;
 
-using Domain.Entities;
-using Domain.Aggregate;
+namespace Domain.Interfaces;
 
 public interface ITimeEntryRepository
+    : IGenericRepository<TimeEntry, TimeEntryId>
 {
-    
-    //TODO: Change to fit the new structure, and add the generic structure for the repository
-    Task<TimeEntry> CreateAsync(
-        TimeEntry timeEntry,
-        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TimeEntry>> GetByEmployeeIdAsync(
+        UserId employeeId);
+
+    Task<IReadOnlyList<TimeEntry>> GetByManagerIdAsync(
+        UserId managerId);
+
+    Task<IReadOnlyList<TimeEntry>> GetByDateRangeAsync(
+        DateTime from,
+        DateTime to);
 }
