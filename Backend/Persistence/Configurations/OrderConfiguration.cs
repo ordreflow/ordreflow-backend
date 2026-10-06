@@ -5,13 +5,11 @@ using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-//TODO: This configuration is commented out because it need to be changed to fit the new structure
-/*
-public class CaseConfiguration : IEntityTypeConfiguration<Case>
+public class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
-    public void Configure(EntityTypeBuilder<Case> entity)
+    public void Configure(EntityTypeBuilder<Order> entity)
     {
-        entity.ToTable("cases");
+        entity.ToTable("orders");
 
         entity.HasKey(x => x.Id);
 
@@ -19,6 +17,11 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
             .HasColumnName("id")
             .HasConversion(id => id.Value, value => OrderId.Create(value).Value)
             .ValueGeneratedNever();
+
+        entity.Property(x => x.ManagerId)
+            .HasColumnName("manager_id")
+            .HasConversion(id => id.Value, value => UserId.Create(value).Value)
+            .IsRequired();
 
         entity.Property(x => x.Name)
             .HasColumnName("name")
@@ -39,15 +42,20 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
         entity.Property(x => x.ClosedAt)
             .HasColumnName("closed_at");
 
-        // Work items live inside the case aggregate and are removed together with it.
-        entity.HasMany(x => x.WorkItems)
+        // A manager who owns orders cannot be deleted.
+        entity.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(x => x.ManagerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Tasks live inside the order aggregate and are removed together with it.
+        entity.HasMany(x => x.Tasks)
             .WithOne()
-            .HasForeignKey(x => x.CaseId)
+            .HasForeignKey(x => x.OrderId)
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
 
-        entity.Navigation(x => x.WorkItems)
+        entity.Navigation(x => x.Tasks)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
-*/

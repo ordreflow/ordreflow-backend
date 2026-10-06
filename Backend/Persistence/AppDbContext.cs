@@ -1,8 +1,9 @@
-﻿namespace Persistence;
+namespace Persistence;
 
 using Microsoft.EntityFrameworkCore;
 using Domain.Aggregate;
 using Domain.Entities;
+using Task = Domain.Entities.Task;
 
 
 public class AppDbContext : DbContext
@@ -12,18 +13,16 @@ public class AppDbContext : DbContext
         : base(options)
     {
     }
-//TODO: This configuration is commented out because it need to be changed to fit the new structure
 
-    /*
     public DbSet<User> Users => Set<User>();
 
-    public DbSet<Case> Cases => Set<Case>();
+    public DbSet<Order> Orders => Set<Order>();
 
-    public DbSet<WorkCase> WorkItems => Set<WorkCase>();
-
-    public DbSet<TimeSheet> TimeSheets => Set<TimeSheet>();
+    public DbSet<Task> Tasks => Set<Task>();
 
     public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
+
+    public DbSet<TimeEntryReview> TimeEntryReviews => Set<TimeEntryReview>();
 
     protected override void OnModelCreating(
         ModelBuilder modelBuilder)
@@ -33,5 +32,4 @@ public class AppDbContext : DbContext
         // Picks up every IEntityTypeConfiguration in Persistence/Configurations.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
-    */
 }

@@ -1,12 +1,11 @@
 namespace Persistence.Configurations;
 
-using Domain.Entities;
+using Domain.Aggregate;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-//TODO: This configuration is commented out because it need to be changed to fit the new structure
+using Task = Domain.Entities.Task;
 
-/*
 public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
 {
     public void Configure(EntityTypeBuilder<TimeEntry> entity)
@@ -17,16 +16,18 @@ public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
 
         entity.Property(x => x.Id)
             .HasColumnName("id")
-            .ValueGeneratedOnAdd();
+            .HasConversion(id => id.Value, value => TimeEntryId.Create(value).Value)
+            .ValueGeneratedNever();
 
-        entity.Property(x => x.WorkId)
-            .HasColumnName("work_item_id")
-            .HasConversion(id => id.Value, value => TaskId.Create(value).Value)
+        entity.Property(x => x.EmployeeId)
+            .HasColumnName("employee_id")
+            .HasConversion(id => id.Value, value => UserId.Create(value).Value)
             .IsRequired();
 
-        entity.Property(x => x.TimeSheetId)
-            .HasColumnName("time_sheet_id")
-            .HasConversion(id => id!.Value, value => TimeSheetId.Create(value).Value);
+        entity.Property(x => x.TaskId)
+            .HasColumnName("task_id")
+            .HasConversion(id => id.Value, value => TaskId.Create(value).Value)
+            .IsRequired();
 
         entity.Property(x => x.Date)
             .HasColumnName("date")
@@ -38,14 +39,6 @@ public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
             .HasPrecision(5, 2)
             .IsRequired();
 
-        entity.Property(x => x.StartTime)
-            .HasColumnName("start_time")
-            .HasColumnType("time");
-
-        entity.Property(x => x.EndTime)
-            .HasColumnName("end_time")
-            .HasColumnType("time");
-
         entity.Property(x => x.Comment)
             .HasColumnName("comment")
             .HasMaxLength(1000);
@@ -56,11 +49,26 @@ public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
             .HasMaxLength(20)
             .IsRequired();
 
-        // A work item with registered time cannot be deleted, so history is kept.
-        entity.HasOne<WorkCase>()
+        // An employee with registered time cannot be deleted, so history is kept.
+        entity.HasOne<User>()
             .WithMany()
-            .HasForeignKey(x => x.WorkId)
+            .HasForeignKey(x => x.EmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // A task with registered time cannot be deleted, so history is kept.
+        entity.HasOne<Task>()
+            .WithMany()
+            .HasForeignKey(x => x.TaskId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Reviews live inside the time entry aggregate and are removed together with it.
+        entity.HasMany(x => x.Reviews)
+            .WithOne()
+            .HasForeignKey(x => x.TimeEntryId)
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.Navigation(x => x.Reviews)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
-*/

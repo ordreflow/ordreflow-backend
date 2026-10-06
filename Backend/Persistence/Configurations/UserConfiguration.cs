@@ -4,21 +4,23 @@ using Domain.Aggregate;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-//TODO: This configuration is commented out because it need to be changed to fit the new structure
 
-/*
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> entity)
     {
         entity.ToTable("users");
 
-        entity.HasKey(x => x.Id);
+        entity.HasKey(x => x.UserId);
 
-        entity.Property(x => x.Id)
+        entity.Property(x => x.UserId)
             .HasColumnName("id")
             .HasConversion(id => id.Value, value => UserId.Create(value).Value)
             .ValueGeneratedNever();
+
+        entity.Property(x => x.ManagerId)
+            .HasColumnName("manager_id")
+            .HasConversion(id => id!.Value, value => UserId.Create(value).Value);
 
         entity.Property(x => x.Name)
             .HasColumnName("name")
@@ -50,6 +52,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         entity.Property(x => x.CreatedAt)
             .HasColumnName("created_at")
             .IsRequired();
+
+        // A user can have a manager, who is also a user.
+        entity.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(x => x.ManagerId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
-*/
