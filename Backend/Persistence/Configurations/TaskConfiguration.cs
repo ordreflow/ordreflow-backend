@@ -1,27 +1,25 @@
 namespace Persistence.Configurations;
 
-using Domain.Entities;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-//TODO: This configuration is commented out because it need to be changed to fit the new structure
+using Task = Domain.Entities.Task;
 
-/*
-public class WorkCaseConfiguration : IEntityTypeConfiguration<WorkCase>
+public class TaskConfiguration : IEntityTypeConfiguration<Task>
 {
-    public void Configure(EntityTypeBuilder<WorkCase> entity)
+    public void Configure(EntityTypeBuilder<Task> entity)
     {
-        entity.ToTable("work_items");
+        entity.ToTable("tasks");
 
-        entity.HasKey(x => x.Id);
+        entity.HasKey(x => x.TaskId);
 
-        entity.Property(x => x.Id)
+        entity.Property(x => x.TaskId)
             .HasColumnName("id")
             .HasConversion(id => id.Value, value => TaskId.Create(value).Value)
             .ValueGeneratedNever();
 
-        entity.Property(x => x.CaseId)
-            .HasColumnName("case_id")
+        entity.Property(x => x.OrderId)
+            .HasColumnName("order_id")
             .HasConversion(id => id!.Value, value => OrderId.Create(value).Value);
 
         entity.Property(x => x.Title)
@@ -35,4 +33,3 @@ public class WorkCaseConfiguration : IEntityTypeConfiguration<WorkCase>
             .IsRequired();
     }
 }
-*/

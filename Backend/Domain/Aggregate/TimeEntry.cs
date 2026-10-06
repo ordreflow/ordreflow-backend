@@ -37,6 +37,7 @@ public sealed class TimeEntry
         decimal hours,
         string? comment)
     {
+        Id = TimeEntryId.Create(Guid.NewGuid()).Value;
         EmployeeId = employeeId;
         TaskId = taskId;
         Date = date;

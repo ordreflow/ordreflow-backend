@@ -20,6 +20,7 @@ public sealed class TimeEntryReview
         ReviewDecision decision,
         string? reason)
     {
+        Id = TimeEntryReviewID.Create(Guid.NewGuid()).Value;
         TimeEntryId = timeEntryId;
         Decision = decision;
         Reason = reason;
