@@ -317,3 +317,64 @@ The backend is organized around a stable core and outer adapters:
 - Connection strings and credentials must be supplied through environment-specific configuration.
 - Secrets must not be committed to the repository.
 - The POC should use real PostgreSQL persistence rather than only an in-memory test database.
+
+## Local PostgreSQL with Flox
+
+The Flox manifest includes PostgreSQL as a local-only service. Its data
+directory is created under the system temporary directory when the environment
+starts and removed when the last Flox activation exits normally.
+
+Inside the activated shell, wait for PostgreSQL and apply the migrations:
+
+```bash
+pg_isready -h 127.0.0.1 -p 5432
+dotnet tool restore
+dotnet ef database update --project Backend/Persistence/Persistence.csproj --startup-project Backend/WebApi/WebApi.csproj
+dotnet run --project Backend/WebApi/WebApi.csproj --launch-profile http
+```
+
+If you have a root `.env` file, keep its `DB_NAME` and `DB_USERNAME` aligned
+with the Flox values (`ordreflow`), because `Program.cs` loads `.env` during
+startup and may override the Flox variables.
+
+The API is available at `http://localhost:5125/swagger`. Press `Ctrl+C` to
+stop the API and then run `exit` to leave Flox; the PostgreSQL service stops and
+its temporary data is removed. Flox cleanup is best-effort if the terminal or
+machine is terminated abruptly.
+
+## Build the API image
+
+The default target in the root `Dockerfile` builds only the API runtime image. Deployment orchestration
+is intentionally kept outside this repository, so a separate deployment
+repository can compose this image with the frontend and the official PostgreSQL
+image today, and Kubernetes resources later.
+
+Build the API image from the repository root:
+
+```bash
+docker build -t ordreflow-api:local .
+```
+
+For local host-based development, copy `env.example` to an untracked `.env`
+file and replace the placeholder credentials. Container orchestration should
+inject the variables directly (or through its secret mechanism); `DB_HOST` must
+be the PostgreSQL service DNS name inside the container network, not
+`localhost`.
+
+The container listens on port `8080` and reads `DB_HOST`, `DB_PORT`, `DB_NAME`,
+`DB_USERNAME`, and `DB_PASSWORD` from its environment. The deployment repository
+should provide those values and connect `DB_HOST` to the PostgreSQL service name.
+
+The Dockerfile also exposes a `migration` build target. A separate Compose
+service can build that target and run:
+
+```text
+dotnet ef database update \
+  --project Backend/Persistence/Persistence.csproj \
+  --startup-project Backend/WebApi/WebApi.csproj
+```
+
+```bash
+docker build --target migration -t ordreflow-migrations:local .
+```
+

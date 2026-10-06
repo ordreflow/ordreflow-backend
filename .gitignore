@@ -8,3 +8,4 @@ obj/
 
 # environment variables
 .env
+.env.*
