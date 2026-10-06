@@ -1,6 +1,6 @@
 using Application;
 using Application.Extenstions;
-using Domain.Common.IUnitOfWork;
+using Domain.Interfaces.IUnitOfWork;
 using Domain.Interfaces;
 using DotNetEnv;
 using Microsoft.EntityFrameworkCore;

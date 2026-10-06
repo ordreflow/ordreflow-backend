@@ -1,7 +1,7 @@
 ﻿using   Core.Tools.OperationResult;
 
 using System.Reflection;
-using Domain.Common.IUnitOfWork;
+using Domain.Interfaces.IUnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Application.Extenstions;

@@ -1,6 +1,6 @@
 namespace Persistence;
 
-using Domain.Common.IUnitOfWork;
+using Domain.Interfaces.IUnitOfWork;
 
 public class UnitOfWork : IUnitOfWork
 {

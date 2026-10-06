@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 using Core.Tools.OperationResult;
-using Domain.Common.IUnitOfWork;
+using Domain.Interfaces.IUnitOfWork;
 
 namespace Application;
 
