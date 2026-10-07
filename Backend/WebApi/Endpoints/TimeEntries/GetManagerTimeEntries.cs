@@ -9,29 +9,28 @@ using WebAPI.Contracts.TimeEntries;
 
 namespace WebAPI.endpoints.TimeEntries;
 
-public sealed class GetTimeEntries(
-    IQueryHandler<GetMyTimeEntriesForWeekQuery, Result<IReadOnlyList<TimeEntry>>> queryHandler,
+public sealed class GetManagerTimeEntries(
+    IQueryHandler<GetManagerTimeEntriesQuery, Result<IReadOnlyList<TimeEntry>>> queryHandler,
     IMapper mapper)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
-    [HttpGet("time_entries")]
+    [HttpGet("manager/time_entries")]
     public override async Task<IResult> HandleAsync(ViewTimeEntriesRequest request)
     {
-        if (!HttpContext.TryGetCurrentUserId(out var employeeId))
+        if (!HttpContext.TryGetCurrentUserId(out var managerId))
             return TypedResults.Unauthorized();
 
-        var result = await queryHandler.HandleAsync(new GetMyTimeEntriesForWeekQuery(
-            employeeId,
+        var result = await queryHandler.HandleAsync(new GetManagerTimeEntriesQuery(
+            managerId,
             request.FromDate.ToDateTime(TimeOnly.MinValue),
-            request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue)));
+            request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue),
+            null));
 
         if (result.IsFailure)
             return TypedResults.BadRequest(result.Errors);
 
-        var response = new ViewTimeEntriesResponse(result.Value
+        return TypedResults.Ok(new ViewTimeEntriesResponse(result.Value
             .Select(mapper.Map<TimeEntryResponse>)
-            .ToArray());
-
-        return TypedResults.Ok(response);
+            .ToArray()));
     }
 }

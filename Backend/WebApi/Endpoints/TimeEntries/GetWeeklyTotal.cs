@@ -1,26 +1,23 @@
 using Application;
 using Application.Queries;
 using Core.Tools.OperationResult;
-using Domain.Aggregate;
 using Microsoft.AspNetCore.Mvc;
-using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
 
 namespace WebAPI.endpoints.TimeEntries;
 
-public sealed class GetTimeEntries(
-    IQueryHandler<GetMyTimeEntriesForWeekQuery, Result<IReadOnlyList<TimeEntry>>> queryHandler,
-    IMapper mapper)
+public sealed class GetWeeklyTotal(
+    IQueryHandler<GetMyWeeklyTotalQuery, Result<decimal>> queryHandler)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
-    [HttpGet("time_entries")]
+    [HttpGet("time_entries/weekly-total")]
     public override async Task<IResult> HandleAsync(ViewTimeEntriesRequest request)
     {
         if (!HttpContext.TryGetCurrentUserId(out var employeeId))
             return TypedResults.Unauthorized();
 
-        var result = await queryHandler.HandleAsync(new GetMyTimeEntriesForWeekQuery(
+        var result = await queryHandler.HandleAsync(new GetMyWeeklyTotalQuery(
             employeeId,
             request.FromDate.ToDateTime(TimeOnly.MinValue),
             request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue)));
@@ -28,10 +25,9 @@ public sealed class GetTimeEntries(
         if (result.IsFailure)
             return TypedResults.BadRequest(result.Errors);
 
-        var response = new ViewTimeEntriesResponse(result.Value
-            .Select(mapper.Map<TimeEntryResponse>)
-            .ToArray());
-
-        return TypedResults.Ok(response);
+        return TypedResults.Ok(new WeeklyTotalResponse(
+            request.FromDate,
+            request.ToDate,
+            result.Value));
     }
 }

@@ -1,61 +1,30 @@
-﻿using Application;
+using Application;
 using Application.Commands;
-using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
 
 namespace WebAPI.endpoints.TimeEntries;
 
-public class CreateTimeEntry(
-    ICommandDispatcher Dispatcher,
-    IMapper Mapper)
-    : ApiEndpoint
-        .WithRequest<CreateTimeEntryRequest>
-        .AndResponse<IResult>
+public sealed class CreateTimeEntry(ICommandDispatcher dispatcher)
+    : ApiEndpoint.WithRequest<CreateTimeEntryRequest>.AndResponse<IResult>
 {
     [HttpPost("time_entries")]
-    [ProducesResponseType(typeof(TimeEntryResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
-    public override async Task<IResult>
-        HandleAsync(CreateTimeEntryRequest request)
+    public override async Task<IResult> HandleAsync(CreateTimeEntryRequest request)
     {
-        // TODO: Authentication
-        // Resolve the authenticated UserId in the Application handler. It must
-        // not be accepted from CreateTimeEntryRequest.
+        if (!HttpContext.TryGetCurrentUserId(out var employeeId))
+            return TypedResults.Unauthorized();
 
-        // TODO: Application/Domain/Persistence
-        // CreateTimeEntryCommand is currently empty and its handler is not
-        // implemented. The handler must create the TimeEntry, validate it
-        // through the Domain, attach it to the current user's TimeSheet, and
-        // persist it through the repository/UnitOfWork.
+        var result = await dispatcher.DispatchAsync(new CreateTimeEntryCommand(
+            employeeId.Value,
+            request.TaskId,
+            request.Date,
+            request.Hours,
+            request.Comment));
 
-        // TODO: Mapping
-        // Replace the current commented mapping configuration with explicit
-        // request-to-command and command/result-to-TimeEntryResponse mappings.
-
-        var command =
-            Mapper.Map<CreateTimeEntryCommand>(request);
-
-        var dispatchResult =
-            await Dispatcher.DispatchAsync(command);
-
-        if (dispatchResult.IsSuccess)
-        {
-            // TODO: API contract
-            // Return 201 Created with the resource location once the command
-            // returns the generated entry ID. The current dispatcher only
-            // returns Result, so the Application result flow needs to expose
-            // the created value first.
-            var response =
-                Mapper.Map<TimeEntryResponse>(command);
-
-            return TypedResults.Ok(response);
-        }
-
-        return TypedResults.BadRequest(
-            (IEnumerable<Error>)dispatchResult.Errors);
+        return result.IsSuccess
+            ? TypedResults.NoContent()
+            : TypedResults.BadRequest(result.Errors);
     }
 }

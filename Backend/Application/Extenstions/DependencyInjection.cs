@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using Domain.Interfaces.IUnitOfWork;
+using Domain.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Application.Extenstions;
@@ -15,6 +16,7 @@ public static class DependencyInjection
         
         // 1. Register the underlying real Dispatcher
         services.AddScoped<Dispatcher>();
+        services.AddScoped<TimeRegistrationDomainService>();
 
         // 2. Register the Decorator, passing the real Dispatcher into it as the inner ICommandDispatcher
         services.AddScoped<ICommandDispatcher>(provider =>
@@ -39,6 +41,16 @@ public static class DependencyInjection
             
             services.AddScoped(interfaceType, handlerType);
         }
+
+        var queryHandlerTypes = assembly.GetTypes()
+            .Where(type => type.IsClass && !type.IsAbstract)
+            .SelectMany(type => type.GetInterfaces()
+                .Where(@interface => @interface.IsGenericType &&
+                    @interface.GetGenericTypeDefinition() == typeof(IQueryHandler<,>))
+                .Select(@interface => new { type, @interface }));
+
+        foreach (var registration in queryHandlerTypes)
+            services.AddScoped(registration.@interface, registration.type);
 
         return services;
     }
