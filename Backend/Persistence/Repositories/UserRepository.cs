@@ -12,17 +12,15 @@ public class UserRepository(AppDbContext context)
     public async Task<User?> GetByEmailAsync(
         EmailAddress email)
     {
-        // return await Context.Users
-        //     .FirstOrDefaultAsync(user => user.Email == email);
-        throw  new NotImplementedException();
+        return await Context.Users
+            .FirstOrDefaultAsync(user => user.Email == email);
     }
 
     public async Task<IReadOnlyList<User>> GetByManagerIdAsync(
         UserId managerId)
     {
-        // return await Context.Users
-        //     .Where(user => user.ManagerId == managerId)
-        //     .ToListAsync();
-        throw  new NotImplementedException();
+        return await Context.Users
+            .Where(user => user.ManagerId == managerId)
+            .ToListAsync();
     }
 }
