@@ -1,19 +1,29 @@
-﻿using   Core.Tools.OperationResult;
+﻿namespace Application;
 
-namespace Application;
-
-public class IQueryDispatcher(IServiceProvider serviceProvider) : IQueryHandler<TQuery, TResult>
+public sealed class QueryDispatcher(
+    IServiceProvider serviceProvider)
+    : IQueryDispatcher
 {
-    public Task<Result> DispatchAsync<TCommand>(TCommand command)
+    public Task<TResult> DispatchAsync<TQuery, TResult>(
+        TQuery query)
     {
-        Type serviceType = typeof(ICommandHandler<TCommand>);
+        var serviceType =
+            typeof(IQueryHandler<,>)
+                .MakeGenericType(
+                    typeof(TQuery),
+                    typeof(TResult));
+
         var service = serviceProvider.GetService(serviceType);
-        if (service == null)
+
+        if (service is null)
         {
-            throw new InvalidOperationException($"No handler found for command type {typeof(ICommandHandler<TCommand>).FullName}");
-            
+            throw new InvalidOperationException(
+                $"No query handler found for {typeof(TQuery).FullName}");
         }
-        ICommandHandler<TCommand> handler = (ICommandHandler<TCommand>)service;
-        return handler.HandleAsync(command);
+
+        var handler =
+            (IQueryHandler<TQuery, TResult>)service;
+
+        return handler.HandleAsync(query);
     }
 }

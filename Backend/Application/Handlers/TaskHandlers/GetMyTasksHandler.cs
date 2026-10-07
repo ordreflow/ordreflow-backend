@@ -12,7 +12,7 @@ public sealed class GetMyTasksHandler(
         GetMyTasksQuery,
         Result<IReadOnlyList<Domain.Entities.Task>>>
 {
-    public async Task<Result<IReadOnlyList<Domain.Entities.Task>>> HandleAsync(
+    public async  Task<Result<IReadOnlyList<Domain.Entities.Task>>> HandleAsync(
         GetMyTasksQuery query)
     {
         var employee = await userRepository.GetAsync(query.EmployeeId);

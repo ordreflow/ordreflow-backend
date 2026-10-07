@@ -1,6 +1,5 @@
 ﻿namespace Application.Commands;
 
-public class CloseOrderCommand
-{
-    
-}
+public sealed record CloseOrderCommand(
+    Guid OrderId,
+    Guid ActorId);

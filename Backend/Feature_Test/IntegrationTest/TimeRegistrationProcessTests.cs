@@ -92,7 +92,7 @@ Console.WriteLine(
     $"4. Employee assigned to manager: {manager.Name.Value}");
 
         // ---------------------------------------------------------
-        // 4. Manager creates Order
+        // 4. Manager creates OrderCommands
         // ---------------------------------------------------------
 
         var orderName = OrderName.Create(
@@ -112,11 +112,11 @@ Console.WriteLine(
         Assert.Equal(OrderStatus.Open, order.Status);
 
         Console.WriteLine(
-            $"3. Order created: {order.Name.Value} ({order.Id})");
+            $"3. OrderCommands created: {order.Name.Value} ({order.Id})");
 
 
         // ---------------------------------------------------------
-        // 5. Manager creates Task on the Order
+        // 5. Manager creates Task on the OrderCommands
         // ---------------------------------------------------------
 
         var taskResult = order.AddWorkItem(
@@ -170,11 +170,11 @@ Console.WriteLine(
         // ---------------------------------------------------------
         //
         // The Domain Service coordinates the rules between:
-        // User + Order + TimeEntry.
+        // User + OrderCommands + TimeEntry.
         //
-        // Order.CanRegisterTime() verifies:
-        // - Order is open
-        // - Task belongs to Order
+        // OrderCommands.CanRegisterTime() verifies:
+        // - OrderCommands is open
+        // - Task belongs to OrderCommands
         // - Employee belongs to the manager scope
         // ---------------------------------------------------------
 

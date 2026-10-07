@@ -1,30 +1,29 @@
-using Application.Commands;
 using Application;
 using Application.Commands;
+using Application.Handlers;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
-using WebAPI.Contracts.Orders;
 
 namespace WebAPI.endpoints.Orders;
 
-public sealed class EditOrder(
+public sealed class CloseOrder(
     ICommandDispatcher dispatcher)
     : ApiEndpoint
-        .WithRequest<UpdateOrderRequest>
+        .WithRequest<Guid>
         .AndResponse<IResult>
 {
-    [HttpPut("orders/{id:guid}")]
+    [HttpPost("orders/{id:guid}/close")]
     public override async Task<IResult> HandleAsync(
-        UpdateOrderRequest updateOrderRequest)
+        [FromRoute] Guid id)
     {
         if (!HttpContext.TryGetCurrentUserId(out var actorId))
             return TypedResults.Unauthorized();
 
         var result = await dispatcher.DispatchAsync(
-            new RenameOrderCommand(
-                actorId.Value,
-                updateOrderRequest.Id,
-                updateOrderRequest.Name));
+            new CloseOrderCommand(
+                id,
+                actorId.Value));
+
         return result.IsSuccess
             ? TypedResults.NoContent()
             : TypedResults.BadRequest(result.Errors);

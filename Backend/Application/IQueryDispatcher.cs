@@ -1,9 +1,7 @@
-﻿using Core.Tools.OperationResult;
-
-namespace Application;
+﻿namespace Application;
 
 public interface IQueryDispatcher
 {
-    Task<Result<TResult>> DispatchAsync<TQuery, TResult>(
+    Task<TResult> DispatchAsync<TQuery, TResult>(
         TQuery query);
 }

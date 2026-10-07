@@ -1,6 +1,9 @@
-﻿namespace Application.Commands;
+﻿using Domain.ValueObjects;
 
-public class RenameOrderCommand
-{
-    
-}
+namespace Application.Commands;
+
+
+public sealed record RenameOrderCommand(
+    Guid OrderId,
+    Guid ActorId,
+    string Name);
