@@ -3,3 +3,38 @@ schema-version = "1.15.0"
 [install]
 dotnet-sdk.pkg-path = "dotnetCorePackages.sdk_8_0_4xx-bin"
 dotnet-sdk.version = "8.0.406"
+postgresql.pkg-path = "postgresql"
+
+# These values are for the ephemeral PostgreSQL service used by local Flox
+# development. An existing .env file can still override them when the API
+# starts through DotNetEnv.
+[vars]
+DB_HOST = "127.0.0.1"
+DB_PORT = "5432"
+DB_NAME = "ordreflow"
+DB_USERNAME = "ordreflow"
+DB_PASSWORD = ""
+PGHOST = "127.0.0.1"
+PGPORT = "5432"
+PGDATABASE = "ordreflow"
+PGUSER = "ordreflow"
+
+[hook]
+on-activate = """
+if [ -z "${ORDREFLOW_PGDATA:-}" ] || [ ! -d "$ORDREFLOW_PGDATA" ]; then
+  export ORDREFLOW_PGDATA="$(mktemp -d "${TMPDIR:-/tmp}/ordreflow-postgres.XXXXXX")"
+  initdb -D "$ORDREFLOW_PGDATA" --username="$DB_USERNAME" --auth=trust >/dev/null
+fi
+"""
+
+on-deactivate = """
+if [ -n "${ORDREFLOW_PGDATA:-}" ] && [ -d "$ORDREFLOW_PGDATA" ]; then
+  rm -rf "$ORDREFLOW_PGDATA"
+fi
+"""
+
+[services]
+auto-start = true
+
+[services.postgres]
+command = "bash tools/start-flox-postgres.sh"

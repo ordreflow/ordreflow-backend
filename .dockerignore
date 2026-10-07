@@ -1,0 +1,15 @@
+.git/
+.github/
+.flox/
+.opencode/
+.vs/
+.vscode/
+.idea/
+
+**/bin/
+**/obj/
+
+.env
+.env.*
+
+Backend/Backend.sln.DotSettings.user
