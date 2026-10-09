@@ -1,47 +1,33 @@
-using Core.Tools.OperationResult;
-using Microsoft.AspNetCore.Http;
+using Application;
+using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Orders;
 
 namespace WebAPI.endpoints.Orders;
 
-/// <summary>
-/// Renames an open order.
-/// </summary>
-public class EditOrder
+public sealed class EditOrder(
+    ICommandDispatcher dispatcher)
     : ApiEndpoint
         .WithRequest<UpdateOrderRequest>
         .AndResponse<IResult>
 {
     [HttpPut("orders/{id:guid}")]
-    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public override Task<IResult> HandleAsync(
-        [FromBody] UpdateOrderRequest request)
+    public override async Task<IResult> HandleAsync(
+        UpdateOrderRequest updateOrderRequest)
     {
-        // TODO: Application layer
-        // Add RenameOrderCommand containing the route ID and current actor.
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
 
-        // TODO: Domain layer
-        // Load the Case and call Case.Rename. The Domain already prevents
-        // renaming a closed case and checks manager/admin permissions.
+        var orderId = Guid.Parse(RouteData.Values["id"]!.ToString()!);
 
-        // TODO: Persistence/response handling
-        // Save through UnitOfWork, map to OrderResponse, and return 404 when
-        // the Case does not exist.
-
-        // The route ID is available through RouteData.Values["id"]. It is kept
-        // out of the body contract and will be parsed in the Application step.
-        var routeId = RouteData.Values["id"];
-
-        _ = routeId;
-        _ = request;
-        return Task.FromResult<IResult>(
-            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
+        var result = await dispatcher.DispatchAsync(
+            new RenameOrderCommand(
+                OrderId: orderId,
+                ActorId: actorId,
+                Name: updateOrderRequest.Name));
+        return result.IsSuccess
+            ? TypedResults.NoContent()
+            : TypedResults.BadRequest(result.Errors);
     }
 }

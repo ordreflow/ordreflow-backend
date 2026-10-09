@@ -69,7 +69,8 @@ public sealed class User
 	public bool CanManageUsers => Status == UserStatus.Active &&
 		(Role == UserRole.Manager || Role == UserRole.Admin);
 
-	public bool CanManageCases => CanManageUsers;
+	public bool CanReviewTimeEntries => Status == UserStatus.Active &&
+		(Role == UserRole.Manager || Role == UserRole.Admin);
 
 	public Result ChangeRole(
 		UserRole actorRole,
@@ -88,6 +89,8 @@ public sealed class User
 
 	public Result AssignManager(
 		UserId managerId,
+		UserRole managerRole,
+		UserStatus managerStatus,
 		UserRole actorRole,
 		UserStatus actorStatus)
 	{
@@ -97,12 +100,40 @@ public sealed class User
 		if (managerId is null || managerId == UserId)
 			return Result.Failure(new Error("InvalidManager", "A user cannot be assigned to itself as manager."));
 
+		if (managerStatus != UserStatus.Active ||
+			managerRole is not (UserRole.Manager or UserRole.Admin))
+			return Result.Failure(new Error("InvalidManager", "The selected manager is not active or authorized."));
+
 		ManagerId = managerId;
 		return Result.Success();
 	}
 
-	public Result ChangeName(PersonName name)
+	public bool CanView(
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus)
 	{
+		if (actorStatus != UserStatus.Active)
+			return false;
+
+		if (actorId == UserId)
+			return true;
+
+		if (actorRole == UserRole.Admin)
+			return true;
+
+		return actorRole == UserRole.Manager && ManagerId == actorId;
+	}
+
+	public Result ChangeName(
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		PersonName name)
+	{
+		if (!CanView(actorId, actorRole, actorStatus))
+			return Result.Failure(new Error("ProfileEditForbidden", "You are not authorized to edit this user's profile."));
+
 		if (name is null)
 			return Result.Failure(new Error("NameRequired", "User name is required."));
 
@@ -110,8 +141,15 @@ public sealed class User
 		return Result.Success();
 	}
 
-	public Result ChangeEmail(EmailAddress email)
+	public Result ChangeEmail(
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		EmailAddress email)
 	{
+		if (!CanView(actorId, actorRole, actorStatus))
+			return Result.Failure(new Error("ProfileEditForbidden", "You are not authorized to edit this user's profile."));
+
 		if (email is null)
 			return Result.Failure(new Error("EmailRequired", "User email is required."));
 
@@ -119,8 +157,11 @@ public sealed class User
 		return Result.Success();
 	}
 
-	public Result Deactivate()
+	public Result Deactivate(UserRole actorRole, UserStatus actorStatus)
 	{
+		if (actorRole != UserRole.Admin || actorStatus != UserStatus.Active)
+			return Result.Failure(new Error("DeactivationForbidden", "Only an active admin can deactivate users."));
+
 		if (Status == UserStatus.Inactive)
 			return Result.Failure(new Error("UserAlreadyInactive", "User is already inactive."));
 

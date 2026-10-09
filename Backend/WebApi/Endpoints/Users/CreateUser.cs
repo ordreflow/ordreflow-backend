@@ -1,48 +1,28 @@
-using Core.Tools.OperationResult;
-using Microsoft.AspNetCore.Http;
+using Application;
+using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
 
 namespace WebAPI.endpoints.Users;
 
-/// <summary>
-/// Creates a user profile. Authentication credentials are managed separately.
-/// </summary>
-public class CreateUser
-    : ApiEndpoint
-        .WithRequest<CreateUserRequest>
-        .AndResponse<IResult>
+public sealed class CreateUser(ICommandDispatcher dispatcher)
+    : ApiEndpoint.WithRequest<CreateUserRequest>.AndResponse<IResult>
 {
     [HttpPost("users")]
-    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public override Task<IResult> HandleAsync(
-        [FromBody] CreateUserRequest request)
+    public override async Task<IResult> HandleAsync(CreateUserRequest request)
     {
-        // TODO: Authentication/authorization
-        // Resolve the current actor and require an active manager or admin.
-        // The request must not contain a password; credentials belong to the
-        // authentication subsystem (local Identity now, Entra later).
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
 
-        // TODO: Application layer
-        // Add CreateUserCommand and CreateUserHandler. The handler should
-        // convert the request values to the Domain value objects and apply the
-        // actor's user-management permissions.
+        var result = await dispatcher.DispatchAsync(new CreateUserCommand(
+            actorId,
+            request.Name,
+            request.Email,
+            request.Role));
 
-        // TODO: Domain/Persistence layer
-        // Use User.Create/CreateUser, persist the profile, and create/link its
-        // authentication identity through the chosen authentication provider.
-
-        // TODO: Response handling
-        // Map the created User to UserResponse and return 201 Created with its
-        // route location.
-
-        _ = request;
-        return Task.FromResult<IResult>(
-            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
+        return result.IsSuccess
+            ? TypedResults.NoContent()
+            : TypedResults.BadRequest(result.Errors);
     }
 }

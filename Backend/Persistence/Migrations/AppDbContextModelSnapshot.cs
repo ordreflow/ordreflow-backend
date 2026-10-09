@@ -22,7 +22,7 @@ namespace Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Domain.Aggregate.Order", b =>
+            modelBuilder.Entity("Domain.Aggregate.OrderCommands", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -210,7 +210,7 @@ namespace Persistence.Migrations
                     b.ToTable("time_entry_reviews", (string)null);
                 });
 
-            modelBuilder.Entity("Domain.Aggregate.Order", b =>
+            modelBuilder.Entity("Domain.Aggregate.OrderCommands", b =>
                 {
                     b.HasOne("Domain.Aggregate.User", null)
                         .WithMany()
@@ -244,7 +244,7 @@ namespace Persistence.Migrations
 
             modelBuilder.Entity("Domain.Entities.Task", b =>
                 {
-                    b.HasOne("Domain.Aggregate.Order", null)
+                    b.HasOne("Domain.Aggregate.OrderCommands", null)
                         .WithMany("Tasks")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -260,7 +260,7 @@ namespace Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Domain.Aggregate.Order", b =>
+            modelBuilder.Entity("Domain.Aggregate.OrderCommands", b =>
                 {
                     b.Navigation("Tasks");
                 });

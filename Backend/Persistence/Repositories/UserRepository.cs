@@ -23,4 +23,9 @@ public class UserRepository(AppDbContext context)
             .Where(user => user.ManagerId == managerId)
             .ToListAsync();
     }
+
+    public async Task<IReadOnlyList<User>> GetAllAsync()
+    {
+        return await Context.Users.ToListAsync();
+    }
 }

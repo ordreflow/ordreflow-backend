@@ -1,44 +1,42 @@
+using Application;
+using Application.Dtos;
+using Application.Queries;
 using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
 
 namespace WebAPI.endpoints.TimeEntries;
 
 /// <summary>
-/// Gets one time entry belonging to the authenticated employee.
+/// Gets one time entry, subject to owner/manager/admin authorization.
 /// </summary>
-public class GetTimeEntry
+public sealed class GetTimeEntry(
+    IQueryDispatcher dispatcher,
+    IMapper mapper)
     : ApiEndpoint
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
     [HttpGet("time_entries/{id:guid}")]
-    
     [ProducesResponseType(typeof(TimeEntryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    
-    public override Task<IResult> HandleAsync([FromRoute] Guid id)
+    public override async Task<IResult> HandleAsync([FromRoute] Guid id)
     {
-        // TODO: Application layer
-        // 1. Add a GetTimeEntryQuery containing the entry ID and UserId.
-        // 2. Inject the query dispatcher/read service and ICurrentUser.
-        // 3. Execute the query using the authenticated UserId.
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
 
-        // TODO: Domain/Persistence layer
-        // Add a repository method that loads by entry ID while also enforcing
-        // ownership through the current user's timesheet.
+        var result = await dispatcher.DispatchAsync<GetTimeEntryQuery, Result<TimeEntryDto>>(
+            new GetTimeEntryQuery(actorId, id));
 
-        // TODO: Response handling
-        // Return TimeEntryResponse when found. Return 404 when the entry does
-        // not exist or does not belong to the current user.
+        if (result.IsFailure)
+            return result.Errors.ToErrorResult();
 
-        _ = id;
-        return Task.FromResult<IResult>(
-            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
+        return TypedResults.Ok(mapper.Map<TimeEntryResponse>(result.Value));
     }
 }
