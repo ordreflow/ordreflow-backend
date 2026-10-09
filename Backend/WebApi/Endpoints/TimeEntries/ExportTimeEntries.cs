@@ -13,7 +13,7 @@ public sealed class ExportTimeEntries(
     : ApiEndpoint.WithRequest<ExportTimeEntriesRequest>.AndResponse<IResult>
 {
     [HttpGet("time_entries/export")]
-    public override async Task<IResult> HandleAsync(ExportTimeEntriesRequest request)
+    public override async Task<IResult> HandleAsync( [FromQuery] ExportTimeEntriesRequest request)
     {
         if (!HttpContext.TryGetCurrentUserId(out var requesterId))
             return TypedResults.Unauthorized();

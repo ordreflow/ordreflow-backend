@@ -12,7 +12,7 @@ public sealed class GetWeeklyTotal(
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
     [HttpGet("time_entries/weekly-total")]
-    public override async Task<IResult> HandleAsync(ViewTimeEntriesRequest request)
+    public override async Task<IResult> HandleAsync( [FromQuery] ViewTimeEntriesRequest request)
     {
         if (!HttpContext.TryGetCurrentUserId(out var employeeId))
             return TypedResults.Unauthorized();

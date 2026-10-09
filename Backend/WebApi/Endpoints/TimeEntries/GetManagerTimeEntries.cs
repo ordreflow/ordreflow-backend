@@ -15,7 +15,7 @@ public sealed class GetManagerTimeEntries(
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
     [HttpGet("time_entries/manager")]
-    public override async Task<IResult> HandleAsync(ViewTimeEntriesRequest request)
+    public override async Task<IResult> HandleAsync([FromQuery] ViewTimeEntriesRequest request)
     {
         if (!HttpContext.TryGetCurrentUserId(out var managerId))
             return TypedResults.Unauthorized();

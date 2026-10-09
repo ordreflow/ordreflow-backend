@@ -1,16 +1,33 @@
 using Application;
 using Application.Extenstions;
+using Domain.Interfaces.IUnitOfWork;
+using Domain.Interfaces;
 using DotNetEnv;
+using Microsoft.EntityFrameworkCore;
 using ObjectMapper;
 using Persistence;
 using System.Security.Claims;
+//using ViaPadel.Infrastructure.Repositories;
 using WebAPI.Common;
 
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Database
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    var host = Environment.GetEnvironmentVariable("DB_HOST");
+    var port = Environment.GetEnvironmentVariable("DB_PORT");
+    var database = Environment.GetEnvironmentVariable("DB_NAME");
+    var username = Environment.GetEnvironmentVariable("DB_USERNAME");
+    var password = Environment.GetEnvironmentVariable("DB_PASSWORD");
 
+    var connectionString =
+        $"Host={host};Port={port};Database={database};Username={username};Password={password}";
+
+    options.UseNpgsql(connectionString);
+});
 builder.Services.AddApplication();
 
 // Application
