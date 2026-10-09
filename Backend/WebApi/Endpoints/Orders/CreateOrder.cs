@@ -1,6 +1,5 @@
 using Application;
 using Application.Commands;
-using Domain.ValueObjects;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Orders;
@@ -17,7 +16,7 @@ public sealed class CreateOrder(ICommandDispatcher dispatcher)
             return TypedResults.Unauthorized();
 
         var result = await dispatcher.DispatchAsync(
-            new CreateOrderCommand(managerId.Value, request.Name));
+            new CreateOrderCommand(managerId, request.Name));
 
         return result.IsSuccess
             ? TypedResults.NoContent()

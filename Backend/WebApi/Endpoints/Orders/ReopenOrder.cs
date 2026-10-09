@@ -22,7 +22,7 @@ public sealed class ReopenOrder(
         var result = await dispatcher.DispatchAsync(
             new ReopenOrderCommand(
                 id,
-                actorId.Value));
+                actorId));
 
         return result.IsSuccess
             ? TypedResults.NoContent()

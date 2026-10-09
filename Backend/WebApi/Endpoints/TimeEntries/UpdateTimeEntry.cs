@@ -19,8 +19,7 @@ public sealed class UpdateTimeEntry(ICommandDispatcher dispatcher)
 
         var result = await dispatcher.DispatchAsync(new UpdateTimeEntryCommand(
             id,
-            employeeId.Value,
-            request.TaskId,
+            employeeId,
             request.Date,
             request.Hours,
             request.Comment));

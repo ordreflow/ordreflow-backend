@@ -19,6 +19,8 @@ public static class DependencyInjection
     services.AddScoped<IQueryDispatcher, QueryDispatcher>();
 
     services.AddScoped<TimeRegistrationDomainService>();
+    services.AddScoped<TaskRemovalDomainService>();
+    services.AddScoped<TimeEntryReviewDomainService>();
 
     services.AddScoped<ICommandDispatcher>(provider =>
     {

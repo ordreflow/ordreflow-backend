@@ -1,4 +1,3 @@
-using Application.Commands;
 using Application;
 using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
@@ -20,11 +19,13 @@ public sealed class EditOrder(
         if (!HttpContext.TryGetCurrentUserId(out var actorId))
             return TypedResults.Unauthorized();
 
+        var orderId = Guid.Parse(RouteData.Values["id"]!.ToString()!);
+
         var result = await dispatcher.DispatchAsync(
             new RenameOrderCommand(
-                actorId.Value,
-                updateOrderRequest.Id,
-                updateOrderRequest.Name));
+                OrderId: orderId,
+                ActorId: actorId,
+                Name: updateOrderRequest.Name));
         return result.IsSuccess
             ? TypedResults.NoContent()
             : TypedResults.BadRequest(result.Errors);

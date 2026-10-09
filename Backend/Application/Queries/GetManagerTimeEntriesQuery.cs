@@ -3,7 +3,7 @@ using Domain.ValueObjects;
 namespace Application.Queries;
 
 public sealed record GetManagerTimeEntriesQuery(
-    UserId ManagerId,
+    Guid ManagerId,
     DateTime? FromDate,
     DateTime? ToDateExclusive,
     TimeEntryStatus? Status);

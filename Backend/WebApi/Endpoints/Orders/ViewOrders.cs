@@ -1,14 +1,17 @@
 using Application;
+using Application.Dtos;
 using Application.Queries;
 using Core.Tools.OperationResult;
-using Domain.Aggregate;
 using Microsoft.AspNetCore.Mvc;
+using ObjectMapper;
 using WebAPI.Common;
+using WebAPI.Contracts.Orders;
 
 namespace WebAPI.endpoints.Orders;
 
 public sealed class ViewOrders(
-    QueryDispatcher dispatcher)
+    IQueryDispatcher dispatcher,
+    IMapper mapper)
     : ApiEndpoint
         .WithoutRequest
         .AndResponse<IResult>
@@ -19,13 +22,14 @@ public sealed class ViewOrders(
         if (!HttpContext.TryGetCurrentUserId(out var actorId))
             return TypedResults.Unauthorized();
 
-        var result = await dispatcher.DispatchAsync<
-            GetOrdersQuery,
-            Result<IReadOnlyList<Order>>>(
-            new GetOrdersQuery(actorId.Value));
+        var result = await dispatcher.DispatchAsync<GetOrdersQuery, Result<IReadOnlyList<OrderDto>>>(
+            new GetOrdersQuery(actorId));
 
-        return result.IsSuccess
-            ? TypedResults.Ok(result.Value)
-            : TypedResults.BadRequest(result.Errors);
+        if (result.IsFailure)
+            return TypedResults.BadRequest(result.Errors);
+
+        return TypedResults.Ok(new ViewOrdersResponse(result.Value
+            .Select(mapper.Map<OrderResponse>)
+            .ToArray()));
     }
 }

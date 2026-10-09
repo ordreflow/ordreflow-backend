@@ -22,7 +22,7 @@ public sealed class CloseOrder(
         var result = await dispatcher.DispatchAsync(
             new CloseOrderCommand(
                 id,
-                actorId.Value));
+                actorId));
 
         return result.IsSuccess
             ? TypedResults.NoContent()

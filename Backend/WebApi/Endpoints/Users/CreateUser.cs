@@ -1,6 +1,5 @@
 using Application;
 using Application.Commands;
-using Domain.ValueObjects;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
@@ -17,7 +16,7 @@ public sealed class CreateUser(ICommandDispatcher dispatcher)
             return TypedResults.Unauthorized();
 
         var result = await dispatcher.DispatchAsync(new CreateUserCommand(
-            actorId.Value,
+            actorId,
             request.Name,
             request.Email,
             request.Role));

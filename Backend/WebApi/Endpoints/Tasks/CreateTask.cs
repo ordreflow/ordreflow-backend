@@ -17,7 +17,7 @@ public sealed class CreateTask(ICommandDispatcher dispatcher)
 
         var result = await dispatcher.DispatchAsync(new CreateTaskCommand(
             request.OrderId,
-            managerId.Value,
+            managerId,
             request.Title,
             request.Description));
 

@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        
 
         return services;
     }

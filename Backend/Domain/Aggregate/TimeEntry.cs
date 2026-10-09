@@ -274,7 +274,7 @@ public sealed class TimeEntry
         return Result.Success();
     }
 
-    private Result CanEdit(UserId actorId)
+    public Result CanEdit(UserId actorId)
     {
         if (actorId is null || actorId != EmployeeId)
             return Result.Failure(
@@ -289,6 +289,20 @@ public sealed class TimeEntry
                     "Only open or returned time entries can be edited."));
 
         return Result.Success();
+    }
+
+    public bool CanView(
+        UserId actorId,
+        UserRole actorRole,
+        UserId? employeeManagerId)
+    {
+        if (actorId is not null && actorId == EmployeeId)
+            return true;
+
+        if (actorRole == UserRole.Admin)
+            return true;
+
+        return actorRole == UserRole.Manager && employeeManagerId == actorId;
     }
 
     private Result CanReview(

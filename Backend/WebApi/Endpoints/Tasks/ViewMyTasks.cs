@@ -1,17 +1,16 @@
 using Application;
+using Application.Dtos;
 using Application.Queries;
 using Core.Tools.OperationResult;
-using Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Tasks;
-using TaskEntity = Domain.Entities.Task;
 
 namespace WebAPI.endpoints.Tasks;
 
 public sealed class ViewMyTasks(
-    IQueryHandler<GetMyTasksQuery, Result<IReadOnlyList<TaskEntity>>> queryHandler,
+    IQueryDispatcher dispatcher,
     IMapper mapper)
     : EndpointBase
 {
@@ -21,7 +20,8 @@ public sealed class ViewMyTasks(
         if (!HttpContext.TryGetCurrentUserId(out var employeeId))
             return TypedResults.Unauthorized();
 
-        var result = await queryHandler.HandleAsync(new GetMyTasksQuery(employeeId));
+        var result = await dispatcher.DispatchAsync<GetMyTasksQuery, Result<IReadOnlyList<TaskDto>>>(
+            new GetMyTasksQuery(employeeId));
         if (result.IsFailure)
             return TypedResults.BadRequest(result.Errors);
 

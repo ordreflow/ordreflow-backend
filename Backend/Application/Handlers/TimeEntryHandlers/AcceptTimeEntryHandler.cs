@@ -1,13 +1,15 @@
 using Application.Commands;
 using Core.Tools.OperationResult;
 using Domain.Interfaces;
+using Domain.Services;
 using Domain.ValueObjects;
 
 namespace Application.Handlers;
 
 public sealed class AcceptTimeEntryHandler(
     ITimeEntryRepository timeEntryRepository,
-    IUserRepository userRepository) : ICommandHandler<AcceptTimeEntryCommand>
+    IUserRepository userRepository,
+    TimeEntryReviewDomainService reviewService) : ICommandHandler<AcceptTimeEntryCommand>
 {
     public async Task<Result> HandleAsync(AcceptTimeEntryCommand command)
     {
@@ -22,14 +24,7 @@ public sealed class AcceptTimeEntryHandler(
 
         var employee = await userRepository.GetAsync(entry.EmployeeId);
         var reviewer = await userRepository.GetAsync(reviewerId.Value);
-        if (employee is null || reviewer is null)
-            return Result.Failure(new Error("UserNotFound", "The employee or reviewer was not found."));
 
-        return entry.Accept(
-            reviewer.UserId,
-            employee.UserId,
-            employee.ManagerId,
-            reviewer.Role,
-            reviewer.Status);
+        return reviewService.Accept(entry, employee, reviewer);
     }
 }

@@ -1,54 +1,52 @@
-using Domain.Aggregate;
-using Domain.Entities;
+using Application.Dtos;
 using ObjectMapper;
 using WebAPI.Contracts.Orders;
 using WebAPI.Contracts.Tasks;
 using WebAPI.Contracts.TimeEntries;
 using WebAPI.Contracts.Users;
-using TaskEntity = Domain.Entities.Task;
 
 namespace WebAPI.MappingConfigurations;
 
 public sealed class OrderToResponseMapper
-    : IMappingConfig<Order, OrderResponse>
+    : IMappingConfig<OrderDto, OrderResponse>
 {
-    public OrderResponse Map(Order input) => new(
-        input.Id.Value,
-        input.Name.Value,
-        input.Status.ToString(),
+    public OrderResponse Map(OrderDto input) => new(
+        input.Id,
+        input.Name,
+        input.Status,
         input.CreatedAt,
         input.ClosedAt);
 }
 
 public sealed class TaskToResponseMapper
-    : IMappingConfig<TaskEntity, TaskResponse>
+    : IMappingConfig<TaskDto, TaskResponse>
 {
-    public TaskResponse Map(TaskEntity input) => new(
-        input.TaskId.Value,
-        input.OrderId?.Value ?? Guid.Empty,
+    public TaskResponse Map(TaskDto input) => new(
+        input.Id,
+        input.OrderId,
         input.Title,
         input.Description);
 }
 
 public sealed class TimeEntryToResponseMapper
-    : IMappingConfig<TimeEntry, TimeEntryResponse>
+    : IMappingConfig<TimeEntryDto, TimeEntryResponse>
 {
-    public TimeEntryResponse Map(TimeEntry input) => new(
-        input.Id.Value,
-        input.TaskId.Value,
+    public TimeEntryResponse Map(TimeEntryDto input) => new(
+        input.Id,
+        input.TaskId,
         input.Date,
         input.Hours,
         input.Comment);
 }
 
 public sealed class UserToResponseMapper
-    : IMappingConfig<User, UserResponse>
+    : IMappingConfig<UserDto, UserResponse>
 {
-    public UserResponse Map(User input) => new(
-        input.UserId.Value,
-        input.Name.Value,
-        input.Email.Value,
-        input.Role.ToString(),
-        input.Status.ToString(),
+    public UserResponse Map(UserDto input) => new(
+        input.Id,
+        input.Name,
+        input.Email,
+        input.Role,
+        input.Status,
         input.CreatedAt);
 }

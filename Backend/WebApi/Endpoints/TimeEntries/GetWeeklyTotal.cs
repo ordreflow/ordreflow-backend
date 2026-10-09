@@ -8,7 +8,7 @@ using WebAPI.Contracts.TimeEntries;
 namespace WebAPI.endpoints.TimeEntries;
 
 public sealed class GetWeeklyTotal(
-    IQueryHandler<GetMyWeeklyTotalQuery, Result<decimal>> queryHandler)
+    IQueryDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
     [HttpGet("time_entries/weekly-total")]
@@ -17,10 +17,11 @@ public sealed class GetWeeklyTotal(
         if (!HttpContext.TryGetCurrentUserId(out var employeeId))
             return TypedResults.Unauthorized();
 
-        var result = await queryHandler.HandleAsync(new GetMyWeeklyTotalQuery(
-            employeeId,
-            request.FromDate.ToDateTime(TimeOnly.MinValue),
-            request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue)));
+        var result = await dispatcher.DispatchAsync<GetMyWeeklyTotalQuery, Result<decimal>>(
+            new GetMyWeeklyTotalQuery(
+                employeeId,
+                request.FromDate.ToDateTime(TimeOnly.MinValue),
+                request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue)));
 
         if (result.IsFailure)
             return TypedResults.BadRequest(result.Errors);

@@ -12,20 +12,14 @@ public sealed class UpdateTimeEntryHandler(
     {
         var entryId = TimeEntryId.Create(command.TimeEntryId);
         var employeeId = UserId.Create(command.EmployeeId);
-        var taskId = TaskId.Create(command.TaskId);
         if (entryId.IsFailure)
             return Result.Failure(entryId.Errors.ToArray());
         if (employeeId.IsFailure)
             return Result.Failure(employeeId.Errors.ToArray());
-        if (taskId.IsFailure)
-            return Result.Failure(taskId.Errors.ToArray());
 
         var entry = await repository.GetAsync(entryId.Value);
         if (entry is null)
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
-
-        if (entry.TaskId != taskId.Value)
-            return Result.Failure(new Error("TaskChangeNotSupported", "The task cannot be changed after creation."));
 
         var hoursResult = entry.ChangeHours(employeeId.Value, command.Hours);
         if (hoursResult.IsFailure)

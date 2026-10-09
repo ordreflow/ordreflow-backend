@@ -18,9 +18,13 @@ public sealed class ExportAcceptedTimeEntriesHandler(
             return Result<IReadOnlyList<TimeEntryExportRow>>.Failure(
                 new Error("InvalidDateRange", "The export end must be after the export start."));
 
-        var requester = await userRepository.GetAsync(query.RequestedBy);
-        if (requester is null || requester.Status != UserStatus.Active ||
-            requester.Role is not (UserRole.Manager or UserRole.Admin))
+        var requesterIdResult = UserId.Create(query.RequestedBy);
+
+        if (requesterIdResult.IsFailure)
+            return Result<IReadOnlyList<TimeEntryExportRow>>.Failure(requesterIdResult.Errors.ToArray());
+
+        var requester = await userRepository.GetAsync(requesterIdResult.Value);
+        if (requester is null || !requester.CanReviewTimeEntries)
             return Result<IReadOnlyList<TimeEntryExportRow>>.Failure(
                 new Error("ExportForbidden", "The user is not authorized to export time entries."));
 
@@ -31,13 +35,13 @@ public sealed class ExportAcceptedTimeEntriesHandler(
         var rows = entries
             .Where(entry => entry.Status is TimeEntryStatus.Accepted or TimeEntryStatus.Finalized)
             .Select(entry => new TimeEntryExportRow(
-                entry.Id,
-                entry.EmployeeId,
-                entry.TaskId,
+                entry.Id.Value,
+                entry.EmployeeId.Value,
+                entry.TaskId.Value,
                 entry.Date,
                 entry.Hours,
                 entry.Comment,
-                entry.Status))
+                entry.Status.ToString()))
             .OrderBy(row => row.Date)
             .ToArray();
 

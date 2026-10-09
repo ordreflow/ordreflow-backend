@@ -76,6 +76,8 @@ Console.WriteLine(
 
 var assignManagerResult = employee.AssignManager(
     manager.UserId,
+    manager.Role,
+    manager.Status,
     admin.Role,
     admin.Status);
 

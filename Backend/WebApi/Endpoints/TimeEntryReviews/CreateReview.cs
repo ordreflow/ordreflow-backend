@@ -21,7 +21,7 @@ public sealed class CreateReview(ICommandDispatcher dispatcher)
         if (string.Equals(request.Decision, "accept", StringComparison.OrdinalIgnoreCase))
         {
             var result = await dispatcher.DispatchAsync(
-                new AcceptTimeEntryCommand(id, reviewerId.Value));
+                new AcceptTimeEntryCommand(id, reviewerId));
             return result.IsSuccess
                 ? TypedResults.NoContent()
                 : TypedResults.BadRequest(result.Errors);
@@ -30,7 +30,7 @@ public sealed class CreateReview(ICommandDispatcher dispatcher)
         if (string.Equals(request.Decision, "return", StringComparison.OrdinalIgnoreCase))
         {
             var result = await dispatcher.DispatchAsync(
-                new ReturnTimeEntryCommand(id, reviewerId.Value, request.Reason ?? string.Empty));
+                new ReturnTimeEntryCommand(id, reviewerId, request.Reason ?? string.Empty));
             return result.IsSuccess
                 ? TypedResults.NoContent()
                 : TypedResults.BadRequest(result.Errors);
@@ -39,7 +39,7 @@ public sealed class CreateReview(ICommandDispatcher dispatcher)
         if (string.Equals(request.Decision, "finalize", StringComparison.OrdinalIgnoreCase))
         {
             var result = await dispatcher.DispatchAsync(
-                new FinalizeTimeEntryCommand(id, reviewerId.Value));
+                new FinalizeTimeEntryCommand(id, reviewerId));
             return result.IsSuccess
                 ? TypedResults.NoContent()
                 : TypedResults.BadRequest(result.Errors);

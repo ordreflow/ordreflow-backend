@@ -1,13 +1,15 @@
 using Application.Commands;
 using Core.Tools.OperationResult;
 using Domain.Interfaces;
+using Domain.Services;
 using Domain.ValueObjects;
 
 namespace Application.Handlers;
 
 public sealed class FinalizeTimeEntryHandler(
     ITimeEntryRepository timeEntryRepository,
-    IUserRepository userRepository) : ICommandHandler<FinalizeTimeEntryCommand>
+    IUserRepository userRepository,
+    TimeEntryReviewDomainService reviewService) : ICommandHandler<FinalizeTimeEntryCommand>
 {
     public async Task<Result> HandleAsync(FinalizeTimeEntryCommand command)
     {
@@ -22,14 +24,7 @@ public sealed class FinalizeTimeEntryHandler(
 
         var employee = await userRepository.GetAsync(entry.EmployeeId);
         var reviewer = await userRepository.GetAsync(reviewerId.Value);
-        if (employee is null || reviewer is null)
-            return Result.Failure(new Error("UserNotFound", "The employee or reviewer was not found."));
 
-        return entry.Finalize(
-            reviewer.UserId,
-            employee.UserId,
-            employee.ManagerId,
-            reviewer.Role,
-            reviewer.Status);
+        return reviewService.Finalize(entry, employee, reviewer);
     }
 }

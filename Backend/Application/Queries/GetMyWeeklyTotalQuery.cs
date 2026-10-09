@@ -1,8 +1,6 @@
-using Domain.ValueObjects;
-
 namespace Application.Queries;
 
 public sealed record GetMyWeeklyTotalQuery(
-    UserId EmployeeId,
+    Guid EmployeeId,
     DateTime WeekStart,
     DateTime WeekEndExclusive);

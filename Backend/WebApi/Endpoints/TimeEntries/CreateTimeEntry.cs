@@ -17,7 +17,7 @@ public sealed class CreateTimeEntry(ICommandDispatcher dispatcher)
             return TypedResults.Unauthorized();
 
         var result = await dispatcher.DispatchAsync(new CreateTimeEntryCommand(
-            employeeId.Value,
+            employeeId,
             request.TaskId,
             request.Date,
             request.Hours,

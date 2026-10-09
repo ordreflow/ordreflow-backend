@@ -1,3 +1,5 @@
+using Application;
+using Application.Commands;
 using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -6,9 +8,11 @@ using WebAPI.Common;
 namespace WebAPI.endpoints.Tasks;
 
 /// <summary>
-/// Removes a task/work item from its order/case.
+/// Removes a task/work item from its order/case. Rejected when time entries
+/// already reference the task, to preserve historical time registrations.
 /// </summary>
-public class DeleteTask
+public sealed class DeleteTask(
+    ICommandDispatcher dispatcher)
     : ApiEndpoint
         .WithRequest<Guid>
         .AndResponse<IResult>
@@ -19,22 +23,16 @@ public class DeleteTask
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public override Task<IResult> HandleAsync([FromRoute] Guid id)
+    public override async Task<IResult> HandleAsync([FromRoute] Guid id)
     {
-        // TODO: Authentication/authorization
-        // Require the approved task-management permission.
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
 
-        // TODO: Application/Domain layer
-        // Add RemoveTaskCommand. Load the owning Case and call
-        // Case.RemoveWorkItem so the aggregate can enforce its rules.
+        var result = await dispatcher.DispatchAsync(
+            new RemoveTaskCommand(actorId, id));
 
-        // TODO: Persistence layer
-        // Commit the removal through the UnitOfWork and return 204 only after
-        // the operation succeeds.
-
-        _ = id;
-        return Task.FromResult<IResult>(
-            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
+        return result.IsSuccess
+            ? TypedResults.NoContent()
+            : result.Errors.ToErrorResult();
     }
 }

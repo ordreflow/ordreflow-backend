@@ -23,12 +23,10 @@ public sealed class AssignManagerHandler(
         if (admin is null || employee is null || manager is null)
             return Result.Failure(new Error("UserNotFound", "The admin, employee, or manager was not found."));
 
-        if (manager.Role is not (UserRole.Manager or UserRole.Admin) ||
-            manager.Status != UserStatus.Active)
-            return Result.Failure(new Error("InvalidManager", "The selected manager is not active or authorized."));
-
         return employee.AssignManager(
             manager.UserId,
+            manager.Role,
+            manager.Status,
             admin.Role,
             admin.Status);
     }

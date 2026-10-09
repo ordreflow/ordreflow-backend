@@ -1,6 +1,10 @@
+using Application;
+using Application.Dtos;
+using Application.Queries;
 using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
 
@@ -9,7 +13,9 @@ namespace WebAPI.endpoints.Users;
 /// <summary>
 /// Gets one user profile by ID.
 /// </summary>
-public class ViewUser
+public sealed class ViewUser(
+    IQueryDispatcher dispatcher,
+    IMapper mapper)
     : ApiEndpoint
         .WithRequest<Guid>
         .AndResponse<IResult>
@@ -20,21 +26,17 @@ public class ViewUser
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public override Task<IResult> HandleAsync([FromRoute] Guid id)
+    public override async Task<IResult> HandleAsync([FromRoute] Guid id)
     {
-        // TODO: Authentication/authorization
-        // Apply the visibility policy for the current actor.
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
 
-        // TODO: Application/Persistence layer
-        // Add a query that loads the profile by ID and excludes all credential
-        // and token data.
+        var result = await dispatcher.DispatchAsync<GetUserQuery, Result<UserDto>>(
+            new GetUserQuery(actorId, id));
 
-        // TODO: Response handling
-        // Return UserResponse, or 404 when the profile does not exist.
+        if (result.IsFailure)
+            return result.Errors.ToErrorResult();
 
-        _ = id;
-        return Task.FromResult<IResult>(
-            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
+        return TypedResults.Ok(mapper.Map<UserResponse>(result.Value));
     }
 }

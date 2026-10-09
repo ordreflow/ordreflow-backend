@@ -9,15 +9,17 @@ namespace WebAPI.endpoints.Users;
 public sealed class ChangeUserRole(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ChangeUserRoleRequest>.AndResponse<IResult>
 {
-    [HttpPut("users/role")]
+    [HttpPost("users/{id:guid}/role")]
     public override async Task<IResult> HandleAsync(ChangeUserRoleRequest request)
     {
         if (!HttpContext.TryGetCurrentUserId(out var adminId))
             return TypedResults.Unauthorized();
 
+        var userId = Guid.Parse(RouteData.Values["id"]!.ToString()!);
+
         var result = await dispatcher.DispatchAsync(new ChangeUserRoleCommand(
-            adminId.Value,
-            request.UserId,
+            adminId,
+            userId,
             request.Role));
 
         return result.IsSuccess

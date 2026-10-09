@@ -130,6 +130,17 @@ public sealed class Order
 	public bool ContainsWorkItem(TaskId taskId) =>
 		taskId is not null && _tasks.Any(item => item.TaskId == taskId);
 
+	public bool CanView(
+		UserId actorId,
+		UserRole actorRole,
+		UserId? actorManagerId) =>
+		actorRole switch
+		{
+			UserRole.Admin => true,
+			UserRole.Manager => ManagerId == actorId,
+			_ => actorManagerId is not null && ManagerId == actorManagerId
+		};
+
 	internal Result CanRegisterTime(
 		TaskId taskId,
 		UserId employeeId,
@@ -188,5 +199,30 @@ public sealed class Order
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can remove work items."));
 
 		return RemoveWorkItem(taskId);
+	}
+
+	public Result UpdateWorkItem(
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		TaskId taskId,
+		string title,
+		string description)
+	{
+		if (!CanManage(actorId, actorRole, actorStatus))
+			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can update work items."));
+
+		if (Status == OrderStatus.Closed)
+			return Result.Failure(new Error("CaseClosed", "A work item cannot be updated on a closed case."));
+
+		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
+		if (workItem is null)
+			return Result.Failure(new Error("WorkItemNotFound", "The work item does not belong to this case."));
+
+		var titleResult = workItem.ChangeTitle(title);
+		if (titleResult.IsFailure)
+			return titleResult;
+
+		return workItem.ChangeDescription(description);
 	}
 }
