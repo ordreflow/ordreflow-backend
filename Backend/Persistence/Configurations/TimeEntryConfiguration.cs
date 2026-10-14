@@ -4,8 +4,7 @@ using Domain.Aggregate;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Task = Domain.Entities.Task;
-
+using Domain.Entities;
 public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
 {
     public void Configure(EntityTypeBuilder<TimeEntry> entity)
