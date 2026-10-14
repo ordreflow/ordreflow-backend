@@ -79,7 +79,7 @@ public sealed class Task
 				description));
 	}
 
-	public Result ChangeTitle(string title)
+	internal Result ChangeTitle(string title)
 	{
 		if (string.IsNullOrWhiteSpace(title))
 		{
@@ -99,7 +99,7 @@ public sealed class Task
 		return Result.Success();
 	}
 
-	public Result ChangeDescription(string description)
+	internal Result ChangeDescription(string description)
 	{
 		if (description is null)
 		{

@@ -1,6 +1,10 @@
+using Application;
+using Application.Dtos;
+using Application.Queries;
 using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Tasks;
 
@@ -9,7 +13,9 @@ namespace WebAPI.endpoints.Tasks;
 /// <summary>
 /// Gets one task/work item by ID.
 /// </summary>
-public class ViewTask
+public sealed class ViewTask(
+    IQueryDispatcher dispatcher,
+    IMapper mapper)
     : ApiEndpoint
         .WithRequest<Guid>
         .AndResponse<IResult>
@@ -20,15 +26,17 @@ public class ViewTask
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public override Task<IResult> HandleAsync([FromRoute] Guid id)
+    public override async Task<IResult> HandleAsync([FromRoute] Guid id)
     {
-        // TODO: Application/Persistence layer
-        // Load the WorkCase by ID, enforce the actor's visibility/assignment
-        // policy, map it to TaskResponse, and return 404 when it is not found.
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
 
-        _ = id;
-        return Task.FromResult<IResult>(
-            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
+        var result = await dispatcher.DispatchAsync<GetTaskQuery, Result<TaskDto>>(
+            new GetTaskQuery(actorId, id));
+
+        if (result.IsFailure)
+            return result.Errors.ToErrorResult();
+
+        return TypedResults.Ok(mapper.Map<TaskResponse>(result.Value));
     }
 }

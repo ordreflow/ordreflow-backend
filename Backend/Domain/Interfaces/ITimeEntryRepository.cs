@@ -15,4 +15,6 @@ public interface ITimeEntryRepository
     Task<IReadOnlyList<TimeEntry>> GetByDateRangeAsync(
         DateTime from,
         DateTime to);
+
+    Task<bool> ExistsForTaskAsync(TaskId taskId);
 }

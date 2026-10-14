@@ -41,7 +41,7 @@ public sealed class Order
 			return Result<Order>.Failure(new Error("CaseCreationForbidden", "Only an active manager or admin can create cases."));
 
 		if (name is null)
-			return Result<Order>.Failure(new Error("CaseNameRequired", "Order name is required."));
+			return Result<Order>.Failure(new Error("CaseNameRequired", "OrderCommands name is required."));
 
 		return Result<Order>.Success(new Order(managerId, name));
 	}
@@ -56,7 +56,7 @@ public sealed class Order
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can rename cases."));
 
 		if (name is null)
-			return Result.Failure(new Error("CaseNameRequired", "Order name is required."));
+			return Result.Failure(new Error("CaseNameRequired", "OrderCommands name is required."));
 
 		if (Status == OrderStatus.Closed)
 			return Result.Failure(new Error("CaseClosed", "A closed case cannot be renamed."));
@@ -71,7 +71,7 @@ public sealed class Order
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can close cases."));
 
 		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseAlreadyClosed", "Order is already closed."));
+			return Result.Failure(new Error("CaseAlreadyClosed", "OrderCommands is already closed."));
 
 		Status = OrderStatus.Closed;
 		ClosedAt = DateTime.UtcNow;
@@ -84,7 +84,7 @@ public sealed class Order
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can reopen cases."));
 
 		if (Status == OrderStatus.Open)
-			return Result.Failure(new Error("CaseAlreadyOpen", "Order is already open."));
+			return Result.Failure(new Error("CaseAlreadyOpen", "OrderCommands is already open."));
 
 		Status = OrderStatus.Open;
 		ClosedAt = null;
@@ -129,6 +129,17 @@ public sealed class Order
 
 	public bool ContainsWorkItem(TaskId taskId) =>
 		taskId is not null && _tasks.Any(item => item.TaskId == taskId);
+
+	public bool CanView(
+		UserId actorId,
+		UserRole actorRole,
+		UserId? actorManagerId) =>
+		actorRole switch
+		{
+			UserRole.Admin => true,
+			UserRole.Manager => ManagerId == actorId,
+			_ => actorManagerId is not null && ManagerId == actorManagerId
+		};
 
 	internal Result CanRegisterTime(
 		TaskId taskId,
@@ -188,5 +199,30 @@ public sealed class Order
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can remove work items."));
 
 		return RemoveWorkItem(taskId);
+	}
+
+	public Result UpdateWorkItem(
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		TaskId taskId,
+		string title,
+		string description)
+	{
+		if (!CanManage(actorId, actorRole, actorStatus))
+			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can update work items."));
+
+		if (Status == OrderStatus.Closed)
+			return Result.Failure(new Error("CaseClosed", "A work item cannot be updated on a closed case."));
+
+		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
+		if (workItem is null)
+			return Result.Failure(new Error("WorkItemNotFound", "The work item does not belong to this case."));
+
+		var titleResult = workItem.ChangeTitle(title);
+		if (titleResult.IsFailure)
+			return titleResult;
+
+		return workItem.ChangeDescription(description);
 	}
 }

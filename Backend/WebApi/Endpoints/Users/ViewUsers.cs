@@ -1,6 +1,10 @@
+using Application;
+using Application.Dtos;
+using Application.Queries;
 using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
 
@@ -9,7 +13,9 @@ namespace WebAPI.endpoints.Users;
 /// <summary>
 /// Lists user profiles visible to the authenticated actor.
 /// </summary>
-public class ViewUsers
+public sealed class ViewUsers(
+    IQueryDispatcher dispatcher,
+    IMapper mapper)
     : ApiEndpoint
         .WithoutRequest
         .AndResponse<IResult>
@@ -18,26 +24,19 @@ public class ViewUsers
     [ProducesResponseType(typeof(ViewUsersResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public override Task<IResult> HandleAsync()
+    public override async Task<IResult> HandleAsync()
     {
-        // TODO: Authentication/authorization
-        // Decide whether employees may see this collection or whether it is
-        // restricted to active managers/admins.
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
 
-        // TODO: Application layer
-        // Add a ViewUsersQuery and query/read service. Resolve the current
-        // actor so the handler can apply the correct visibility scope.
+        var result = await dispatcher.DispatchAsync<GetUsersQuery, Result<IReadOnlyList<UserDto>>>(
+            new GetUsersQuery(actorId));
 
-        // TODO: Persistence layer
-        // Add a repository query that returns user profiles without password
-        // hashes, tokens, or other authentication data.
+        if (result.IsFailure)
+            return result.Errors.ToErrorResult();
 
-        // TODO: Response handling
-        // Map the result collection to ViewUsersResponse.
-
-        return Task.FromResult<IResult>(
-            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
+        return TypedResults.Ok(new ViewUsersResponse(result.Value
+            .Select(mapper.Map<UserResponse>)
+            .ToArray()));
     }
 }

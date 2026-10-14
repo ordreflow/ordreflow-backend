@@ -42,4 +42,10 @@ public class TimeEntryRepository(AppDbContext context)
                 entry.Date < to)
             .ToListAsync();
     }
+
+    public async Task<bool> ExistsForTaskAsync(TaskId taskId)
+    {
+        return await Context.TimeEntries
+            .AnyAsync(entry => entry.TaskId == taskId);
+    }
 }

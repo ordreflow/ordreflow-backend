@@ -5,8 +5,8 @@ namespace Domain.Entities;
 
 public sealed class TimeEntryReview
 {
-    public TimeEntryReviewID Id { get; private set; }
-    public TimeEntryId TimeEntryId { get; private set; }
+    public TimeEntryReviewID Id { get; private set; } = null!;
+    public TimeEntryId TimeEntryId { get; private set; } = null!;
     public ReviewDecision Decision { get; private set; }
     public string? Reason { get; private set; }
     public DateTime ReviewedAt { get; private set; }

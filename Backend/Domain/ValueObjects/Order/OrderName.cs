@@ -11,11 +11,11 @@ public sealed record OrderName
     public static Result<OrderName> Create(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
-            return Result<OrderName>.Failure(new Error("CaseNameEmpty", "Order name cannot be empty."));
+            return Result<OrderName>.Failure(new Error("CaseNameEmpty", "OrderCommands name cannot be empty."));
 
         value = value.Trim();
         return value.Length > 200
-            ? Result<OrderName>.Failure(new Error("CaseNameTooLong", "Order name cannot exceed 200 characters."))
+            ? Result<OrderName>.Failure(new Error("CaseNameTooLong", "OrderCommands name cannot exceed 200 characters."))
             : Result<OrderName>.Success(new OrderName(value));
     }
 

@@ -17,4 +17,9 @@ public class OrderRepository(AppDbContext context)
             .Where(order => order.ManagerId == managerId)
             .ToListAsync();
     }
+    public async Task<IReadOnlyList<Order>> GetAllAsync()
+    {
+        return await Context.Orders
+            .ToListAsync();
+    }
 }

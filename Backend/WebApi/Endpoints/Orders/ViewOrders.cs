@@ -1,35 +1,35 @@
+using Application;
+using Application.Dtos;
+using Application.Queries;
 using Core.Tools.OperationResult;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Orders;
 
 namespace WebAPI.endpoints.Orders;
 
-/// <summary>
-/// Lists orders visible to the authenticated actor.
-/// </summary>
-public class ViewOrders
+public sealed class ViewOrders(
+    IQueryDispatcher dispatcher,
+    IMapper mapper)
     : ApiEndpoint
         .WithoutRequest
         .AndResponse<IResult>
 {
     [HttpGet("orders")]
-    [ProducesResponseType(typeof(ViewOrdersResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public override Task<IResult> HandleAsync()
+    public override async Task<IResult> HandleAsync()
     {
-        // TODO: Authentication/authorization
-        // Define whether employees see all orders or only assigned orders.
-        // The current Domain model does not yet contain an assignment table.
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
 
-        // TODO: Application/Persistence layer
-        // Add a ViewOrdersQuery and repository query with the agreed visibility
-        // scope, then map the Cases to OrderResponse values.
+        var result = await dispatcher.DispatchAsync<GetOrdersQuery, Result<IReadOnlyList<OrderDto>>>(
+            new GetOrdersQuery(actorId));
 
-        return Task.FromResult<IResult>(
-            TypedResults.StatusCode(StatusCodes.Status501NotImplemented));
+        if (result.IsFailure)
+            return TypedResults.BadRequest(result.Errors);
+
+        return TypedResults.Ok(new ViewOrdersResponse(result.Value
+            .Select(mapper.Map<OrderResponse>)
+            .ToArray()));
     }
 }
