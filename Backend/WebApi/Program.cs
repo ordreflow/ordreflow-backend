@@ -3,9 +3,11 @@ using Application.Extenstions;
 using Domain.Interfaces.IUnitOfWork;
 using Domain.Interfaces;
 using DotNetEnv;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ObjectMapper;
 using Persistence;
+using Persistence.Identity;
 using System.Security.Claims;
 //using ViaPadel.Infrastructure.Repositories;
 using WebAPI.Common;
@@ -28,6 +30,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
     options.UseNpgsql(connectionString);
 });
+
+// Identity
+builder.Services
+    .AddIdentityCore<ApplicationUser>(options => options.User.RequireUniqueEmail = true)
+    .AddRoles<IdentityRole<Guid>>()
+    .AddEntityFrameworkStores<AppDbContext>();
+
 builder.Services.AddApplication();
 
 // Application
@@ -41,6 +50,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+await IdentitySeeder.SeedAdminAsync(
+    app.Services,
+    Environment.GetEnvironmentVariable("ADMIN_EMAIL"),
+    Environment.GetEnvironmentVariable("ADMIN_PASSWORD"),
+    Environment.GetEnvironmentVariable("ADMIN_NAME"));
 
 // Development-only identity for Swagger black-box testing.
 // Production still requires the real authentication pipeline.
