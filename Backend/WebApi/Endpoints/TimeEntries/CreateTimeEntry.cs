@@ -4,12 +4,15 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntries;
 
 public sealed class CreateTimeEntry(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<CreateTimeEntryRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
     [HttpPost("time_entries")]
     public override async Task<IResult> HandleAsync(CreateTimeEntryRequest request)
     {

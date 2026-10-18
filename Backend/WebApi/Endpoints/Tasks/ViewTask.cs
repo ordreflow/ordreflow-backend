@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Tasks;
 
@@ -20,6 +22,7 @@ public sealed class ViewTask(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
     [HttpGet("tasks/{id:guid}")]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]

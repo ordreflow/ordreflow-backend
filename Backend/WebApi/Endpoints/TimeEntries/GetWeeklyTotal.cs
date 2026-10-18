@@ -4,6 +4,8 @@ using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntries;
 
@@ -11,6 +13,7 @@ public sealed class GetWeeklyTotal(
     IQueryDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
     [HttpGet("time_entries/weekly-total")]
     public override async Task<IResult> HandleAsync( [FromQuery] ViewTimeEntriesRequest request)
     {

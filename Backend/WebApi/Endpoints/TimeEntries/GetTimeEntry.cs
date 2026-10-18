@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntries;
 
@@ -20,6 +22,7 @@ public sealed class GetTimeEntry(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
     [HttpGet("time_entries/{id:guid}")]
     [ProducesResponseType(typeof(TimeEntryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]

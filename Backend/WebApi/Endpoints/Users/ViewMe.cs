@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Users;
 
@@ -19,6 +21,7 @@ public sealed class ViewMe(
         .WithoutRequest
         .AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
     [HttpGet("users/me")]
     public override async Task<IResult> HandleAsync()
     {

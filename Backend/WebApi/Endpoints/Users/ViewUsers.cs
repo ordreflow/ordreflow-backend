@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Users;
 
@@ -20,6 +22,7 @@ public sealed class ViewUsers(
         .WithoutRequest
         .AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpGet("users")]
     [ProducesResponseType(typeof(ViewUsersResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]

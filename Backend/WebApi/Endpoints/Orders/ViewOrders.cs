@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Orders;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Orders;
 
@@ -16,6 +18,7 @@ public sealed class ViewOrders(
         .WithoutRequest
         .AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
     [HttpGet("orders")]
     public override async Task<IResult> HandleAsync()
     {
