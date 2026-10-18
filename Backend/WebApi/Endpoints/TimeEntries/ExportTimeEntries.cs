@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.Text;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntries;
 
@@ -12,6 +14,7 @@ public sealed class ExportTimeEntries(
     IQueryDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ExportTimeEntriesRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpGet("time_entries/export")]
     public override async Task<IResult> HandleAsync( [FromQuery] ExportTimeEntriesRequest request)
     {

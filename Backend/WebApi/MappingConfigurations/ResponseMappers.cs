@@ -1,5 +1,6 @@
 using Application.Dtos;
 using ObjectMapper;
+using WebAPI.Contracts.Auth;
 using WebAPI.Contracts.Orders;
 using WebAPI.Contracts.Tasks;
 using WebAPI.Contracts.TimeEntries;
@@ -37,6 +38,15 @@ public sealed class TimeEntryToResponseMapper
         input.Date,
         input.Hours,
         input.Comment);
+}
+
+public sealed class LoginToResponseMapper
+    : IMappingConfig<LoginDto, LoginResponse>
+{
+    public LoginResponse Map(LoginDto input) => new(
+        input.AccessToken,
+        "Bearer",
+        input.ExpiresAt);
 }
 
 public sealed class UserToResponseMapper

@@ -4,6 +4,8 @@ using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Users;
 
@@ -16,6 +18,7 @@ public sealed class DeleteUser(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     [HttpDelete("users/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]

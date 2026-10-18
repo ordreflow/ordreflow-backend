@@ -3,12 +3,15 @@ using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Users;
 
 public sealed class CreateUser(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<CreateUserRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpPost("users")]
     public override async Task<IResult> HandleAsync(CreateUserRequest request)
     {

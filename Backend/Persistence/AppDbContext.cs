@@ -1,12 +1,15 @@
 namespace Persistence;
 
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Domain.Aggregate;
 using Domain.Entities;
+using Persistence.Identity;
 using Task = Domain.Entities.Task;
 
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
 {
     public AppDbContext(
         DbContextOptions<AppDbContext> options)
@@ -14,7 +17,8 @@ public class AppDbContext : DbContext
     {
     }
 
-    public DbSet<User> Users => Set<User>();
+    // Domain users. Hides IdentityDbContext.Users; login accounts are reached through UserManager.
+    public new DbSet<User> Users => Set<User>();
 
     public DbSet<Order> Orders => Set<Order>();
 

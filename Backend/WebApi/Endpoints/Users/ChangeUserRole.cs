@@ -3,12 +3,15 @@ using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Users;
 
 public sealed class ChangeUserRole(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ChangeUserRoleRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     [HttpPost("users/{id:guid}/role")]
     public override async Task<IResult> HandleAsync(ChangeUserRoleRequest request)
     {

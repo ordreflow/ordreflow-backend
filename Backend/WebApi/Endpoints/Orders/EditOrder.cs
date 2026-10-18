@@ -3,6 +3,8 @@ using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Orders;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Orders;
 
@@ -12,6 +14,7 @@ public sealed class EditOrder(
         .WithRequest<UpdateOrderRequest>
         .AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpPut("orders/{id:guid}")]
     public override async Task<IResult> HandleAsync(
         UpdateOrderRequest updateOrderRequest)

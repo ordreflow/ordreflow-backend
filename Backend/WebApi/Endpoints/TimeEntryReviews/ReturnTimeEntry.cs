@@ -3,6 +3,8 @@ using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntryReviews;
 
@@ -12,6 +14,7 @@ namespace WebAPI.endpoints.TimeEntryReviews;
 public sealed class ReturnTimeEntry(ICommandDispatcher dispatcher)
     : EndpointBase
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpPost("time_entries/{id:guid}/return")]
     public async Task<IResult> HandleAsync(
         [FromRoute] Guid id,

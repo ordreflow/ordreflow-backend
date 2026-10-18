@@ -2,6 +2,8 @@ using Application;
 using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntryReviews;
 
@@ -11,6 +13,7 @@ namespace WebAPI.endpoints.TimeEntryReviews;
 public sealed class AcceptTimeEntry(ICommandDispatcher dispatcher)
     : EndpointBase
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpPost("time_entries/{id:guid}/accept")]
     public async Task<IResult> HandleAsync([FromRoute] Guid id)
     {
