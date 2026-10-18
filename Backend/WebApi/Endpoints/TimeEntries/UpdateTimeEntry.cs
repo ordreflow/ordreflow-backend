@@ -3,12 +3,15 @@ using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntries;
 
 public sealed class UpdateTimeEntry(ICommandDispatcher dispatcher)
     : EndpointBase
 {
+    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
     [HttpPut("time_entries/{id:guid}")]
     public async Task<IResult> HandleAsync(
         [FromRoute] Guid id,

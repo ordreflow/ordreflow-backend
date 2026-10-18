@@ -22,6 +22,7 @@ public sealed class CreateUser(ICommandDispatcher dispatcher)
             actorId,
             request.Name,
             request.Email,
+            request.Password,
             request.Role));
 
         return result.IsSuccess

@@ -18,6 +18,7 @@ public static class DependencyInjection
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPasswordVerifier, PasswordVerifier>();
+        services.AddScoped<IUserAccountProvisioner, IdentityUserAccountProvisioner>();
 
 
         return services;

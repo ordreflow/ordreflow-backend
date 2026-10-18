@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Tasks;
 
@@ -14,6 +16,7 @@ public sealed class ViewMyTasks(
     IMapper mapper)
     : EndpointBase
 {
+    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
     [HttpGet("tasks/me")]
     public async Task<IResult> HandleAsync()
     {
