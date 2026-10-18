@@ -9,10 +9,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using ObjectMapper;
 using Persistence;
 using Persistence.Identity;
-using System.Security.Claims;
 //using ViaPadel.Infrastructure.Repositories;
 using WebAPI.Authentication;
 using WebAPI.Common;
@@ -64,7 +64,7 @@ builder.Services
             ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(AuthorizationPolicies.Configure);
 
 builder.Services.AddApplication();
 
@@ -76,7 +76,26 @@ builder.Services.AddControllers();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    // Adds the Authorize button: log in via POST /api/auth/login and paste the accessToken.
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Paste the accessToken from POST /api/auth/login."
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecurityScheme
+        {
+            Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+        }] = Array.Empty<string>()
+    });
+});
 
 var app = builder.Build();
 
@@ -87,27 +106,6 @@ await IdentitySeeder.SeedAdminAsync(
     Environment.GetEnvironmentVariable("ADMIN_NAME"));
 
 app.UseAuthentication();
-
-// Development-only identity for Swagger black-box testing.
-// Production still requires the real authentication pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.Use(async (context, next) =>
-    {
-        if (context.User.Identity?.IsAuthenticated != true &&
-            Guid.TryParse(Environment.GetEnvironmentVariable("DEV_USER_ID"), out var devUserId))
-        {
-            var identity = new ClaimsIdentity(
-                new[] { new Claim(ClaimTypes.NameIdentifier, devUserId.ToString()) },
-                "Development");
-
-            context.User = new ClaimsPrincipal(identity);
-        }
-
-        await next();
-    });
-}
-
 app.UseAuthorization();
 
 app.MapControllers();
@@ -121,3 +119,6 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.Run();
+
+// Lets the test project start the API with WebApplicationFactory<Program>.
+public partial class Program;

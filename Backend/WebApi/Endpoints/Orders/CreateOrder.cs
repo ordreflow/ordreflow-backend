@@ -3,12 +3,15 @@ using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Orders;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Orders;
 
 public sealed class CreateOrder(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<CreateOrderRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpPost("orders")]
     public override async Task<IResult> HandleAsync(CreateOrderRequest request)
     {

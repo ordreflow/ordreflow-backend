@@ -3,6 +3,8 @@ using Application.Commands;
 using Application.Handlers;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Orders;
 
@@ -12,6 +14,7 @@ public sealed class ReopenOrder(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpPost("orders/{id:guid}/reopen")]
     public override async Task<IResult> HandleAsync(
         [FromRoute] Guid id)

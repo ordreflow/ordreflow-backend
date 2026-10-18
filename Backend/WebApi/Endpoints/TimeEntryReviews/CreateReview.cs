@@ -4,12 +4,15 @@ using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntryReviews;
 
 public sealed class CreateReview(ICommandDispatcher dispatcher)
     : EndpointBase
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpPost("time_entries/{id:guid}/review")]
     public async Task<IResult> HandleAsync(
         [FromRoute] Guid id,

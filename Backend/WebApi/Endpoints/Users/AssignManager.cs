@@ -3,12 +3,15 @@ using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Users;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Users;
 
 public sealed class AssignManager(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<AssignManagerRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     [HttpPost("users/{id:guid}/manager")]
     public override async Task<IResult> HandleAsync(AssignManagerRequest request)
     {

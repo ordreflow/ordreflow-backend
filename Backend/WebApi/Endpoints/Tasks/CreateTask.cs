@@ -3,12 +3,15 @@ using Application.Commands;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Common;
 using WebAPI.Contracts.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.Tasks;
 
 public sealed class CreateTask(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<CreateTaskRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpPost("tasks")]
     public override async Task<IResult> HandleAsync(CreateTaskRequest request)
     {

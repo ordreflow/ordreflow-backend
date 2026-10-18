@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using ObjectMapper;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
+using Microsoft.AspNetCore.Authorization;
+using WebAPI.Authentication;
 
 namespace WebAPI.endpoints.TimeEntries;
 
@@ -14,6 +16,7 @@ public sealed class GetManagerTimeEntries(
     IMapper mapper)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpGet("time_entries/manager")]
     public override async Task<IResult> HandleAsync([FromQuery] ViewTimeEntriesRequest request)
     {
