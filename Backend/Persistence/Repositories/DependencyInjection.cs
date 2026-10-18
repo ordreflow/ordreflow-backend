@@ -1,6 +1,7 @@
 using Domain.Interfaces;
 using Domain.Interfaces.IUnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
+using Persistence.Identity;
 using Persistence.Repositories;
 
 namespace Persistence;
@@ -16,7 +17,8 @@ public static class DependencyInjection
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-        
+        services.AddScoped<IPasswordVerifier, PasswordVerifier>();
+
 
         return services;
     }

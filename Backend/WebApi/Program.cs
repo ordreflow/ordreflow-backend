@@ -1,15 +1,20 @@
 using Application;
 using Application.Extenstions;
+using Application.Interfaces;
 using Domain.Interfaces.IUnitOfWork;
 using Domain.Interfaces;
 using DotNetEnv;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using ObjectMapper;
 using Persistence;
 using Persistence.Identity;
 using System.Security.Claims;
 //using ViaPadel.Infrastructure.Repositories;
+using WebAPI.Authentication;
 using WebAPI.Common;
 
 Env.Load();
@@ -37,6 +42,30 @@ builder.Services
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<AppDbContext>();
 
+// Authentication (JWT settings come from the JWT_* environment variables)
+var jwtOptions = JwtOptions.FromEnvironment();
+builder.Services.AddSingleton(jwtOptions);
+builder.Services.AddSingleton<IAccessTokenGenerator, JwtTokenGenerator>();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        // Keep the claim names from the token, so "sub" and "role" are read as-is.
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = jwtOptions.SigningKey,
+            ValidateIssuerSigningKey = true,
+            NameClaimType = JwtRegisteredClaimNames.Sub,
+            RoleClaimType = JwtTokenGenerator.RoleClaimType,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
+builder.Services.AddAuthorization();
+
 builder.Services.AddApplication();
 
 // Application
@@ -57,6 +86,8 @@ await IdentitySeeder.SeedAdminAsync(
     Environment.GetEnvironmentVariable("ADMIN_PASSWORD"),
     Environment.GetEnvironmentVariable("ADMIN_NAME"));
 
+app.UseAuthentication();
+
 // Development-only identity for Swagger black-box testing.
 // Production still requires the real authentication pipeline.
 if (app.Environment.IsDevelopment())
@@ -76,6 +107,8 @@ if (app.Environment.IsDevelopment())
         await next();
     });
 }
+
+app.UseAuthorization();
 
 app.MapControllers();
 // Configure the HTTP request pipeline.
