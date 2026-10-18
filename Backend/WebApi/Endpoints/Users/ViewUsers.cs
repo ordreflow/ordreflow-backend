@@ -22,7 +22,7 @@ public sealed class ViewUsers(
         .WithoutRequest
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [HttpGet("users")]
     [ProducesResponseType(typeof(ViewUsersResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
