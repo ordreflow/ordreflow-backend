@@ -6,4 +6,5 @@ public sealed record UserDto(
     string Email,
     string Role,
     string Status,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    Guid? ManagerId = null);

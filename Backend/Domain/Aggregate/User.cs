@@ -61,7 +61,7 @@ public sealed class User
 			return Result<User>.Failure(new Error("UserCreationForbidden", "Only managers and admins can create users."));
 
 		if (Role == UserRole.Manager && role != UserRole.Employee)
-			return Result<User>.Failure(new Error("RoleCreationForbidden", "Managers can only create employees."));
+			return Result<User>.Failure(new Error("RoleCreationForbidden", "cannot create roles other than employee."));
 
 		return Create(name, email, role);
 	}

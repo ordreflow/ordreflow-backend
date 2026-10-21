@@ -58,5 +58,6 @@ public sealed class UserToResponseMapper
         input.Email,
         input.Role,
         input.Status,
-        input.CreatedAt);
+        input.CreatedAt,
+        input.ManagerId);
 }

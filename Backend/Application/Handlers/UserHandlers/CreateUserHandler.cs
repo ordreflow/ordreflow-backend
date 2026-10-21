@@ -14,12 +14,20 @@ public sealed class CreateUserHandler(
         var actorId = UserId.Create(command.ActorId);
         var name = PersonName.Create(command.Name);
         var email = EmailAddress.Create(command.Email);
+        UserId? managerId = null;
         if (actorId.IsFailure)
             return Result.Failure(actorId.Errors.ToArray());
         if (name.IsFailure)
             return Result.Failure(name.Errors.ToArray());
         if (email.IsFailure)
             return Result.Failure(email.Errors.ToArray());
+        if (command.ManagerId is Guid managerGuid)
+        {
+            var managerIdResult = UserId.Create(managerGuid);
+            if (managerIdResult.IsFailure)
+                return Result.Failure(managerIdResult.Errors.ToArray());
+            managerId = managerIdResult.Value;
+        }
         if (string.IsNullOrWhiteSpace(command.Password))
             return Result.Failure(new Error("PasswordRequired", "A password is required."));
         if (!Enum.TryParse<UserRole>(command.Role, true, out var role))
@@ -32,6 +40,22 @@ public sealed class CreateUserHandler(
         var user = actor.CreateUser(name.Value, email.Value, role);
         if (user.IsFailure)
             return Result.Failure(user.Errors.ToArray());
+
+        if (managerId is not null)
+        {
+            var manager = await userRepository.GetAsync(managerId);
+            if (manager is null)
+                return Result.Failure(new Error("ManagerNotFound", "The selected manager was not found."));
+
+            var assignment = user.Value.AssignManager(
+                manager.UserId,
+                manager.Role,
+                manager.Status,
+                actor.Role,
+                actor.Status);
+            if (assignment.IsFailure)
+                return assignment;
+        }
 
         // The domain user must be tracked before provisioning, so UserManager's internal
         // SaveChanges can satisfy the AspNetUsers -> users foreign key in one flush.
