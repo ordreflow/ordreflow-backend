@@ -11,7 +11,7 @@ namespace WebAPI.endpoints.Users;
 public sealed class CreateUser(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<CreateUserRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     [HttpPost("users")]
     public override async Task<IResult> HandleAsync(CreateUserRequest request)
     {
