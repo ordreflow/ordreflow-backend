@@ -39,5 +39,7 @@ public sealed class GetMyTimeEntriesForWeekHandler(
         entry.TaskId.Value,
         entry.Date,
         entry.Hours,
-        entry.Comment);
+        entry.Comment,
+        entry.EmployeeId.Value,
+        entry.Status.ToString());
 }
