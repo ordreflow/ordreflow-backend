@@ -294,8 +294,12 @@ public sealed class TimeEntry
     public bool CanView(
         UserId actorId,
         UserRole actorRole,
+        UserStatus actorStatus,
         UserId? employeeManagerId)
     {
+        if (actorStatus != UserStatus.Active)
+            return false;
+
         if (actorId is not null && actorId == EmployeeId)
             return true;
 

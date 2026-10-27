@@ -44,6 +44,17 @@ public sealed class TimeEntryToResponseMapper
         input.Status);
 }
 
+public sealed class TimeEntryReviewToResponseMapper
+    : IMappingConfig<TimeEntryReviewDto, TimeEntryReviewResponse>
+{
+    public TimeEntryReviewResponse Map(TimeEntryReviewDto input) => new(
+        input.Id,
+        input.TimeEntryId,
+        input.Decision,
+        input.Reason,
+        input.ReviewedAt);
+}
+
 public sealed class LoginToResponseMapper
     : IMappingConfig<LoginDto, LoginResponse>
 {

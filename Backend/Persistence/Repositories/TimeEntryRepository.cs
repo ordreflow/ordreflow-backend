@@ -10,6 +10,12 @@ public class TimeEntryRepository(AppDbContext context)
     : GenericRepository<TimeEntry, TimeEntryId>(context),
         ITimeEntryRepository
 {
+    public Task<TimeEntry?> GetWithReviewsAsync(TimeEntryId id) =>
+        Context.TimeEntries
+            .AsNoTracking()
+            .Include(entry => entry.Reviews)
+            .SingleOrDefaultAsync(entry => entry.Id == id);
+
     public async Task<IReadOnlyList<TimeEntry>> GetByEmployeeIdAsync(
         UserId employeeId)
     {
