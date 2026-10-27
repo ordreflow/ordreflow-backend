@@ -11,5 +11,7 @@
 
 .env
 .env.*
+**/.env
+**/.env.*
 
 Backend/Backend.sln.DotSettings.user

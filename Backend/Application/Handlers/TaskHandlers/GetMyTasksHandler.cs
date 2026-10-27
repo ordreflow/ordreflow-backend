@@ -44,5 +44,7 @@ public sealed class GetMyTasksHandler(
         task.TaskId.Value,
         task.OrderId?.Value ?? Guid.Empty,
         task.Title,
-        task.Description);
+        task.Description,
+        task.Status.ToString(),
+        task.ClosedAt);
 }

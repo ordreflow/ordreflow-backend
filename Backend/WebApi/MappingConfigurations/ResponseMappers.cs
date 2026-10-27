@@ -26,7 +26,9 @@ public sealed class TaskToResponseMapper
         input.Id,
         input.OrderId,
         input.Title,
-        input.Description);
+        input.Description,
+        input.Status,
+        input.ClosedAt);
 }
 
 public sealed class TimeEntryToResponseMapper

@@ -4,4 +4,6 @@ public sealed record TaskResponse(
     Guid Id,
     Guid OrderId,
     string Title,
-    string Description);
+    string Description,
+    string Status,
+    DateTime? ClosedAt);

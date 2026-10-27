@@ -17,7 +17,7 @@ using Persistence.Identity;
 using WebAPI.Authentication;
 using WebAPI.Common;
 
-Env.Load();
+Env.NoClobber().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 

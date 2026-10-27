@@ -2,6 +2,7 @@
 using Domain.Entities;
 using Domain.ValueObjects;
 using Task = Domain.Entities.Task;
+using TaskStatus = Domain.ValueObjects.TaskStatus;
 
 namespace Domain.Aggregate;
 
@@ -73,8 +74,16 @@ public sealed class Order
 		if (Status == OrderStatus.Closed)
 			return Result.Failure(new Error("CaseAlreadyClosed", "OrderCommands is already closed."));
 
+		var closedAt = DateTime.UtcNow;
+		foreach (var workItem in _tasks.Where(item => item.Status == TaskStatus.Open))
+		{
+			var result = workItem.Close(closedAt);
+			if (result.IsFailure)
+				return result;
+		}
+
 		Status = OrderStatus.Closed;
-		ClosedAt = DateTime.UtcNow;
+		ClosedAt = closedAt;
 		return Result.Success();
 	}
 
@@ -153,9 +162,11 @@ public sealed class Order
 		if (workItem is null)
 			return Result.Failure(new Error("WorkItemNotFound", "Work item does not belong to the selected case."));
 
-
 		if (employeeId is null || employeeManagerId != ManagerId)
 			return Result.Failure(new Error("ManagerScopeForbidden", "The employee cannot access this case."));
+
+		if (workItem.Status == TaskStatus.Closed)
+			return Result.Failure(new Error("TaskClosed", "Entries cannot be added to a closed task."));
 
 		return Result.Success();
 	}
@@ -199,6 +210,42 @@ public sealed class Order
 			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can remove work items."));
 
 		return RemoveWorkItem(taskId);
+	}
+
+	public Result CloseWorkItem(
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		TaskId taskId)
+	{
+		if (!CanManage(actorId, actorRole, actorStatus))
+			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can close work items."));
+
+		if (Status == OrderStatus.Closed)
+			return Result.Failure(new Error("CaseClosed", "A work item cannot be closed on a closed case."));
+
+		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
+		return workItem is null
+			? Result.Failure(new Error("WorkItemNotFound", "The work item does not belong to this case."))
+			: workItem.Close(DateTime.UtcNow);
+	}
+
+	public Result ReopenWorkItem(
+		UserId actorId,
+		UserRole actorRole,
+		UserStatus actorStatus,
+		TaskId taskId)
+	{
+		if (!CanManage(actorId, actorRole, actorStatus))
+			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can reopen work items."));
+
+		if (Status == OrderStatus.Closed)
+			return Result.Failure(new Error("CaseClosed", "A work item cannot be reopened on a closed case."));
+
+		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
+		return workItem is null
+			? Result.Failure(new Error("WorkItemNotFound", "The work item does not belong to this case."))
+			: workItem.Reopen();
 	}
 
 	public Result UpdateWorkItem(

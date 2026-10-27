@@ -69,6 +69,21 @@ public class AuthorizationTests : IClassFixture<AuthorizationTests.ApiFactory>
     }
 
     [Theory]
+    [InlineData("close")]
+    [InlineData("reopen")]
+    public async Task TaskTransition_RequiresManagerOrAdmin(string action)
+    {
+        // Authorization rejects these requests before dispatching a handler or accessing the database.
+        var path = $"/api/tasks/{Guid.NewGuid()}/{action}";
+
+        var anonymous = await _client.PostAsync(path, null);
+        var employee = await SendAsync(HttpMethod.Post, path, CreateToken(UserRole.Employee));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, employee.StatusCode);
+    }
+
+    [Theory]
     [InlineData(UserRole.Employee)]
     [InlineData(UserRole.Manager)]
     public async Task AdminEndpoint_WithoutAdminRole_Returns403(UserRole role)

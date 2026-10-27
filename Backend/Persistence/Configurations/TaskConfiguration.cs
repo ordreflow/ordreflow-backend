@@ -30,5 +30,15 @@ public class TaskConfiguration : IEntityTypeConfiguration<Task>
             .HasColumnName("description")
             .HasMaxLength(2000)
             .IsRequired();
+
+        entity.Property(x => x.Status)
+            .HasColumnName("status")
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .IsRequired();
+
+        entity.Property(x => x.ClosedAt)
+            .HasColumnName("closed_at")
+            .HasColumnType("timestamp with time zone");
     }
 }

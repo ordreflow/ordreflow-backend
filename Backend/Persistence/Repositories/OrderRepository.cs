@@ -10,6 +10,14 @@ public class OrderRepository(AppDbContext context)
     : GenericRepository<Order, OrderId>(context),
         IOrderRepository
 {
+    public override async Task<Order?> GetAsync(OrderId id)
+    {
+        return await Context.Orders
+            .AsTracking()
+            .Include(order => order.Tasks)
+            .SingleOrDefaultAsync(order => order.Id == id);
+    }
+
     public async Task<IReadOnlyList<Order>> GetByManagerIdAsync(
         UserId managerId)
     {

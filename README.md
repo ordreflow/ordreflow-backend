@@ -324,18 +324,33 @@ The Flox manifest includes PostgreSQL as a local-only service. Its data
 directory is created under the system temporary directory when the environment
 starts and removed when the last Flox activation exits normally.
 
-Inside the activated shell, wait for PostgreSQL and apply the migrations:
+To generate a new migration after changing the EF Core model, run this from
+the repository root inside the activated Flox shell (replace `<MigrationName>`
+with a descriptive name). Generating a migration does not update the database:
+
+```bash
+dotnet tool restore
+dotnet ef migrations add <MigrationName> \
+  --project Backend/Persistence/Persistence.csproj \
+  --startup-project Backend/WebApi/WebApi.csproj
+```
+
+Review the generated migration, including how it handles existing records,
+before applying it. To apply pending migrations, first confirm PostgreSQL is
+running and reachable, then run:
 
 ```bash
 pg_isready -h 127.0.0.1 -p 5432
-dotnet tool restore
-dotnet ef database update --project Backend/Persistence/Persistence.csproj --startup-project Backend/WebApi/WebApi.csproj
+dotnet ef database update \
+  --project Backend/Persistence/Persistence.csproj \
+  --startup-project Backend/WebApi/WebApi.csproj
 dotnet run --project Backend/WebApi/WebApi.csproj --launch-profile http
 ```
 
 If you have a root `.env` file, keep its `DB_NAME` and `DB_USERNAME` aligned
 with the Flox values (`ordreflow`), because `Program.cs` loads `.env` during
-startup and may override the Flox variables.
+startup and may override the Flox variables. If `DB_PORT` is overridden, make
+sure the API and `pg_isready` both use the port where PostgreSQL is listening.
 
 The API is available at `http://localhost:5125/swagger`. Press `Ctrl+C` to
 stop the API and then run `exit` to leave Flox; the PostgreSQL service stops and
@@ -377,4 +392,3 @@ dotnet ef database update \
 ```bash
 docker build --target migration -t ordreflow-migrations:local .
 ```
-
