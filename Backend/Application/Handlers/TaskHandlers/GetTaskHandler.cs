@@ -59,6 +59,8 @@ public sealed class GetTaskHandler(
             task.TaskId.Value,
             task.OrderId.Value,
             task.Title,
-            task.Description));
+            task.Description,
+            task.Status.ToString(),
+            task.ClosedAt));
     }
 }

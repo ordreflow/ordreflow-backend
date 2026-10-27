@@ -26,7 +26,9 @@ public sealed class TaskToResponseMapper
         input.Id,
         input.OrderId,
         input.Title,
-        input.Description);
+        input.Description,
+        input.Status,
+        input.ClosedAt);
 }
 
 public sealed class TimeEntryToResponseMapper
@@ -37,7 +39,9 @@ public sealed class TimeEntryToResponseMapper
         input.TaskId,
         input.Date,
         input.Hours,
-        input.Comment);
+        input.Comment,
+        input.EmployeeId,
+        input.Status);
 }
 
 public sealed class LoginToResponseMapper

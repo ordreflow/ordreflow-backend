@@ -12,7 +12,7 @@ public class GenericRepository<T, TId>(
     protected readonly AppDbContext Context = context;
     protected readonly DbSet<T> DbSet = context.Set<T>();
 
-    public async Task<T?> GetAsync(TId id)
+    public virtual async Task<T?> GetAsync(TId id)
     {
         return await DbSet.FindAsync(id);
     }

@@ -1,5 +1,6 @@
 using Core.Tools.OperationResult;
 using Domain.ValueObjects;
+using TaskStatus = Domain.ValueObjects.TaskStatus;
 
 namespace Domain.Entities;
 
@@ -11,6 +12,8 @@ public sealed class Task
 	public string Title { get; private set; } = null!;
 
 	public string Description { get; private set; } = null!;
+	public TaskStatus Status { get; private set; } = TaskStatus.Open;
+	public DateTime? ClosedAt { get; private set; }
 
 	private Task()
 	{
@@ -116,6 +119,26 @@ public sealed class Task
 		}
 
 		Description = description;
+		return Result.Success();
+	}
+
+	internal Result Close(DateTime closedAt)
+	{
+		if (Status == TaskStatus.Closed)
+			return Result.Failure(new Error("TaskAlreadyClosed", "The task is already closed."));
+
+		Status = TaskStatus.Closed;
+		ClosedAt = closedAt;
+		return Result.Success();
+	}
+
+	internal Result Reopen()
+	{
+		if (Status == TaskStatus.Open)
+			return Result.Failure(new Error("TaskAlreadyOpen", "The task is already open."));
+
+		Status = TaskStatus.Open;
+		ClosedAt = null;
 		return Result.Success();
 	}
 }

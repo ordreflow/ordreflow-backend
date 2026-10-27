@@ -48,6 +48,8 @@ public sealed class GetTimeEntryHandler(
             entry.TaskId.Value,
             entry.Date,
             entry.Hours,
-            entry.Comment));
+            entry.Comment,
+            entry.EmployeeId.Value,
+            entry.Status.ToString()));
     }
 }
