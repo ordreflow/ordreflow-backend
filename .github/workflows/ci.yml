@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Dummy value so the API can start in CI. The real secret is never used here.
+  JWT_SECRET: ci-only-secret-that-is-at-least-32-bytes-long
+  # ADMIN_EMAIL and ADMIN_PASSWORD are deliberately left unset, so the API skips
+  # admin seeding and never needs a database.
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # The committed Flox environment pins the SDK to the exact version in
+      # global.json, so CI builds with the same toolchain as every developer.
+      - name: Install Flox
+        uses: flox/install-flox-action@v2
+
+      - name: Show SDK version
+        run: flox activate -d . -c 'dotnet --version'
+
+      - name: Restore dependencies
+        run: flox activate -d . -c 'dotnet restore Backend/Backend.sln'
+
+      - name: Build solution
+        run: flox activate -d . -c 'dotnet build Backend/Backend.sln --configuration Release --no-restore'
+
+      - name: Run tests
+        run: flox activate -d . -c 'dotnet test Backend/Backend.sln --configuration Release --no-build'
+
+  run-api:
+    name: Run API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Flox
+        uses: flox/install-flox-action@v2
+
+      - name: Publish API
+        run: flox activate -d . -c 'dotnet publish Backend/WebApi/WebApi.csproj --configuration Release --output ./publish'
+
+      # The API runs inside a single Flox activation, so it is never torn down
+      # between steps while the health check is still waiting.
+      - name: Start API and check health
+        run: |
+          flox activate -d . -c '
+            export ASPNETCORE_URLS=http://127.0.0.1:5000
+            dotnet ./publish/WebApi.dll > api.log 2>&1 &
+            api_pid=$!
+
+            status=1
+            for attempt in $(seq 1 30); do
+              if ! kill -0 "$api_pid" 2>/dev/null; then
+                echo "API stopped before it answered."
+                break
+              fi
+
+              if curl --fail --silent http://127.0.0.1:5000/api/health; then
+                echo "API answered on attempt $attempt."
+                status=0
+                break
+              fi
+
+              sleep 2
+            done
+
+            if [ "$status" -ne 0 ]; then
+              echo "API did not answer on /api/health within 60 seconds."
+            fi
+
+            kill "$api_pid" 2>/dev/null || true
+            exit "$status"
+          '
+
+      - name: Show API log
+        if: always()
+        run: cat api.log
+
+  docker:
+    name: Build and run Docker image
+    runs-on: ubuntu-latest
+    # No Flox here: the Dockerfile already pins the SDK image to 8.0.406, so the
+    # image is built with the same toolchain.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build --tag ordreflow-backend:ci .
+
+      - name: Start container
+        run: |
+          docker run --detach --name ordreflow-api \
+            --publish 8080:8080 \
+            --env JWT_SECRET="$JWT_SECRET" \
+            ordreflow-backend:ci
+
+      - name: Wait for health endpoint
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/api/health; then
+              echo "Container answered on attempt $attempt."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Container did not answer on /api/health within 60 seconds."
+          exit 1
+
+      - name: Show container log
+        if: always()
+        run: docker logs ordreflow-api
+
+      - name: Stop container
+        if: always()
+        run: docker rm --force ordreflow-api || true
