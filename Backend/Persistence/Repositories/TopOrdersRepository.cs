@@ -1,5 +1,6 @@
 using Application.Dtos;
 using Application.Interfaces;
+using Domain.Aggregate;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +9,7 @@ namespace Persistence.Repositories;
 public sealed class TopOrdersRepository(AppDbContext context) : ITopOrdersRepository
 {
     public async Task<IReadOnlyList<TopOrdersReportDto>> GetTopOrdersAsync(
+        UserId? managerId,
         DateTime fromDate,
         DateTime toDate,
         int limit,
@@ -25,6 +27,12 @@ public sealed class TopOrdersRepository(AppDbContext context) : ITopOrdersReposi
                 entry.Status == TimeEntryStatus.Finalized);
         }
 
+        IQueryable<Order> orders = context.Orders.AsNoTracking();
+        if (managerId is not null)
+        {
+            orders = orders.Where(order => order.ManagerId == managerId);
+        }
+
         var totals = await entries
             .Join(
                 context.Tasks,
@@ -32,7 +40,7 @@ public sealed class TopOrdersRepository(AppDbContext context) : ITopOrdersReposi
                 task => task.TaskId,
                 (entry, task) => new { Entry = entry, Task = task })
             .Join(
-                context.Orders,
+                orders,
                 item => item.Task.OrderId,
                 order => (OrderId?)order.Id,
                 (item, order) => new

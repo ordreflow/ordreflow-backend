@@ -18,10 +18,14 @@ public sealed class GetTopOrders(IQueryDispatcher dispatcher)
     public override async Task<IResult> HandleAsync(
         [FromQuery] GetTopOrdersRequest request)
     {
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
+
         var result = await dispatcher.DispatchAsync<
             GetTopOrdersQuery,
             Result<IReadOnlyList<TopOrdersReportDto>>>(
                 new GetTopOrdersQuery(
+                    actorId,
                     request.FromDate.ToDateTime(TimeOnly.MinValue),
                     request.ToDate.ToDateTime(TimeOnly.MaxValue)));
 

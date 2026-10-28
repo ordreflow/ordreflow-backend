@@ -2,10 +2,14 @@ using Application.Dtos;
 using Application.Interfaces;
 using Application.Queries;
 using Core.Tools.OperationResult;
+using Domain.Interfaces;
+using Domain.ValueObjects;
 
 namespace Application.Handlers;
 
-public sealed class GetTopOrdersHandler(ITopOrdersRepository repository)
+public sealed class GetTopOrdersHandler(
+    ITopOrdersRepository repository,
+    IUserRepository userRepository)
     : IQueryHandler<
         GetTopOrdersQuery,
         Result<IReadOnlyList<TopOrdersReportDto>>>
@@ -13,6 +17,20 @@ public sealed class GetTopOrdersHandler(ITopOrdersRepository repository)
     public async Task<Result<IReadOnlyList<TopOrdersReportDto>>> HandleAsync(
         GetTopOrdersQuery query)
     {
+        var actorIdResult = UserId.Create(query.ActorId);
+        if (actorIdResult.IsFailure)
+        {
+            return Result<IReadOnlyList<TopOrdersReportDto>>.Failure(
+                actorIdResult.Errors.ToArray());
+        }
+
+        var actor = await userRepository.GetAsync(actorIdResult.Value);
+        if (actor is null || !actor.CanReviewTimeEntries)
+        {
+            return Result<IReadOnlyList<TopOrdersReportDto>>.Failure(
+                new Error("ReportForbidden", "Only an active manager or admin can view this report."));
+        }
+
         if (query.ToDate < query.FromDate)
         {
             return Result<IReadOnlyList<TopOrdersReportDto>>.Failure(
@@ -25,12 +43,17 @@ public sealed class GetTopOrdersHandler(ITopOrdersRepository repository)
                 new Error("InvalidLimit", "The top orders report limit must be between 1 and 10."));
         }
 
-        var cases = await repository.GetTopOrdersAsync(
+        var managerId = actor.Role == UserRole.Manager
+            ? actor.UserId
+            : null;
+
+        var orders = await repository.GetTopOrdersAsync(
+            managerId,
             query.FromDate,
             query.ToDate,
             query.Limit,
             query.OnlyAccepted);
 
-        return Result<IReadOnlyList<TopOrdersReportDto>>.Success(cases);
+        return Result<IReadOnlyList<TopOrdersReportDto>>.Success(orders);
     }
 }
