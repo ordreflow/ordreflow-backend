@@ -1,3 +1,4 @@
+using Application.Interfaces;
 using Domain.Interfaces;
 using Domain.Interfaces.IUnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
+        services.AddScoped<ITopOrdersRepository, TopOrdersRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPasswordVerifier, PasswordVerifier>();
