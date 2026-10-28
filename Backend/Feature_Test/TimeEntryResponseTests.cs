@@ -78,6 +78,21 @@ public class TimeEntryResponseTests
     }
 
     [Fact]
+    public async Task GetTimeEntry_InactiveOwnerCannotViewEntry()
+    {
+        var employee = CreateUser("employee@example.com");
+        var entry = CreateEntry(employee, new DateTime(2026, 9, 9));
+        Assert.True(employee.Deactivate(UserRole.Admin, UserStatus.Active).IsSuccess);
+        var handler = new GetTimeEntryHandler(
+            new FakeTimeEntryRepository(new[] { employee }, entry), new FakeUserRepository(employee));
+
+        var result = await handler.HandleAsync(new GetTimeEntryQuery(employee.UserId.Value, entry.Id.Value));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("TimeEntryAccessForbidden", Assert.Single(result.Errors).Code);
+    }
+
+    [Fact]
     public void TimeEntryToResponseMapper_ExposesEmployeeIdAndStatusInWebJson()
     {
         var employeeId = Guid.Parse("e47b48ba-01cf-4c2b-902a-c57af409622c");
@@ -128,6 +143,8 @@ public class TimeEntryResponseTests
     {
         public Task<TimeEntry?> GetAsync(TimeEntryId id) =>
             Task.FromResult(entries.SingleOrDefault(entry => entry.Id == id));
+
+        public Task<TimeEntry?> GetWithReviewsAsync(TimeEntryId id) => GetAsync(id);
 
         public Task<IReadOnlyList<TimeEntry>> GetByEmployeeIdAsync(UserId employeeId) =>
             Task.FromResult<IReadOnlyList<TimeEntry>>(entries.Where(entry => entry.EmployeeId == employeeId).ToArray());

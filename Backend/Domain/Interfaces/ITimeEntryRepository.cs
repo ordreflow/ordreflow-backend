@@ -6,6 +6,8 @@ namespace Domain.Interfaces;
 public interface ITimeEntryRepository
     : IGenericRepository<TimeEntry, TimeEntryId>
 {
+    Task<TimeEntry?> GetWithReviewsAsync(TimeEntryId id);
+
     Task<IReadOnlyList<TimeEntry>> GetByEmployeeIdAsync(
         UserId employeeId);
 

@@ -37,7 +37,7 @@ public sealed class GetTimeEntryHandler(
 
         var employee = await userRepository.GetAsync(entry.EmployeeId);
 
-        if (!entry.CanView(actor.UserId, actor.Role, employee?.ManagerId))
+        if (!entry.CanView(actor.UserId, actor.Role, actor.Status, employee?.ManagerId))
         {
             return Result<TimeEntryDto>.Failure(
                 new Error("TimeEntryAccessForbidden", "You are not authorized to view this time entry."));
