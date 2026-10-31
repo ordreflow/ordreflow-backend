@@ -32,12 +32,17 @@ public sealed class GetTopOrders(IQueryDispatcher dispatcher)
         if (result.IsFailure)
             return result.Errors.ToErrorResult();
 
-        return TypedResults.Ok(new GetTopOrdersResponse(
-            result.Value
-                .Select(item => new TopOrdersResponse(
-                    item.OrderId,
-                    item.OrderName,
-                    item.TotalHours))
-                .ToArray()));
+       return TypedResults.Ok(new GetTopOrdersResponse(
+    result.Value.Select(order => new TopOrdersResponse(
+        order.OrderId,
+        order.OrderName,
+        order.TotalHours,
+        order.Tasks.Select(task => new TopOrderTaskResponse(
+            task.TaskId,
+            task.TaskName,
+            task.TotalHours
+        )).ToArray()
+    )).ToArray()
+));
     }
 }

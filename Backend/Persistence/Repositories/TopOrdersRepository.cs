@@ -1,12 +1,14 @@
 using Application.Dtos;
 using Application.Interfaces;
 using Domain.Aggregate;
+using Domain.Entities;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace Persistence.Repositories;
 
-public sealed class TopOrdersRepository(AppDbContext context) : ITopOrdersRepository
+public sealed class TopOrdersRepository(AppDbContext context)
+    : ITopOrdersRepository
 {
     public async Task<IReadOnlyList<TopOrdersReportDto>> GetTopOrdersAsync(
         UserId? managerId,
@@ -18,7 +20,9 @@ public sealed class TopOrdersRepository(AppDbContext context) : ITopOrdersReposi
     {
         var entries = context.TimeEntries
             .AsNoTracking()
-            .Where(entry => entry.Date >= fromDate && entry.Date <= toDate);
+            .Where(entry =>
+                entry.Date >= fromDate &&
+                entry.Date <= toDate);
 
         if (onlyAccepted)
         {
@@ -28,17 +32,24 @@ public sealed class TopOrdersRepository(AppDbContext context) : ITopOrdersReposi
         }
 
         IQueryable<Order> orders = context.Orders.AsNoTracking();
+
         if (managerId is not null)
         {
-            orders = orders.Where(order => order.ManagerId == managerId);
+            orders = orders.Where(order =>
+                order.ManagerId == managerId);
         }
 
-        var totals = await entries
+        // First calculate hours for each task within each order.
+        var taskTotals = await entries
             .Join(
-                context.Tasks,
+                context.Tasks.AsNoTracking(),
                 entry => entry.TaskId,
                 task => task.TaskId,
-                (entry, task) => new { Entry = entry, Task = task })
+                (entry, task) => new
+                {
+                    Entry = entry,
+                    Task = task
+                })
             .Join(
                 orders,
                 item => item.Task.OrderId,
@@ -46,26 +57,56 @@ public sealed class TopOrdersRepository(AppDbContext context) : ITopOrdersReposi
                 (item, order) => new
                 {
                     item.Entry,
-                    OrderId = order.Id,
-                    OrderName = order.Name
+                    item.Task,
+                    Order = order
                 })
-            .GroupBy(item => new { item.OrderId, item.OrderName })
+            .GroupBy(item => new
+            {
+                item.Order.Id,
+                item.Order.Name,
+                item.Task.TaskId,
+                item.Task.Title
+            })
+            .Select(group => new
+            {
+                OrderId = group.Key.Id,
+                OrderName = group.Key.Name,
+                TaskId = group.Key.TaskId,
+                TaskName = group.Key.Title,
+                TotalHours = group.Sum(item => item.Entry.Hours)
+            })
+            .ToListAsync(cancellationToken);
+
+        // Then group the task totals by order in memory.
+        // This keeps the EF query straightforward and avoids
+        // complicated nested collection projections.
+        var result = taskTotals
+            .GroupBy(item => new
+            {
+                item.OrderId,
+                item.OrderName
+            })
             .Select(group => new
             {
                 group.Key.OrderId,
                 group.Key.OrderName,
-                TotalHours = group.Sum(item => item.Entry.Hours)
+                TotalHours = group.Sum(item => item.TotalHours),
+                Tasks = group.Select(item => new TopOrderTaskDto(
+                    item.TaskId.Value,
+                    item.TaskName,
+                    item.TotalHours))
+                .OrderByDescending(task => task.TotalHours)
+                .ToArray()
             })
-            .OrderByDescending(item => item.TotalHours)
-            .ThenBy(item => item.OrderId)
-            .Take(limit)
-            .ToListAsync(cancellationToken);
-
-        return totals
-            .Select(item => new TopOrdersReportDto(
-                item.OrderId.Value,
-                item.OrderName.Value,
-                item.TotalHours))
+           .OrderByDescending(order => order.TotalHours)
+.ThenBy(order => order.OrderId.Value)
+.Take(limit)
             .ToArray();
+
+        return result.Select(order => new TopOrdersReportDto(
+            order.OrderId.Value,
+            order.OrderName.Value,
+            order.TotalHours,
+            order.Tasks)).ToArray();
     }
 }
