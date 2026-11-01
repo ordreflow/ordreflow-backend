@@ -18,22 +18,31 @@ public sealed class GetTopOrders(IQueryDispatcher dispatcher)
     public override async Task<IResult> HandleAsync(
         [FromQuery] GetTopOrdersRequest request)
     {
+        if (!HttpContext.TryGetCurrentUserId(out var actorId))
+            return TypedResults.Unauthorized();
+
         var result = await dispatcher.DispatchAsync<
             GetTopOrdersQuery,
             Result<IReadOnlyList<TopOrdersReportDto>>>(
                 new GetTopOrdersQuery(
+                    actorId,
                     request.FromDate.ToDateTime(TimeOnly.MinValue),
                     request.ToDate.ToDateTime(TimeOnly.MaxValue)));
 
         if (result.IsFailure)
             return result.Errors.ToErrorResult();
 
-        return TypedResults.Ok(new GetTopOrdersResponse(
-            result.Value
-                .Select(item => new TopOrdersResponse(
-                    item.OrderId,
-                    item.OrderName,
-                    item.TotalHours))
-                .ToArray()));
+       return TypedResults.Ok(new GetTopOrdersResponse(
+    result.Value.Select(order => new TopOrdersResponse(
+        order.OrderId,
+        order.OrderName,
+        order.TotalHours,
+        order.Tasks.Select(task => new TopOrderTaskResponse(
+            task.TaskId,
+            task.TaskName,
+            task.TotalHours
+        )).ToArray()
+    )).ToArray()
+));
     }
 }
