@@ -2,7 +2,6 @@ using Application;
 using Application.Queries;
 using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Mvc;
-using System.Text;
 using WebAPI.Common;
 using WebAPI.Contracts.TimeEntries;
 using Microsoft.AspNetCore.Authorization;
@@ -25,22 +24,15 @@ public sealed class ExportTimeEntries(
             new ExportAcceptedTimeEntriesQuery(
                 requesterId,
                 request.FromDate.ToDateTime(TimeOnly.MinValue),
-                request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue)));
+                request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue),
+                request.EmployeeId));
 
         if (result.IsFailure)
-            return TypedResults.BadRequest(result.Errors);
-
-        var csv = new StringBuilder();
-        csv.AppendLine("TimeEntryId,EmployeeId,TaskId,Date,Hours,Comment,Status");
-        foreach (var row in result.Value)
-        {
-            var comment = row.Comment?.Replace("\"", "\"\"") ?? string.Empty;
-            csv.AppendLine($"{row.TimeEntryId},{row.EmployeeId},{row.TaskId},{row.Date:O},{row.Hours},\"{comment}\",{row.Status}");
-        }
+            return result.Errors.ToErrorResult();
 
         return Results.File(
-            Encoding.UTF8.GetBytes(csv.ToString()),
-            "text/csv",
+            TimeEntryExportCsv.Create(result.Value),
+            "text/csv; charset=utf-8",
             $"time-entries-{request.FromDate:yyyyMMdd}-{request.ToDate:yyyyMMdd}.csv");
     }
 }
