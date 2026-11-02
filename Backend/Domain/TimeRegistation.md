@@ -512,9 +512,9 @@ afvises registreringen.
 TimeEntry-status følger dette flow:
 
 ```text
-Draft
-  ├── Returned -> Draft
-  └── Accepted -> Finalized
+Draft -- redigering --> Draft
+Draft -- returnering --> Returned -- redigering eller Resubmit() --> Draft
+Draft -- accept --> Accepted -- finalisering --> Finalized
 ```
 
 Status betyder:
@@ -527,7 +527,7 @@ TimeEntry er oprettet og kan behandles.
 
 En manager har returneret TimeEntry med en forklaring.
 
-Medarbejderen kan derefter redigere TimeEntry og resubmitte den:
+Medarbejderen kan derefter redigere TimeEntry. En vellykket redigering ændrer automatisk status:
 
 ```text
 Returned -> Draft
@@ -577,13 +577,13 @@ Date
 Comment
 ```
 
-Efter en Return kan medarbejderen rette TimeEntry og kalde:
+Efter en Return ændrer en vellykket redigering automatisk status:
 
 ```text
-Resubmit()
+Returned -> Draft
 ```
 
-som ændrer status:
+`Resubmit()` kan stadig bruges på en Returned TimeEntry uden redigering og ændrer også status:
 
 ```text
 Returned -> Draft
@@ -667,7 +667,7 @@ Draft -> Returned
 
 Ved returnering skal en årsag angives.
 
-Medarbejderen kan derefter se årsagen, rette sin TimeEntry og resubmitte den:
+Medarbejderen kan derefter se årsagen og rette sin TimeEntry; en vellykket redigering ændrer status automatisk:
 
 ```text
 Returned -> Draft

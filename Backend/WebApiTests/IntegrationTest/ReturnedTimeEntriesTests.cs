@@ -28,7 +28,7 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
     }
 
     [Fact]
-    public async Task Employee_can_correct_returned_entry()
+    public async Task Employee_correction_moves_returned_entry_directly_to_draft()
     {
         var (s, entry) = await ReturnedEntryAsync();
 
@@ -39,24 +39,25 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         var updated = await GetEntryAsync(s.Employee, entry.Id);
         Assert.Equal(6m, updated.Hours);
         Assert.Equal("corrected", updated.Comment);
-        Assert.Equal("Returned", updated.Status);
+        Assert.Equal("Draft", updated.Status);
     }
 
     [Fact]
-    public async Task Employee_resubmits_returned_entry_and_it_becomes_open_again()
+    public async Task Employee_can_resubmit_unedited_returned_entry_to_draft()
     {
         var (s, entry) = await ReturnedEntryAsync();
-        await s.Employee.Client.PutAsJsonAsync($"/api/time_entries/{entry.Id}",
-            new UpdateTimeEntryRequest(Monday, 6m, "corrected"));
 
         var response = await s.Employee.Client.PostAsync($"/api/time_entries/{entry.Id}/resubmit", null);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal("Draft", (await GetEntryAsync(s.Employee, entry.Id)).Status);
+        var resubmitted = await GetEntryAsync(s.Employee, entry.Id);
+        Assert.Equal("Draft", resubmitted.Status);
+        Assert.Equal(4m, resubmitted.Hours);
+        Assert.Equal("first try", resubmitted.Comment);
     }
 
     [Fact]
-    public async Task Resubmitted_entry_can_be_accepted_by_manager()
+    public async Task Unedited_resubmitted_entry_can_be_accepted_by_manager()
     {
         var (s, entry) = await ReturnedEntryAsync();
         await s.Employee.Client.PostAsync($"/api/time_entries/{entry.Id}/resubmit", null);
@@ -65,6 +66,66 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
 
         Assert.Equal(HttpStatusCode.NoContent, accept.StatusCode);
         Assert.Equal("Accepted", (await GetEntryAsync(s.Employee, entry.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Corrected_returned_entry_can_be_accepted_without_resubmit_and_keeps_review_history()
+    {
+        var (s, entry) = await ReturnedEntryAsync();
+        var originalReviews = await s.Employee.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
+            $"/api/time_entries/{entry.Id}/reviews");
+        var returnedReview = Assert.Single(originalReviews!.Items);
+        Assert.Equal("Returned", returnedReview.Decision);
+        Assert.Equal("Wrong hours", returnedReview.Reason);
+
+        var correctedDate = Monday.AddDays(1);
+        var correction = await s.Employee.Client.PutAsJsonAsync($"/api/time_entries/{entry.Id}",
+            new UpdateTimeEntryRequest(correctedDate, 6m, "corrected"));
+
+        Assert.Equal(HttpStatusCode.NoContent, correction.StatusCode);
+        var corrected = await GetEntryAsync(s.Employee, entry.Id);
+        Assert.Equal(correctedDate.Date, corrected.Date.Date);
+        Assert.Equal(6m, corrected.Hours);
+        Assert.Equal("corrected", corrected.Comment);
+        Assert.Equal("Draft", corrected.Status);
+        var reviewsAfterCorrection = await s.Employee.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
+            $"/api/time_entries/{entry.Id}/reviews");
+        Assert.Equal(returnedReview, Assert.Single(reviewsAfterCorrection!.Items));
+
+        var accept = await s.Manager.Client.PostAsync($"/api/time_entries/{entry.Id}/accept", null);
+
+        Assert.Equal(HttpStatusCode.NoContent, accept.StatusCode);
+        Assert.Equal("Accepted", (await GetEntryAsync(s.Employee, entry.Id)).Status);
+        var reviewsAfterAccept = await s.Manager.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
+            $"/api/time_entries/{entry.Id}/reviews");
+        Assert.Equal(2, reviewsAfterAccept!.Items.Count);
+        Assert.Contains(returnedReview, reviewsAfterAccept.Items);
+        var acceptedReview = Assert.Single(reviewsAfterAccept.Items.Where(r => r.Decision == "Accepted"));
+        Assert.Null(acceptedReview.Reason);
+    }
+
+    [Theory]
+    [InlineData("date")]
+    [InlineData("comment")]
+    public async Task Invalid_correction_keeps_returned_entry_and_its_review_unchanged(string invalidField)
+    {
+        var (s, entry) = await ReturnedEntryAsync();
+        var before = await GetEntryAsync(s.Employee, entry.Id);
+        var originalReviews = await s.Employee.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
+            $"/api/time_entries/{entry.Id}/reviews");
+        Assert.Equal("Returned", before.Status);
+        Assert.Single(originalReviews!.Items);
+
+        var date = invalidField == "date" ? default : Monday.AddDays(1);
+        var comment = invalidField == "comment" ? new string('x', 1001) : "corrected";
+        var response = await s.Employee.Client.PutAsJsonAsync($"/api/time_entries/{entry.Id}",
+            new UpdateTimeEntryRequest(date, 6m, comment));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(before, await GetEntryAsync(s.Employee, entry.Id));
+        var reviewsAfter = await s.Employee.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
+            $"/api/time_entries/{entry.Id}/reviews");
+        Assert.Equal<TimeEntryReviewResponse>(originalReviews.Items, reviewsAfter!.Items);
     }
 
     [Fact]

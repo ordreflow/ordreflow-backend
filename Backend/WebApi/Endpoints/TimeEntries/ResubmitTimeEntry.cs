@@ -8,7 +8,7 @@ using WebAPI.Authentication;
 namespace WebAPI.endpoints.TimeEntries;
 
 /// <summary>
-/// Resubmits a returned time entry after correction, moving it back to Draft.
+/// Moves a returned time entry back to Draft without an edit. Editing also moves it to Draft automatically.
 /// </summary>
 public sealed class ResubmitTimeEntry(ICommandDispatcher dispatcher)
     : EndpointBase

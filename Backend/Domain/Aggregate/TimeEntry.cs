@@ -88,6 +88,15 @@ public sealed class TimeEntry
     }
 
     public Result ChangeHours(UserId actorId, decimal hours)
+        => Update(actorId, Date, hours, Comment);
+
+    public Result ChangeDate(UserId actorId, DateTime date)
+        => Update(actorId, date, Hours, Comment);
+
+    public Result ChangeComment(UserId actorId, string? comment)
+        => Update(actorId, Date, Hours, comment);
+
+    public Result Update(UserId actorId, DateTime date, decimal hours, string? comment)
     {
         var editResult = CanEdit(actorId);
 
@@ -100,33 +109,9 @@ public sealed class TimeEntry
                     "InvalidHours",
                     "Hours must be greater than 0 and cannot exceed 24."));
 
-        Hours = hours;
-
-        return Result.Success();
-    }
-
-    public Result ChangeDate(UserId actorId, DateTime date)
-    {
-        var editResult = CanEdit(actorId);
-
-        if (editResult.IsFailure)
-            return editResult;
-
         if (date == default)
             return Result.Failure(
                 new Error("InvalidDate", "Date is required."));
-
-        Date = date;
-
-        return Result.Success();
-    }
-
-    public Result ChangeComment(UserId actorId, string? comment)
-    {
-        var editResult = CanEdit(actorId);
-
-        if (editResult.IsFailure)
-            return editResult;
 
         comment = comment?.Trim();
 
@@ -136,7 +121,10 @@ public sealed class TimeEntry
                     "CommentTooLong",
                     "Comment cannot exceed 1000 characters."));
 
+        Date = date;
+        Hours = hours;
         Comment = comment;
+        Status = TimeEntryStatus.Draft;
 
         return Result.Success();
     }
