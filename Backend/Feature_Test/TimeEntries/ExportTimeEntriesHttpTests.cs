@@ -56,6 +56,19 @@ public class ExportTimeEntriesHttpTests : IClassFixture<ExportTimeEntriesHttpTes
     }
 
     [Fact]
+    public async Task EmployeeIdQuery_FiltersTheExport()
+    {
+        using var other = await GetAsAsync($"{Path}&EmployeeId={Guid.NewGuid()}", _factory.Manager);
+        using var own = await GetAsAsync($"{Path}&EmployeeId={_factory.Employee.UserId.Value}", _factory.Manager);
+
+        Assert.Equal(HttpStatusCode.OK, other.StatusCode);
+        Assert.Single(Encoding.UTF8.GetString(await other.Content.ReadAsByteArrayAsync())
+            .Split("\r\n", StringSplitOptions.RemoveEmptyEntries));
+        Assert.Equal(2, Encoding.UTF8.GetString(await own.Content.ReadAsByteArrayAsync())
+            .Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length);
+    }
+
+    [Fact]
     public async Task Employee_GetsForbidden()
     {
         using var response = await GetAsAsync(Path, _factory.Employee);

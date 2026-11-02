@@ -3,7 +3,8 @@ namespace Application.Queries;
 public sealed record ExportAcceptedTimeEntriesQuery(
     Guid RequestedBy,
     DateTime FromDate,
-    DateTime ToDateExclusive);
+    DateTime ToDateExclusive,
+    Guid? EmployeeId = null);
 
 public sealed record TimeEntryExportRow(
     Guid TimeEntryId,

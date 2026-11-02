@@ -51,6 +51,30 @@ public class ExportAcceptedTimeEntriesTests
     }
 
     [Fact]
+    public async Task EmployeeFilter_ExportsOnlyThatEmployee()
+    {
+        var world = new World();
+        var annaEntry = world.Entry(world.Anna, new DateTime(2026, 10, 5), 7.5m, accept: true);
+        world.Entry(world.David, new DateTime(2026, 10, 5), 8m, accept: true);
+
+        var result = await world.Export(world.Admin, world.Anna);
+
+        Assert.Equal(annaEntry.Id.Value, Assert.Single(result.Value).TimeEntryId);
+    }
+
+    [Fact]
+    public async Task Manager_FilteringOnAnotherManagersEmployee_GetsNothing()
+    {
+        var world = new World();
+        world.Entry(world.David, new DateTime(2026, 10, 5), 8m, accept: true);
+
+        var result = await world.Export(world.Mette, world.David);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
+
+    [Fact]
     public async Task EntriesOutsideThePeriod_AreNotExported()
     {
         var world = new World();
@@ -153,8 +177,9 @@ public class ExportAcceptedTimeEntriesTests
             return entry;
         }
 
-        public Task<Result<IReadOnlyList<TimeEntryExportRow>>> Export(User requester) =>
-            CreateHandler().HandleAsync(new ExportAcceptedTimeEntriesQuery(requester.UserId.Value, From, ToExclusive));
+        public Task<Result<IReadOnlyList<TimeEntryExportRow>>> Export(User requester, User? employee = null) =>
+            CreateHandler().HandleAsync(new ExportAcceptedTimeEntriesQuery(
+                requester.UserId.Value, From, ToExclusive, employee?.UserId.Value));
 
         public ExportAcceptedTimeEntriesHandler CreateHandler() => new(
             new FakeTimeEntryRepository(entries),

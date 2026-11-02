@@ -2,4 +2,5 @@ namespace WebAPI.Contracts.TimeEntries;
 
 public sealed record ExportTimeEntriesRequest(
     DateOnly FromDate,
-    DateOnly ToDate);
+    DateOnly ToDate,
+    Guid? EmployeeId = null);

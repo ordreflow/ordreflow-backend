@@ -34,6 +34,7 @@ public sealed class ExportAcceptedTimeEntriesHandler(
                 query.FromDate,
                 query.ToDateExclusive))
             .Where(entry => entry.Status is TimeEntryStatus.Accepted or TimeEntryStatus.Finalized)
+            .Where(entry => query.EmployeeId is null || entry.EmployeeId.Value == query.EmployeeId)
             .ToArray();
 
         var employees = new Dictionary<UserId, Domain.Aggregate.User?>();

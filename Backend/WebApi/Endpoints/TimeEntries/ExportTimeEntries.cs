@@ -24,7 +24,8 @@ public sealed class ExportTimeEntries(
             new ExportAcceptedTimeEntriesQuery(
                 requesterId,
                 request.FromDate.ToDateTime(TimeOnly.MinValue),
-                request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue)));
+                request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue),
+                request.EmployeeId));
 
         if (result.IsFailure)
             return result.Errors.ToErrorResult();
