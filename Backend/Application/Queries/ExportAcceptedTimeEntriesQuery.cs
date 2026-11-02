@@ -8,7 +8,10 @@ public sealed record ExportAcceptedTimeEntriesQuery(
 public sealed record TimeEntryExportRow(
     Guid TimeEntryId,
     Guid EmployeeId,
+    string EmployeeName,
     Guid TaskId,
+    string TaskTitle,
+    string OrderName,
     DateTime Date,
     decimal Hours,
     string? Comment,
