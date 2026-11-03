@@ -5,7 +5,7 @@ using Domain.Aggregate;
 using Domain.Interfaces;
 using Domain.ValueObjects;
 
-namespace UnitTests.Auth;
+namespace UnitTests.Application.Handlers.Auth;
 
 public class LoginHandlerTests
 {

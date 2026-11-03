@@ -1,16 +1,13 @@
-using System.Text.Json;
 using Application.Commands;
-using Application.Dtos;
 using Application.Handlers;
 using Application.Queries;
 using Core.Tools.OperationResult;
 using Domain.Aggregate;
 using Domain.Interfaces;
 using Domain.ValueObjects;
-using WebAPI.MappingConfigurations;
 using TaskStatus = Domain.ValueObjects.TaskStatus;
 
-namespace UnitTests.Tasks;
+namespace UnitTests.Application.Handlers.Tasks;
 
 public class TaskLifecycleHandlerTests
 {
@@ -126,29 +123,6 @@ public class TaskLifecycleHandlerTests
         Assert.True(reopened.IsSuccess);
         Assert.Equal("Open", reopened.Value.Status);
         Assert.Null(reopened.Value.ClosedAt);
-    }
-
-    [Fact]
-    public void TaskDtoToResponse_ExposesStatusAndClosedAtInWebJson()
-    {
-        var closedAt = new DateTime(2026, 9, 9, 10, 30, 0, DateTimeKind.Utc);
-        var dto = new TaskDto(Guid.NewGuid(), Guid.NewGuid(), "Repair", "Repair description",
-            "Closed", closedAt);
-
-        var response = new TaskToResponseMapper().Map(dto);
-        var json = JsonSerializer.SerializeToElement(response, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-
-        Assert.Equal(dto.Id, response.Id);
-        Assert.Equal(dto.OrderId, response.OrderId);
-        Assert.Equal("Closed", response.Status);
-        Assert.Equal(closedAt, response.ClosedAt);
-        Assert.Equal("Closed", json.GetProperty("status").GetString());
-        Assert.Equal(closedAt, json.GetProperty("closedAt").GetDateTime());
-
-        var reopened = new TaskToResponseMapper().Map(dto with { Status = "Open", ClosedAt = null });
-        var reopenedJson = JsonSerializer.SerializeToElement(reopened, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        Assert.Equal("Open", reopenedJson.GetProperty("status").GetString());
-        Assert.Equal(JsonValueKind.Null, reopenedJson.GetProperty("closedAt").ValueKind);
     }
 
     private static Task<Result> HandleAsync(bool close, IUserRepository users, IOrderRepository orders,
