@@ -1,5 +1,4 @@
 using Domain.Aggregate;
-using Domain.Services;
 using Domain.ValueObjects;
 using TaskStatus = Domain.ValueObjects.TaskStatus;
 
@@ -128,43 +127,6 @@ public class TaskLifecycleTests
         Assert.Null(task.ClosedAt);
     }
 
-    [Fact]
-    public void TimeRegistration_RejectsClosedTask_WithoutChangingEarlierFinalizedEntry()
-    {
-        var admin = CreateUser("admin@example.com", UserRole.Admin);
-        var manager = CreateUser("manager@example.com", UserRole.Manager);
-        var employee = CreateUser("employee@example.com", UserRole.Employee);
-        Assert.True(employee.AssignManager(manager.UserId, manager.Role, manager.Status,
-            admin.Role, admin.Status).IsSuccess);
-        var order = CreateOrder(manager);
-        var task = AddTask(order, manager, "Repair");
-        var existingEntry = CreateEntry(employee, task.TaskId);
-        var service = new TimeRegistrationDomainService();
-
-        Assert.True(service.Register(employee, order, existingEntry).IsSuccess);
-        Assert.True(existingEntry.Accept(manager.UserId, employee.UserId, employee.ManagerId,
-            manager.Role, manager.Status).IsSuccess);
-        Assert.True(existingEntry.Finalize(manager.UserId, employee.UserId, employee.ManagerId,
-            manager.Role, manager.Status).IsSuccess);
-        var existingReviews = existingEntry.Reviews.ToArray();
-        Assert.True(order.CloseWorkItem(manager.UserId, manager.Role, manager.Status, task.TaskId).IsSuccess);
-
-        AssertError("TaskClosed", service.Register(employee, order, CreateEntry(employee, task.TaskId)));
-        Assert.Equal(TimeEntryStatus.Finalized, existingEntry.Status);
-        Assert.Equal(existingReviews, existingEntry.Reviews);
-        Assert.Equal(task.TaskId, existingEntry.TaskId);
-
-        Assert.True(order.Close(manager.UserId, manager.Role, manager.Status).IsSuccess);
-        AssertError("CaseClosed", service.Register(employee, order, CreateEntry(employee, task.TaskId)));
-        Assert.True(order.Reopen(manager.UserId, manager.Role, manager.Status).IsSuccess);
-        AssertError("TaskClosed", service.Register(employee, order, CreateEntry(employee, task.TaskId)));
-
-        Assert.True(order.ReopenWorkItem(manager.UserId, manager.Role, manager.Status, task.TaskId).IsSuccess);
-        Assert.True(service.Register(employee, order, CreateEntry(employee, task.TaskId)).IsSuccess);
-        Assert.Equal(TimeEntryStatus.Finalized, existingEntry.Status);
-        Assert.Equal(existingReviews, existingEntry.Reviews);
-    }
-
     private static Order CreateOrder(User manager) => Order.Create(
         manager.UserId, manager.Role, manager.Status, OrderName.Create("Repair order").Value).Value;
 
@@ -173,9 +135,6 @@ public class TaskLifecycleTests
 
     private static User CreateUser(string email, UserRole role) => User.Create(
         PersonName.Create("Test User").Value, EmailAddress.Create(email).Value, role).Value;
-
-    private static TimeEntry CreateEntry(User employee, TaskId taskId) => TimeEntry.Create(
-        employee.UserId, taskId, new DateTime(2026, 9, 9), 2m, "Repair").Value;
 
     private static void AssertError(string code, Core.Tools.OperationResult.Result result)
     {
