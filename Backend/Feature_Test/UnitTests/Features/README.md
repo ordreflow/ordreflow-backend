@@ -9,7 +9,7 @@ Links below identify **related direct unit-test cases**, not proof of full requi
 | ID | Draft requirement (short label) | Related direct unit tests |
 | --- | --- | --- |
 | FR-01 | Register time on assigned order/task | [Registration scope](FR-01/TimeRegistrationScopeTests.cs); [entry ownership](FR-01/TimeRegistrationOwnershipTests.cs); [creation boundaries](FR-01/TimeEntryCreationBoundariesTests.cs); [closed-task registration](FR-01/ClosedTaskTimeRegistrationTests.cs); [create handler](../Application/Handlers/TimeEntries/CreateTimeEntryHandlerTests.cs) (task required; assigned means employee's manager matches order manager) |
-| FR-02 | Manager views scoped time entries | [time-entry query handlers](../Application/Handlers/TimeEntries/TimeEntryQueryHandlerTests.cs) |
+| FR-02 | Manager views scoped time entries | [access](FR-02/ManagerTimeEntryAccessTests.cs); [date boundaries](FR-02/ManagerTimeEntryDateBoundariesTests.cs); [status filter](FR-02/ManagerTimeEntryStatusFilterTests.cs); [ordering and DTO projection](FR-02/ManagerTimeEntryProjectionTests.cs); [time-entry query handlers](../Application/Handlers/TimeEntries/TimeEntryQueryHandlerTests.cs) (unit tests use pre-scoped entries; actual employee.ManagerId scope filtering in the repository is not verified here) |
 | FR-03 | Manager reviews/approves time entries | None directly for manager approval (the cross-feature process test is not a direct test) |
 | FR-04 | Employee views own week entries | [time-entry query handlers](../Application/Handlers/TimeEntries/TimeEntryQueryHandlerTests.cs) |
 | FR-05 | Admin creates users | None |
