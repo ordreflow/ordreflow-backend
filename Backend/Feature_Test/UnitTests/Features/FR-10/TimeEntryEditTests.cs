@@ -2,7 +2,7 @@ using Core.Tools.OperationResult;
 using Domain.Aggregate;
 using Domain.ValueObjects;
 
-namespace UnitTests.TimeEntries;
+namespace UnitTests.Features.FR10;
 
 public class TimeEntryEditTests
 {
