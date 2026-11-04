@@ -64,9 +64,33 @@ jobs:
 
       # Push API image
       - name: Push API image
-        run: docker push "$API_IMAGE:$IMAGE_TAG"
+        run: |
+          for attempt in 1 2 3; do
+            if docker push "$API_IMAGE:$IMAGE_TAG"; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "API image push failed; retrying in 10 seconds (attempt $((attempt + 1)) of 3)."
+              sleep 10
+            fi
+          done
+
+          exit 1
 
       # Push migrations image
       - name: Push migrations image
-        run: docker push "$MIGRATIONS_IMAGE:$IMAGE_TAG"
+        run: |
+          for attempt in 1 2 3; do
+            if docker push "$MIGRATIONS_IMAGE:$IMAGE_TAG"; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Migrations image push failed; retrying in 10 seconds (attempt $((attempt + 1)) of 3)."
+              sleep 10
+            fi
+          done
+
+          exit 1
  
