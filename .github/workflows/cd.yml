@@ -69,3 +69,4 @@ jobs:
       # Push migrations image
       - name: Push migrations image
         run: docker push "$MIGRATIONS_IMAGE:$IMAGE_TAG"
+ 
