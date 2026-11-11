@@ -28,7 +28,8 @@
       "**/*.pem": "deny",
       "**/*.key": "deny",
       ".git/**": "deny",
-      ".claude/settings.local.json": "deny"
+      ".claude/settings.local.json": "deny",
+      "/home/ubuntu/Projects/ordreflow-docs/**": "deny"
     },
     "glob": "allow",
     "grep": "allow",
@@ -42,7 +43,8 @@
     "websearch": "ask",
     "doom_loop": "ask",
     "external_directory": {
-      "*": "deny"
+      "*": "deny",
+      "/home/ubuntu/Projects/ordreflow-docs/**": "allow"
     },
     "bash": {
       "*": "ask",
@@ -96,6 +98,16 @@
       "git push * --force *": "deny",
       "git push * -f *": "deny",
       "flox uninstall *": "deny"
+    }
+  },
+  "references": {
+    "docs": {
+      "path": "../ordreflow-docs",
+      "description": "Project Documentation repo"
+    },
+    "frontend": {
+      "path": "../ordreflow-frontend",
+      "description": "Project Frontend repo"
     }
   }
 }

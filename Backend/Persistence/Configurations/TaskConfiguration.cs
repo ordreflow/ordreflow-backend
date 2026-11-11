@@ -1,44 +1,51 @@
 namespace Persistence.Configurations;
 
-using Domain.ValueObjects;
+using Domain.Aggregate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Domain.Entities;
+using Task = Domain.Entities.Task;
+
 public class TaskConfiguration : IEntityTypeConfiguration<Task>
 {
     public void Configure(EntityTypeBuilder<Task> entity)
     {
         entity.ToTable("tasks");
 
-        entity.HasKey(x => x.TaskId);
+        entity.HasKey(x => x.Id);
 
-        entity.Property(x => x.TaskId)
+        entity.Property(x => x.Id)
             .HasColumnName("id")
-            .HasConversion(id => id.Value, value => TaskId.Create(value).Value)
             .ValueGeneratedNever();
 
-        entity.Property(x => x.OrderId)
-            .HasColumnName("order_id")
-            .HasConversion(id => id!.Value, value => OrderId.Create(value).Value);
+        entity.Property(x => x.CatagoryId)
+            .HasColumnName("catagory_id")
+            .IsRequired();
 
-        entity.Property(x => x.Title)
-            .HasColumnName("title")
-            .HasMaxLength(200)
+        entity.Property(x => x.Name)
+            .HasColumnName("name")
             .IsRequired();
 
         entity.Property(x => x.Description)
-            .HasColumnName("description")
-            .HasMaxLength(2000)
-            .IsRequired();
+            .HasColumnName("description");
 
         entity.Property(x => x.Status)
             .HasColumnName("status")
             .HasConversion<string>()
-            .HasMaxLength(20)
+            .IsRequired();
+
+        entity.Property(x => x.CreatedAt)
+            .HasColumnName("created_at")
+            .HasColumnType("timestamp with time zone")
             .IsRequired();
 
         entity.Property(x => x.ClosedAt)
             .HasColumnName("closed_at")
             .HasColumnType("timestamp with time zone");
+
+        entity.HasOne<Catagory>()
+            .WithMany()
+            .HasForeignKey(x => x.CatagoryId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

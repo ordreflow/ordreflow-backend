@@ -1,7 +1,7 @@
 namespace Domain.ValueObjects;
 
-public enum OrderStatus
+public enum CatagoryStatus
 {
-    Open = 1,
+    Active = 1,
     Closed = 2
 }

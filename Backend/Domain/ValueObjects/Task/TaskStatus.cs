@@ -2,6 +2,6 @@ namespace Domain.ValueObjects;
 
 public enum TaskStatus
 {
-    Open = 1,
+    Active = 1,
     Closed = 2
 }

@@ -1,7 +1,7 @@
 namespace Domain.ValueObjects;
 
-public enum UserStatus
+public enum EmployeeStatus
 {
     Active = 1,
-    Inactive = 2
+    Deactivated = 2
 }

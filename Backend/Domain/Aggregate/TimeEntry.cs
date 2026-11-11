@@ -1,335 +1,61 @@
-﻿using Core.Tools.OperationResult;
+using Core.Tools.OperationResult;
 using Domain.Entities;
-using Domain.ValueObjects;
 
 namespace Domain.Aggregate;
 
 public sealed class TimeEntry
 {
-    private readonly List<TimeEntryReview> _reviews = new();
+    private readonly List<TimeEntryAudit> _audits = new();
 
-    public  TimeEntryId Id { get; private set; }
-
-    public UserId EmployeeId { get; private set; } = null!;
-
-    public TaskId TaskId { get; private set; } = null!;
-
-    public DateTime Date { get; private set; }
-
-    public decimal Hours { get; private set; }
-
-    public string? Comment { get; private set; }
-
-
-    public TimeEntryStatus Status { get; private set; } = TimeEntryStatus.Draft;
-
-    public IReadOnlyCollection<TimeEntryReview> Reviews =>
-        _reviews.AsReadOnly();
+    public Guid Id { get; private set; }
+    public Guid EmployeeId { get; private set; }
+    public IReadOnlyCollection<TimeEntryAudit> Audits => _audits.AsReadOnly();
 
     private TimeEntry()
     {
     }
 
-    private TimeEntry(
-        UserId employeeId,
-        TaskId taskId,
-        DateTime date,
-        decimal hours,
-        string? comment)
+    public static Result<TimeEntry> Create(Guid employeeId, TimeEntryAudit initialAudit)
     {
-        Id = TimeEntryId.Create(Guid.NewGuid()).Value;
-        EmployeeId = employeeId;
-        TaskId = taskId;
-        Date = date;
-        Hours = hours;
-        Comment = comment;
+        if (employeeId == Guid.Empty)
+            return Result<TimeEntry>.Failure(new Error("EmployeeRequired", "An employee is required."));
+
+        if (initialAudit is null)
+            return Result<TimeEntry>.Failure(new Error("AuditRequired", "An initial audit is required."));
+
+        if (initialAudit.TimeEntryId == Guid.Empty)
+            return Result<TimeEntry>.Failure(new Error("TimeEntryIdRequired", "The audit must identify its time entry."));
+
+        var entry = new TimeEntry
+        {
+            Id = initialAudit.TimeEntryId,
+            EmployeeId = employeeId
+        };
+
+        var result = entry.AddAudit(initialAudit);
+        return result.IsFailure
+            ? Result<TimeEntry>.Failure(result.Errors.ToArray())
+            : Result<TimeEntry>.Success(entry);
     }
 
-    public static Result<TimeEntry> Create(
-        UserId employeeId,
-        TaskId taskId,
-        DateTime date,
-        decimal hours,
-        string? comment)
+    public Result AddAudit(TimeEntryAudit audit)
     {
-        if (employeeId is null)
-            return Result<TimeEntry>.Failure(
-                new Error("EmployeeRequired", "An employee is required."));
+        if (audit is null)
+            return Result.Failure(new Error("AuditRequired", "An audit is required."));
 
-        if (taskId is null)
-            return Result<TimeEntry>.Failure(
-                new Error("WorkItemRequired", "A work item is required."));
+        if (audit.TimeEntryId != Id)
+            return Result.Failure(new Error("AuditEntryMismatch", "The audit belongs to a different time entry."));
 
-        if (date == default)
-            return Result<TimeEntry>.Failure(
-                new Error("InvalidDate", "Date is required."));
+        if (audit.AuditTime == default)
+            return Result.Failure(new Error("AuditTimeRequired", "The audit time is required."));
 
-        if (hours <= 0 || hours > 24)
-            return Result<TimeEntry>.Failure(
-                new Error(
-                    "InvalidHours",
-                    "Hours must be greater than 0 and cannot exceed 24."));
+        var current = GetCurrentAudit();
+        if (current is not null && audit.AuditTime <= current.AuditTime)
+            return Result.Failure(new Error("AuditTimeNotIncreasing", "The audit must be later than the current version."));
 
-        comment = comment?.Trim();
-
-        if (comment?.Length > 1000)
-            return Result<TimeEntry>.Failure(
-                new Error(
-                    "CommentTooLong",
-                    "Comment cannot exceed 1000 characters."));
-
-        return Result<TimeEntry>.Success(
-            new TimeEntry(
-                employeeId,
-                taskId,
-                date,
-                hours,
-                comment));
-    }
-
-    public Result ChangeHours(UserId actorId, decimal hours)
-        => Update(actorId, Date, hours, Comment);
-
-    public Result ChangeDate(UserId actorId, DateTime date)
-        => Update(actorId, date, Hours, Comment);
-
-    public Result ChangeComment(UserId actorId, string? comment)
-        => Update(actorId, Date, Hours, comment);
-
-    public Result Update(UserId actorId, DateTime date, decimal hours, string? comment)
-    {
-        var editResult = CanEdit(actorId);
-
-        if (editResult.IsFailure)
-            return editResult;
-
-        if (hours <= 0 || hours > 24)
-            return Result.Failure(
-                new Error(
-                    "InvalidHours",
-                    "Hours must be greater than 0 and cannot exceed 24."));
-
-        if (date == default)
-            return Result.Failure(
-                new Error("InvalidDate", "Date is required."));
-
-        comment = comment?.Trim();
-
-        if (comment?.Length > 1000)
-            return Result.Failure(
-                new Error(
-                    "CommentTooLong",
-                    "Comment cannot exceed 1000 characters."));
-
-        Date = date;
-        Hours = hours;
-        Comment = comment;
-        Status = TimeEntryStatus.Draft;
-
+        _audits.Add(audit);
         return Result.Success();
     }
 
-    public Result Accept(
-        UserId reviewerId,
-        UserId employeeId,
-        UserId? employeeManagerId,
-        UserRole reviewerRole,
-        UserStatus reviewerStatus)
-    {
-        var reviewResult = CanReview(
-            reviewerId,
-            employeeId,
-            employeeManagerId,
-            reviewerRole,
-            reviewerStatus);
-
-        if (reviewResult.IsFailure)
-            return reviewResult;
-
-        if (Status != TimeEntryStatus.Draft)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotOpen",
-                    "Only an open time entry can be accepted."));
-
-        var review = TimeEntryReview.Create(
-            Id,
-            ReviewDecision.Accepted,
-            null);
-
-        if (review.IsFailure)
-            return Result.Failure(review.Errors.ToArray());
-
-        Status = TimeEntryStatus.Accepted;
-
-        _reviews.Add(review.Value);
-
-        return Result.Success();
-    }
-
-    public Result Return(
-        UserId reviewerId,
-        UserId employeeId,
-        UserId? employeeManagerId,
-        UserRole reviewerRole,
-        UserStatus reviewerStatus,
-        string reason)
-    {
-        var reviewResult = CanReview(
-            reviewerId,
-            employeeId,
-            employeeManagerId,
-            reviewerRole,
-            reviewerStatus);
-
-        if (reviewResult.IsFailure)
-            return reviewResult;
-
-        if (Status != TimeEntryStatus.Draft)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotOpen",
-                    "Only an open time entry can be returned."));
-
-        var review = TimeEntryReview.Create(
-            Id,
-            ReviewDecision.Returned,
-            reason);
-
-        if (review.IsFailure)
-            return Result.Failure(review.Errors.ToArray());
-
-        Status = TimeEntryStatus.Returned;
-
-        _reviews.Add(review.Value);
-
-        return Result.Success();
-    }
-
-    public Result Resubmit(UserId actorId)
-    {
-        var editResult = CanEdit(actorId);
-
-        if (editResult.IsFailure)
-            return editResult;
-
-        if (Status != TimeEntryStatus.Returned)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotReturned",
-                    "Only a returned time entry can be resubmitted."));
-
-        Status = TimeEntryStatus.Draft;
-
-        return Result.Success();
-    }
-
-    public Result Finalize(
-        UserId reviewerId,
-        UserId employeeId,
-        UserId? employeeManagerId,
-        UserRole reviewerRole,
-        UserStatus reviewerStatus)
-    {
-        var reviewResult = CanReview(
-            reviewerId,
-            employeeId,
-            employeeManagerId,
-            reviewerRole,
-            reviewerStatus);
-
-        if (reviewResult.IsFailure)
-            return reviewResult;
-
-        if (Status != TimeEntryStatus.Accepted)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotAccepted",
-                    "Only an accepted time entry can be finalized."));
-
-        var review = TimeEntryReview.Create(
-            Id,
-            ReviewDecision.Finalized,
-            null);
-
-        if (review.IsFailure)
-            return Result.Failure(review.Errors.ToArray());
-
-        Status = TimeEntryStatus.Finalized;
-
-        _reviews.Add(review.Value);
-
-        return Result.Success();
-    }
-
-    public Result CanEdit(UserId actorId)
-    {
-        if (actorId is null || actorId != EmployeeId)
-            return Result.Failure(
-                new Error(
-                    "EntryOwnerMismatch",
-                    "Only the employee can edit this time entry."));
-
-        if (Status is not (TimeEntryStatus.Draft or TimeEntryStatus.Returned))
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotEditable",
-                    "Only open or returned time entries can be edited."));
-
-        return Result.Success();
-    }
-
-    public bool CanView(
-        UserId actorId,
-        UserRole actorRole,
-        UserStatus actorStatus,
-        UserId? employeeManagerId)
-    {
-        if (actorStatus != UserStatus.Active)
-            return false;
-
-        if (actorId is not null && actorId == EmployeeId)
-            return true;
-
-        if (actorRole == UserRole.Admin)
-            return true;
-
-        return actorRole == UserRole.Manager && employeeManagerId == actorId;
-    }
-
-    private Result CanReview(
-        UserId reviewerId,
-        UserId employeeId,
-        UserId? employeeManagerId,
-        UserRole reviewerRole,
-        UserStatus reviewerStatus)
-    {
-        if (employeeId is null || employeeId != EmployeeId)
-            return Result.Failure(
-                new Error(
-                    "EmployeeMismatch",
-                    "The employee does not own this time entry."));
-
-        if (reviewerStatus != UserStatus.Active ||
-            reviewerRole is not (UserRole.Manager or UserRole.Admin))
-            return Result.Failure(
-                new Error(
-                    "ReviewForbidden",
-                    "Only an active manager or admin can review time entries."));
-
-        if (reviewerId is null)
-            return Result.Failure(
-                new Error(
-                    "ReviewerRequired",
-                    "A reviewer is required."));
-
-        if (reviewerRole == UserRole.Manager &&
-            employeeManagerId != reviewerId)
-            return Result.Failure(
-                new Error(
-                    "ReviewScopeForbidden",
-                    "The manager cannot review this employee's time entry."));
-
-        return Result.Success();
-    }
+    public TimeEntryAudit? GetCurrentAudit() => _audits.MaxBy(audit => audit.AuditTime);
 }

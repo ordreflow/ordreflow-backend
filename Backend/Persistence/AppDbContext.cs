@@ -1,6 +1,5 @@
 namespace Persistence;
 
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Domain.Aggregate;
@@ -9,7 +8,7 @@ using Persistence.Identity;
 using Task = Domain.Entities.Task;
 
 
-public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
+public class AppDbContext : IdentityUserContext<ApplicationUser, Guid>
 {
     public AppDbContext(
         DbContextOptions<AppDbContext> options)
@@ -17,16 +16,23 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     {
     }
 
-    // Domain users. Hides IdentityDbContext.Users; login accounts are reached through UserManager.
-    public new DbSet<User> Users => Set<User>();
-
-    public DbSet<Order> Orders => Set<Order>();
-
+    public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<EmployeeSystemAccess> EmployeeSystemAccesses => Set<EmployeeSystemAccess>();
     public DbSet<Task> Tasks => Set<Task>();
-
     public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
-
     public DbSet<TimeEntryReview> TimeEntryReviews => Set<TimeEntryReview>();
+    public DbSet<TimeEntryAudit> TimeEntryAudits => Set<TimeEntryAudit>();
+    public DbSet<Export> Exports => Set<Export>();
+    public DbSet<TimeEntryExport> TimeEntryExports => Set<TimeEntryExport>();
+    public DbSet<RegistrationPeriodMode> RegistrationPeriodModes => Set<RegistrationPeriodMode>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<DepartmentEmployee> DepartmentEmployees => Set<DepartmentEmployee>();
+    public DbSet<DepartmentManager> DepartmentManagers => Set<DepartmentManager>();
+    public DbSet<Catagory> Catagories => Set<Catagory>();
+    public DbSet<TaskAssinment> TaskAssinments => Set<TaskAssinment>();
+    public DbSet<CatagoryReviewer> CatagoryReviewers => Set<CatagoryReviewer>();
+    public DbSet<AccessPrivilege> AccessPrivileges => Set<AccessPrivilege>();
+    public DbSet<AccessTask> AccessTasks => Set<AccessTask>();
 
     protected override void OnModelCreating(
         ModelBuilder modelBuilder)
