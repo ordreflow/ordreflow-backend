@@ -1,5 +1,6 @@
 using Core.Tools.OperationResult;
 using Domain.Aggregate;
+using Domain.ValueObjects;
 
 namespace Domain.Services;
 
@@ -10,43 +11,68 @@ namespace Domain.Services;
 /// </summary>
 public sealed class TimeEntryReviewDomainService
 {
-    public Result Accept(TimeEntry entry, User? employee, User? reviewer)
+    public Result Accept(
+        TimeEntry entry,
+        UserId employeeId,
+        DepartmentId? employeeDepartmentId,
+        UserId reviewerId,
+        UserRole reviewerRole,
+        UserStatus reviewerStatus,
+        DepartmentId? reviewerDepartmentId)
     {
-        if (employee is null || reviewer is null)
-            return Result.Failure(new Error("UserNotFound", "The employee or reviewer was not found."));
+        if (entry is null)
+            return Result.Failure(new Error("TimeEntryRequired", "A time entry is required."));
 
         return entry.Accept(
-            reviewer.UserId,
-            employee.UserId,
-            employee.ManagerId,
-            reviewer.Role,
-            reviewer.Status);
+            reviewerId,
+            reviewerRole,
+            reviewerStatus,
+            reviewerDepartmentId,
+            employeeId,
+            employeeDepartmentId);
     }
 
-    public Result Return(TimeEntry entry, User? employee, User? reviewer, string reason)
+    public Result Return(
+        TimeEntry entry,
+        UserId employeeId,
+        DepartmentId? employeeDepartmentId,
+        UserId reviewerId,
+        UserRole reviewerRole,
+        UserStatus reviewerStatus,
+        DepartmentId? reviewerDepartmentId,
+        string reason)
     {
-        if (employee is null || reviewer is null)
-            return Result.Failure(new Error("UserNotFound", "The employee or reviewer was not found."));
+        if (entry is null)
+            return Result.Failure(new Error("TimeEntryRequired", "A time entry is required."));
 
         return entry.Return(
-            reviewer.UserId,
-            employee.UserId,
-            employee.ManagerId,
-            reviewer.Role,
-            reviewer.Status,
+            reviewerId,
+            reviewerRole,
+            reviewerStatus,
+            reviewerDepartmentId,
+            employeeId,
+            employeeDepartmentId,
             reason);
     }
 
-    public Result Finalize(TimeEntry entry, User? employee, User? reviewer)
+    public Result Finalize(
+        TimeEntry entry,
+        UserId employeeId,
+        DepartmentId? employeeDepartmentId,
+        UserId reviewerId,
+        UserRole reviewerRole,
+        UserStatus reviewerStatus,
+        DepartmentId? reviewerDepartmentId)
     {
-        if (employee is null || reviewer is null)
-            return Result.Failure(new Error("UserNotFound", "The employee or reviewer was not found."));
+        if (entry is null)
+            return Result.Failure(new Error("TimeEntryRequired", "A time entry is required."));
 
         return entry.Finalize(
-            reviewer.UserId,
-            employee.UserId,
-            employee.ManagerId,
-            reviewer.Role,
-            reviewer.Status);
+            reviewerId,
+            reviewerRole,
+            reviewerStatus,
+            reviewerDepartmentId,
+            employeeId,
+            employeeDepartmentId);
     }
 }

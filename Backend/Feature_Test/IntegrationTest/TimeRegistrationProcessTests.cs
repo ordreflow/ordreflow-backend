@@ -8,249 +8,306 @@ namespace UnitTest.Features;
 public class TimeRegistrationProcessTests
 {
     [Fact]
-    public void CompleteTimeRegistrationProcess_ManagerCreatesEmployeeOrderTask_EmployeeRegisters_ManagerApprovesAndFinalizes()
+    public void CompleteTimeRegistrationProcess_AdminCreatesUsers_ManagerAssignsWork_EmployeeSubmits_ManagerReviews()
     {
-      // ---------------------------------------------------------
-// 1. Create admin
-// ---------------------------------------------------------
+        var department = Department.Create("Elektronik").Value;
+        var admin = User.Create(
+            PersonName.Create("Admin Anders").Value,
+            EmailAddress.Create("admin@elektronik.dk").Value,
+            UserRole.Admin).Value;
 
-var adminName = PersonName.Create("Admin Anders").Value;
-var adminEmail = EmailAddress.Create("admin@elektronik.dk").Value;
+        var manager = admin.CreateUser(
+            PersonName.Create("Manager Mads").Value,
+            EmailAddress.Create("manager@elektronik.dk").Value,
+            UserRole.Manager,
+            department.Id).Value;
 
-var adminResult = User.Create(
-    adminName,
-    adminEmail,
-    UserRole.Admin);
+        Assert.True(manager.CreateUser(
+            PersonName.Create("Unauthorized Employee").Value,
+            EmailAddress.Create("unauthorized@elektronik.dk").Value,
+            UserRole.Employee,
+            department.Id).IsFailure);
 
-Assert.True(adminResult.IsSuccess);
+        var employee = admin.CreateUser(
+            PersonName.Create("Peter Hansen").Value,
+            EmailAddress.Create("peter@elektronik.dk").Value,
+            UserRole.Employee,
+            department.Id).Value;
 
-var admin = adminResult.Value;
+        var order = Order.Create(
+            "Reparation",
+            parentOrderId: null,
+            department.Id,
+            department.Status,
+            parentChargedDepartmentId: null,
+            OrderVisibility.ChargedDepartment).Value;
 
-Console.WriteLine(
-    $"1. Admin created: {admin.Name.Value} ({admin.UserId})");
-
-
-// ---------------------------------------------------------
-// 2. Create manager
-// ---------------------------------------------------------
-
-var managerName = PersonName.Create("Manager Mads").Value;
-var managerEmail = EmailAddress.Create("manager@elektronik.dk").Value;
-
-var managerResult = User.Create(
-    managerName,
-    managerEmail,
-    UserRole.Manager);
-
-Assert.True(managerResult.IsSuccess);
-
-var manager = managerResult.Value;
-
-Console.WriteLine(
-    $"2. Manager created: {manager.Name.Value} ({manager.UserId})");
-
-
-// ---------------------------------------------------------
-// 3. Manager creates employee
-// ---------------------------------------------------------
-
-var employeeName = PersonName.Create("Peter Hansen").Value;
-var employeeEmail = EmailAddress.Create("peter@elektronik.dk").Value;
-
-var employeeResult = manager.CreateUser(
-    employeeName,
-    employeeEmail,
-    UserRole.Employee);
-
-Assert.True(employeeResult.IsSuccess);
-
-var employee = employeeResult.Value;
-
-Console.WriteLine(
-    $"3. Employee created: {employee.Name.Value} ({employee.UserId})");
-
-
-// ---------------------------------------------------------
-// 4. Admin assigns employee to manager
-// ---------------------------------------------------------
-
-var assignManagerResult = employee.AssignManager(
-    manager.UserId,
-    manager.Role,
-    manager.Status,
-    admin.Role,
-    admin.Status);
-
-Assert.True(
-    assignManagerResult.IsSuccess,
-    string.Join(
-        Environment.NewLine,
-        assignManagerResult.Errors.Select(
-            error => $"{error.Code}: {error.Message}")));
-
-Assert.Equal(manager.UserId, employee.ManagerId);
-
-Console.WriteLine(
-    $"4. Employee assigned to manager: {manager.Name.Value}");
-
-        // ---------------------------------------------------------
-        // 4. Manager creates OrderCommands
-        // ---------------------------------------------------------
-
-        var orderName = OrderName.Create(
-            "Reparation af styringsenhed").Value;
-
-        var orderResult = Order.Create(
+        var task = order.CreateRootTask(
             manager.UserId,
             manager.Role,
             manager.Status,
-            orderName);
-
-        Assert.True(orderResult.IsSuccess);
-
-        var order = orderResult.Value;
-
-        Assert.Equal(manager.UserId, order.ManagerId);
-        Assert.Equal(OrderStatus.Open, order.Status);
-
-        Console.WriteLine(
-            $"3. OrderCommands created: {order.Name.Value} ({order.Id})");
-
-
-        // ---------------------------------------------------------
-        // 5. Manager creates Task on the OrderCommands
-        // ---------------------------------------------------------
-
-        var taskResult = order.AddWorkItem(
-            manager.UserId,
-            manager.Role,
-            manager.Status,
+            manager.DepartmentId,
+            department.Id,
+            department.Status,
             "Udskift printkort",
-            "Udskift og test defekt printkort.");
+            TaskKind.Work,
+            assignmentOnly: true).Value;
 
-        Assert.True(taskResult.IsSuccess);
-
-        var task = taskResult.Value;
-
-        Assert.Equal(order.Id, task.OrderId);
-        Assert.True(order.ContainsWorkItem(task.TaskId));
-
-        Console.WriteLine(
-            $"4. Task created: {task.Title} ({task.TaskId})");
-
-
-        // ---------------------------------------------------------
-        // 6. Create TimeEntry
-        // ---------------------------------------------------------
-        //
-        // TimeEntry.Create() creates the actual domain object.
-        // It does NOT save anything to the database.
-        // ---------------------------------------------------------
-
-        var timeEntryResult = TimeEntry.Create(
-            employee.UserId,
-            task.TaskId,
-            new DateTime(2026, 9, 9),
-            7.5m,
-            "Udskiftede og testede printkortet");
-
-        Assert.True(timeEntryResult.IsSuccess);
-
-        var timeEntry = timeEntryResult.Value;
-
-        Assert.Equal(employee.UserId, timeEntry.EmployeeId);
-        Assert.Equal(task.TaskId, timeEntry.TaskId);
-        Assert.Equal(7.5m, timeEntry.Hours);
-        Assert.Equal(TimeEntryStatus.Draft, timeEntry.Status);
-
-        Console.WriteLine(
-            $"5. TimeEntry created: {timeEntry.Hours} hours on task '{task.Title}'");
-
-
-        // ---------------------------------------------------------
-        // 7. Validate time registration through Domain Service
-        // ---------------------------------------------------------
-        //
-        // The Domain Service coordinates the rules between:
-        // User + OrderCommands + TimeEntry.
-        //
-        // OrderCommands.CanRegisterTime() verifies:
-        // - OrderCommands is open
-        // - Task belongs to OrderCommands
-        // - Employee belongs to the manager scope
-        // ---------------------------------------------------------
-
-        var registrationService = new TimeRegistrationDomainService();
-
-        var registrationResult = registrationService.Register(
-            employee,
-            order,
-            timeEntry);
-
-        Assert.True(registrationResult.IsSuccess);
-        Assert.Equal(TimeEntryStatus.Draft, timeEntry.Status);
-
-        Console.WriteLine(
-            $"6. Employee registered {timeEntry.Hours} hours successfully");
-
-
-        // ---------------------------------------------------------
-        // 8. Manager accepts TimeEntry
-        // ---------------------------------------------------------
-
-        var acceptResult = timeEntry.Accept(
+        var assignment = new WorkAssignmentDomainService().Assign(
             manager.UserId,
-            employee.UserId,
-            employee.ManagerId,
             manager.Role,
-            manager.Status);
+            manager.Status,
+            manager.DepartmentId,
+            employee.UserId,
+            employee.Status,
+            employee.DepartmentId,
+            department.Id,
+            department.Status,
+            order.Id,
+            order.IsVisibleIn(department.Id),
+            task.Id,
+            task.Kind,
+            task.Status,
+            expectedMinutes: 450,
+            targetCompletionDate: new DateOnly(2026, 9, 10)).Value;
+        Assert.True(task.AddAssignment(assignment).IsSuccess);
 
-        Assert.True(acceptResult.IsSuccess);
+        var timeEntry = TimeEntry.Create(
+            employee.UserId,
+            task.Id,
+            new DateOnly(2026, 9, 9),
+            durationMinutes: 450,
+            "Udskiftede og testede printkortet").Value;
+        Assert.Equal(employee.UserId, timeEntry.EmployeeId);
+        Assert.Equal(task.Id, timeEntry.TaskId);
+        Assert.Equal(450, timeEntry.DurationMinutes);
+        Assert.Equal(TimeEntryStatus.Draft, timeEntry.Status);
+        Assert.Single(timeEntry.AuditEvents);
+
+        var periodPolicy = TimeEntryPeriodPolicy.Create(
+            TimeEntryPeriodMode.Open,
+            monthlyCutoffDay: null,
+            "Europe/Copenhagen").Value;
+
+        var registrationResult = new TimeRegistrationDomainService().Register(
+            employee.UserId,
+            employee.Status,
+            employee.DepartmentId,
+            department.Id,
+            department.Status,
+            order.Id,
+            order.IsVisibleIn(department.Id),
+            task.Id,
+            task.Status,
+            task.AssignmentOnly,
+            task.HasActiveAssignment(employee.UserId),
+            timeEntry.Id,
+            timeEntry.EmployeeId,
+            timeEntry.TaskId,
+            timeEntry.WorkDate,
+            timeEntry.Status,
+            periodPolicy,
+            new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
+        Assert.True(
+            registrationResult.IsSuccess,
+            string.Join(Environment.NewLine, registrationResult.Errors.Select(error => $"{error.Code}: {error.Message}")));
+
+        Assert.True(timeEntry.Submit(employee.UserId).IsSuccess);
+        Assert.Equal(TimeEntryStatus.Submitted, timeEntry.Status);
+
+        Assert.True(timeEntry.Accept(
+            manager.UserId,
+            manager.Role,
+            manager.Status,
+            manager.DepartmentId,
+            employee.UserId,
+            employee.DepartmentId).IsSuccess);
         Assert.Equal(TimeEntryStatus.Accepted, timeEntry.Status);
-
         Assert.Single(timeEntry.Reviews);
-        Assert.Equal(
-            ReviewDecision.Accepted,
-            timeEntry.Reviews.First().Decision);
+        Assert.Equal(ReviewDecision.Accepted, timeEntry.Reviews.Single().Decision);
 
-        Console.WriteLine(
-            "7. Manager accepted the time entry");
-
-
-        // ---------------------------------------------------------
-        // 9. Manager finalizes TimeEntry
-        // ---------------------------------------------------------
-
-        var finalizeResult = timeEntry.Finalize(
+        Assert.True(timeEntry.Finalize(
             manager.UserId,
-            employee.UserId,
-            employee.ManagerId,
             manager.Role,
-            manager.Status);
-
-        Assert.True(finalizeResult.IsSuccess);
+            manager.Status,
+            manager.DepartmentId,
+            employee.UserId,
+            employee.DepartmentId).IsSuccess);
         Assert.Equal(TimeEntryStatus.Finalized, timeEntry.Status);
-
         Assert.Equal(2, timeEntry.Reviews.Count);
+        Assert.Equal(ReviewDecision.Finalized, timeEntry.Reviews.Last().Decision);
+        Assert.Equal(4, timeEntry.AuditEvents.Count);
+    }
 
-        Assert.Equal(
-            ReviewDecision.Finalized,
-            timeEntry.Reviews.Last().Decision);
+    [Fact]
+    public void ManagersAreScopedToOneDepartmentAndAdminsCanManageAllDepartments()
+    {
+        var firstDepartment = Department.Create("Elektronik").Value;
+        var secondDepartment = Department.Create("Mekanik").Value;
+        var admin = User.Create(
+            PersonName.Create("Admin").Value,
+            EmailAddress.Create("admin@company.test").Value,
+            UserRole.Admin).Value;
 
-        Console.WriteLine(
-            "8. Manager finalized the time entry");
+        var employee = admin.CreateUser(
+            PersonName.Create("Employee").Value,
+            EmailAddress.Create("employee@company.test").Value,
+            UserRole.Employee,
+            firstDepartment.Id).Value;
+        var manager = admin.CreateUser(
+            PersonName.Create("Manager").Value,
+            EmailAddress.Create("manager@company.test").Value,
+            UserRole.Manager,
+            secondDepartment.Id).Value;
 
+        Assert.True(firstDepartment.IsManagedBy(
+            admin.UserId, admin.Role, admin.Status, admin.DepartmentId));
+        Assert.True(secondDepartment.IsManagedBy(
+            admin.UserId, admin.Role, admin.Status, admin.DepartmentId));
+        Assert.False(firstDepartment.IsManagedBy(
+            manager.UserId, manager.Role, manager.Status, manager.DepartmentId));
+        Assert.True(secondDepartment.IsManagedBy(
+            manager.UserId, manager.Role, manager.Status, manager.DepartmentId));
+        Assert.False(employee.CanView(
+            manager.UserId, manager.Role, manager.Status, manager.DepartmentId));
+        Assert.True(employee.CanView(
+            admin.UserId, admin.Role, admin.Status, admin.DepartmentId));
 
-        // ---------------------------------------------------------
-        // 10. Final assertions
-        // ---------------------------------------------------------
+        var sharedOrder = Order.Create(
+            "Shared order",
+            parentOrderId: null,
+            firstDepartment.Id,
+            firstDepartment.Status,
+            parentChargedDepartmentId: null,
+            OrderVisibility.AllDepartments).Value;
+        var task = sharedOrder.CreateRootTask(
+            admin.UserId,
+            admin.Role,
+            admin.Status,
+            admin.DepartmentId,
+            firstDepartment.Id,
+            firstDepartment.Status,
+            "Shared task",
+            TaskKind.Work,
+            assignmentOnly: false).Value;
+        var entry = TimeEntry.Create(
+            employee.UserId,
+            task.Id,
+            new DateOnly(2026, 9, 9),
+            durationMinutes: 60,
+            comment: null).Value;
 
-        Assert.Equal(employee.UserId, timeEntry.EmployeeId);
-        Assert.Equal(task.TaskId, timeEntry.TaskId);
-        Assert.Equal(order.Id, task.OrderId);
-        Assert.Equal(manager.UserId, order.ManagerId);
+        Assert.True(entry.Submit(employee.UserId).IsSuccess);
+        Assert.True(entry.Accept(
+            manager.UserId,
+            manager.Role,
+            manager.Status,
+            manager.DepartmentId,
+            employee.UserId,
+            employee.DepartmentId).IsFailure);
+        Assert.True(entry.Accept(
+            admin.UserId,
+            admin.Role,
+            admin.Status,
+            admin.DepartmentId,
+            employee.UserId,
+            employee.DepartmentId).IsSuccess);
+    }
 
-        Console.WriteLine("=== Process completed successfully ===");
+    [Fact]
+    public void TaskVisibilityIsDepartmentWideWhenUnassignedAndRestrictedToAssigneesWhenAssigned()
+    {
+        var department = Department.Create("Elektronik").Value;
+        var otherDepartment = Department.Create("Mekanik").Value;
+        var admin = User.Create(
+            PersonName.Create("Admin").Value,
+            EmailAddress.Create("admin@visibility.test").Value,
+            UserRole.Admin).Value;
+
+        var manager = admin.CreateUser(
+            PersonName.Create("Manager").Value,
+            EmailAddress.Create("manager@visibility.test").Value,
+            UserRole.Manager,
+            department.Id).Value;
+        var assignedEmployee = admin.CreateUser(
+            PersonName.Create("Assigned").Value,
+            EmailAddress.Create("assigned@visibility.test").Value,
+            UserRole.Employee,
+            department.Id).Value;
+        var colleague = admin.CreateUser(
+            PersonName.Create("Colleague").Value,
+            EmailAddress.Create("colleague@visibility.test").Value,
+            UserRole.Employee,
+            department.Id).Value;
+        var outsider = admin.CreateUser(
+            PersonName.Create("Outsider").Value,
+            EmailAddress.Create("outsider@visibility.test").Value,
+            UserRole.Employee,
+            otherDepartment.Id).Value;
+
+        var order = Order.Create(
+            "Shared order",
+            parentOrderId: null,
+            department.Id,
+            department.Status,
+            parentChargedDepartmentId: null,
+            OrderVisibility.ChargedDepartment).Value;
+        var assignedTask = order.CreateRootTask(
+            manager.UserId,
+            manager.Role,
+            manager.Status,
+            manager.DepartmentId,
+            department.Id,
+            department.Status,
+            "Assigned task",
+            TaskKind.Work,
+            assignmentOnly: true).Value;
+        var openTask = order.CreateRootTask(
+            manager.UserId,
+            manager.Role,
+            manager.Status,
+            manager.DepartmentId,
+            department.Id,
+            department.Status,
+            "Open task",
+            TaskKind.Work,
+            assignmentOnly: false).Value;
+
+        var assignment = WorkAssignment.Create(
+            assignedTask.Id,
+            assignedEmployee.UserId,
+            expectedMinutes: 60,
+            targetCompletionDate: null).Value;
+        Assert.True(assignedTask.AddAssignment(assignment).IsSuccess);
+
+        Assert.True(assignedTask.CanView(
+            assignedEmployee.UserId, assignedEmployee.Role, assignedEmployee.Status,
+            assignedEmployee.DepartmentId, department.Id, department.Status,
+            order.Id, order.IsVisibleIn(department.Id)));
+        Assert.False(assignedTask.CanView(
+            colleague.UserId, colleague.Role, colleague.Status,
+            colleague.DepartmentId, department.Id, department.Status,
+            order.Id, order.IsVisibleIn(department.Id)));
+        Assert.True(assignedTask.CanView(
+            manager.UserId, manager.Role, manager.Status,
+            manager.DepartmentId, department.Id, department.Status,
+            order.Id, order.IsVisibleIn(department.Id)));
+        Assert.True(assignedTask.CanView(
+            admin.UserId, admin.Role, admin.Status,
+            admin.DepartmentId, otherDepartment.Id, otherDepartment.Status,
+            order.Id, order.IsVisibleIn(otherDepartment.Id)));
+
+        Assert.True(openTask.CanView(
+            assignedEmployee.UserId, assignedEmployee.Role, assignedEmployee.Status,
+            assignedEmployee.DepartmentId, department.Id, department.Status,
+            order.Id, order.IsVisibleIn(department.Id)));
+        Assert.True(openTask.CanView(
+            colleague.UserId, colleague.Role, colleague.Status,
+            colleague.DepartmentId, department.Id, department.Status,
+            order.Id, order.IsVisibleIn(department.Id)));
+        Assert.False(openTask.CanView(
+            outsider.UserId, outsider.Role, outsider.Status,
+            outsider.DepartmentId, otherDepartment.Id, otherDepartment.Status,
+            order.Id, order.IsVisibleIn(otherDepartment.Id)));
     }
 }
-

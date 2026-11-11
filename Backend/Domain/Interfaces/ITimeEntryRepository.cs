@@ -11,8 +11,8 @@ public interface ITimeEntryRepository
     Task<IReadOnlyList<TimeEntry>> GetByEmployeeIdAsync(
         UserId employeeId);
 
-    Task<IReadOnlyList<TimeEntry>> GetByManagerIdAsync(
-        UserId managerId);
+    Task<IReadOnlyList<TimeEntry>> GetByDepartmentIdAsync(
+        DepartmentId departmentId);
 
     Task<IReadOnlyList<TimeEntry>> GetByDateRangeAsync(
         DateTime from,

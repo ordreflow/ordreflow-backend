@@ -1,275 +1,185 @@
-﻿using Core.Tools.OperationResult;
-using Domain.Entities;
+using Core.Tools.OperationResult;
 using Domain.ValueObjects;
-using Task = Domain.Entities.Task;
-using TaskStatus = Domain.ValueObjects.TaskStatus;
+using WorkTask = Domain.Entities.Task;
 
 namespace Domain.Aggregate;
 
 public sealed class Order
 {
-	private readonly List<Task> _tasks = new();
+    private readonly List<WorkTask> _rootTasks = new();
+    private readonly HashSet<DepartmentId> _visibleInDepartments = new();
 
-	public OrderId Id { get; private set; } = null!;
-	public UserId ManagerId { get; private set; } = null!;
-	public OrderName Name { get; private set; } = null!;
-	public OrderStatus Status { get; private set; }
-	public DateTime CreatedAt { get; private set; }
-	public DateTime? ClosedAt { get; private set; }
-	public IReadOnlyCollection<Task> Tasks => _tasks.AsReadOnly();
+    public OrderId Id { get; private set; } = null!;
+    public OrderId? ParentOrderId { get; private set; }
+    public OrderName Name { get; private set; } = null!;
+    public DepartmentId ChargedDepartmentId { get; private set; } = null!;
+    public OrderVisibility Visibility { get; private set; }
+    public IReadOnlyCollection<DepartmentId> VisibleInDepartments => _visibleInDepartments.ToArray();
+    public IReadOnlyCollection<WorkTask> RootTasks => _rootTasks.AsReadOnly();
 
-	private Order()
-	{
-	}
+    private Order()
+    {
+    }
 
-	private Order(UserId managerId, OrderName name)
-	{
-		Id = OrderId.Create(Guid.NewGuid()).Value;
-		ManagerId = managerId;
-		Name = name;
-		Status = OrderStatus.Open;
-		CreatedAt = DateTime.UtcNow;
-	}
+    private Order(
+        OrderName name,
+        OrderId? parentOrderId,
+        DepartmentId chargedDepartmentId,
+        OrderVisibility visibility,
+        IEnumerable<DepartmentId> visibleInDepartments)
+    {
+        Id = OrderId.Create(Guid.NewGuid()).Value;
+        ParentOrderId = parentOrderId;
+        Name = name;
+        ChargedDepartmentId = chargedDepartmentId;
+        Visibility = visibility;
+        _visibleInDepartments.UnionWith(visibleInDepartments);
+    }
 
-	public static Result<Order> Create(
-		UserId managerId,
-		UserRole managerRole,
-		UserStatus managerStatus,
-		OrderName name)
-	{
-		if (managerId is null || managerStatus != UserStatus.Active ||
-			(managerRole is not (UserRole.Manager or UserRole.Admin)))
-			return Result<Order>.Failure(new Error("CaseCreationForbidden", "Only an active manager or admin can create cases."));
+    public static Result<Order> Create(
+        string name,
+        OrderId? parentOrderId,
+        DepartmentId chargedDepartmentId,
+        DepartmentStatus departmentStatus,
+        DepartmentId? parentChargedDepartmentId,
+        OrderVisibility visibility,
+        IEnumerable<DepartmentId>? visibleInDepartments = null)
+    {
+        if (chargedDepartmentId is null || departmentStatus != DepartmentStatus.Active)
+            return Result<Order>.Failure(new Error("ChargedDepartmentUnavailable", "An active charged department is required."));
 
-		if (name is null)
-			return Result<Order>.Failure(new Error("CaseNameRequired", "OrderCommands name is required."));
+        if (!Enum.IsDefined(visibility))
+            return Result<Order>.Failure(new Error("InvalidOrderVisibility", "Order visibility is invalid."));
 
-		return Result<Order>.Success(new Order(managerId, name));
-	}
+        if (parentOrderId is not null && parentChargedDepartmentId != chargedDepartmentId)
+            return Result<Order>.Failure(new Error("ParentOrderDepartmentMismatch", "A child order must use its parent's charged department."));
 
-	public Result Rename(
-		UserId actorId,
-		UserRole actorRole,
-		UserStatus actorStatus,
-		OrderName name)
-	{
-		if (!CanManage(actorId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can rename cases."));
+        var orderName = OrderName.Create(name);
+        if (orderName.IsFailure)
+            return Result<Order>.Failure(orderName.Errors.ToArray());
 
-		if (name is null)
-			return Result.Failure(new Error("CaseNameRequired", "OrderCommands name is required."));
+        var visibleDepartments = visibleInDepartments?.ToArray() ?? Array.Empty<DepartmentId>();
+        if (visibleDepartments.Any(departmentId => departmentId is null))
+            return Result<Order>.Failure(new Error("InvalidVisibleDepartment", "Visible departments cannot contain null values."));
 
-		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseClosed", "A closed case cannot be renamed."));
+        if (visibility == OrderVisibility.SelectedDepartments && visibleDepartments.Length == 0)
+            return Result<Order>.Failure(new Error("VisibleDepartmentRequired", "At least one visible department is required for selected-department visibility."));
 
-		Name = name;
-		return Result.Success();
-	}
+        if (visibility != OrderVisibility.SelectedDepartments && visibleDepartments.Length > 0)
+            return Result<Order>.Failure(new Error("UnexpectedVisibleDepartments", "Explicit visible departments are only valid for selected-department visibility."));
 
-	public Result Close(UserId actorId, UserRole actorRole, UserStatus actorStatus)
-	{
-		if (!CanManage(actorId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can close cases."));
+        return Result<Order>.Success(new Order(
+            orderName.Value,
+            parentOrderId,
+            chargedDepartmentId,
+            visibility,
+            visibleDepartments));
+    }
 
-		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseAlreadyClosed", "OrderCommands is already closed."));
+    public bool IsVisibleIn(DepartmentId departmentId)
+    {
+        if (departmentId is null)
+            return false;
 
-		var closedAt = DateTime.UtcNow;
-		foreach (var workItem in _tasks.Where(item => item.Status == TaskStatus.Open))
-		{
-			var result = workItem.Close(closedAt);
-			if (result.IsFailure)
-				return result;
-		}
+        return Visibility switch
+        {
+            OrderVisibility.AllDepartments => true,
+            OrderVisibility.SelectedDepartments => _visibleInDepartments.Contains(departmentId),
+            OrderVisibility.ChargedDepartment => ChargedDepartmentId == departmentId,
+            _ => false
+        };
+    }
 
-		Status = OrderStatus.Closed;
-		ClosedAt = closedAt;
-		return Result.Success();
-	}
+    public bool CanView(
+        UserId actorId,
+        UserRole actorRole,
+        UserStatus actorStatus,
+        DepartmentId? actorDepartmentId,
+        DepartmentId departmentId,
+        DepartmentStatus departmentStatus)
+    {
+        if (actorId is null || actorStatus != UserStatus.Active ||
+            departmentId is null || departmentStatus != DepartmentStatus.Active)
+            return false;
 
-	public Result Reopen(UserId actorId, UserRole actorRole, UserStatus actorStatus)
-	{
-		if (!CanManage(actorId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can reopen cases."));
+        if (actorRole == UserRole.Admin)
+            return true;
 
-		if (Status == OrderStatus.Open)
-			return Result.Failure(new Error("CaseAlreadyOpen", "OrderCommands is already open."));
+        return actorDepartmentId == departmentId &&
+            actorRole is UserRole.Employee or UserRole.Manager &&
+            IsVisibleIn(departmentId);
+    }
 
-		Status = OrderStatus.Open;
-		ClosedAt = null;
-		return Result.Success();
-	}
+    public Result Rename(string name)
+    {
+        var orderName = OrderName.Create(name);
+        if (orderName.IsFailure)
+            return Result.Failure(orderName.Errors.ToArray());
 
-	internal Result AddWorkItem(Task workItem)
-	{
-		if (workItem is null)
-			return Result.Failure(new Error("WorkItemRequired", "A work item is required."));
+        Name = orderName.Value;
+        return Result.Success();
+    }
 
-		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseClosed", "A work item cannot be added to a closed case."));
+    public Result ChangeVisibility(
+        OrderVisibility visibility,
+        IEnumerable<DepartmentId>? visibleInDepartments = null)
+    {
+        if (!Enum.IsDefined(visibility))
+            return Result.Failure(new Error("InvalidOrderVisibility", "Order visibility is invalid."));
 
-		if (_tasks.Any(item => item.TaskId == workItem.TaskId))
-			return Result.Failure(new Error("WorkItemAlreadyAdded", "The work item already belongs to this case."));
+        var visibleDepartments = visibleInDepartments?.ToArray() ?? Array.Empty<DepartmentId>();
+        if (visibleDepartments.Any(departmentId => departmentId is null))
+            return Result.Failure(new Error("InvalidVisibleDepartment", "Visible departments cannot contain null values."));
 
-		var attachResult = workItem.AttachTo(Id);
-		if (attachResult.IsFailure)
-			return attachResult;
+        if (visibility == OrderVisibility.SelectedDepartments && visibleDepartments.Length == 0)
+            return Result.Failure(new Error("VisibleDepartmentRequired", "At least one visible department is required for selected-department visibility."));
 
-		_tasks.Add(workItem);
-		return Result.Success();
-	}
+        if (visibility != OrderVisibility.SelectedDepartments && visibleDepartments.Length > 0)
+            return Result.Failure(new Error("UnexpectedVisibleDepartments", "Explicit visible departments are only valid for selected-department visibility."));
 
-	internal Result RemoveWorkItem(TaskId taskId)
-	{
-		if (taskId is null)
-			return Result.Failure(new Error("WorkItemRequired", "A work item is required."));
+        Visibility = visibility;
+        _visibleInDepartments.Clear();
+        _visibleInDepartments.UnionWith(visibleDepartments);
+        return Result.Success();
+    }
 
-		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
-		if (workItem is null)
-			return Result.Failure(new Error("WorkItemNotFound", "The work item does not belong to this case."));
+    private Result<WorkTask> CreateRootTask(string title, TaskKind kind, bool assignmentOnly)
+    {
+        var task = WorkTask.CreateRoot(Id, title, kind, assignmentOnly);
+        if (task.IsFailure)
+            return task;
 
-		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseClosed", "A work item cannot be removed from a closed case."));
+        _rootTasks.Add(task.Value);
+        return task;
+    }
 
-		_tasks.Remove(workItem);
-		workItem.Detach();
-		return Result.Success();
-	}
+    public Result<WorkTask> CreateRootTask(
+        UserId actorId,
+        UserRole actorRole,
+        UserStatus actorStatus,
+        DepartmentId? actorDepartmentId,
+        DepartmentId departmentId,
+        DepartmentStatus departmentStatus,
+        string title,
+        TaskKind kind,
+        bool assignmentOnly)
+    {
+        if (actorId is null || actorStatus != UserStatus.Active ||
+            actorRole is not (UserRole.Manager or UserRole.Admin))
+            return Result<WorkTask>.Failure(new Error("TaskCreationForbidden", "Only an active manager or admin can create tasks."));
 
-	public bool ContainsWorkItem(TaskId taskId) =>
-		taskId is not null && _tasks.Any(item => item.TaskId == taskId);
+        if (departmentId is null || departmentStatus != DepartmentStatus.Active ||
+            departmentId != ChargedDepartmentId)
+            return Result<WorkTask>.Failure(new Error("DepartmentUnavailable", "The order's active charged department is required."));
 
-	public bool CanView(
-		UserId actorId,
-		UserRole actorRole,
-		UserId? actorManagerId) =>
-		actorRole switch
-		{
-			UserRole.Admin => true,
-			UserRole.Manager => ManagerId == actorId,
-			_ => actorManagerId is not null && ManagerId == actorManagerId
-		};
+        if (actorRole == UserRole.Manager && actorDepartmentId != departmentId)
+            return Result<WorkTask>.Failure(new Error("DepartmentScopeForbidden", "A manager can only manage tasks in their own department."));
 
-	internal Result CanRegisterTime(
-		TaskId taskId,
-		UserId employeeId,
-		UserId? employeeManagerId)
-	{
-		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseClosed", "Entries cannot be added to a closed case."));
+        return CreateRootTask(title, kind, assignmentOnly);
+    }
 
-		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
-		if (workItem is null)
-			return Result.Failure(new Error("WorkItemNotFound", "Work item does not belong to the selected case."));
+    public bool ContainsTask(TaskId taskId) =>
+        taskId is not null &&
+        _rootTasks.Any(root => root.Contains(taskId));
 
-		if (employeeId is null || employeeManagerId != ManagerId)
-			return Result.Failure(new Error("ManagerScopeForbidden", "The employee cannot access this case."));
-
-		if (workItem.Status == TaskStatus.Closed)
-			return Result.Failure(new Error("TaskClosed", "Entries cannot be added to a closed task."));
-
-		return Result.Success();
-	}
-
-	private bool CanManage(
-		UserId actorId,
-		UserRole actorRole,
-		UserStatus actorStatus) =>
-		actorId is not null &&
-		actorStatus == UserStatus.Active &&
-		(actorRole is UserRole.Manager or UserRole.Admin) &&
-		(actorRole == UserRole.Admin || actorId == ManagerId);
-
-	public Result<Task> AddWorkItem(
-		UserId actorId,
-		UserRole actorRole,
-		UserStatus actorStatus,
-		string title,
-		string description)
-	{
-		if (!CanManage(actorId, actorRole, actorStatus))
-			return Result<Task>.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can create work items."));
-
-		var workItemResult = Task.Create(title, description);
-		if (workItemResult.IsFailure)
-			return workItemResult;
-
-		var addResult = AddWorkItem(workItemResult.Value);
-		return addResult.IsFailure
-			? Result<Task>.Failure(addResult.Errors.ToArray())
-			: workItemResult;
-	}
-
-	public Result RemoveWorkItem(
-		UserId actorId,
-		UserRole actorRole,
-		UserStatus actorStatus,
-		TaskId taskId)
-	{
-		if (!CanManage(actorId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can remove work items."));
-
-		return RemoveWorkItem(taskId);
-	}
-
-	public Result CloseWorkItem(
-		UserId actorId,
-		UserRole actorRole,
-		UserStatus actorStatus,
-		TaskId taskId)
-	{
-		if (!CanManage(actorId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can close work items."));
-
-		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseClosed", "A work item cannot be closed on a closed case."));
-
-		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
-		return workItem is null
-			? Result.Failure(new Error("WorkItemNotFound", "The work item does not belong to this case."))
-			: workItem.Close(DateTime.UtcNow);
-	}
-
-	public Result ReopenWorkItem(
-		UserId actorId,
-		UserRole actorRole,
-		UserStatus actorStatus,
-		TaskId taskId)
-	{
-		if (!CanManage(actorId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can reopen work items."));
-
-		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseClosed", "A work item cannot be reopened on a closed case."));
-
-		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
-		return workItem is null
-			? Result.Failure(new Error("WorkItemNotFound", "The work item does not belong to this case."))
-			: workItem.Reopen();
-	}
-
-	public Result UpdateWorkItem(
-		UserId actorId,
-		UserRole actorRole,
-		UserStatus actorStatus,
-		TaskId taskId,
-		string title,
-		string description)
-	{
-		if (!CanManage(actorId, actorRole, actorStatus))
-			return Result.Failure(new Error("CaseManagementForbidden", "Only an active manager or admin can update work items."));
-
-		if (Status == OrderStatus.Closed)
-			return Result.Failure(new Error("CaseClosed", "A work item cannot be updated on a closed case."));
-
-		var workItem = _tasks.FirstOrDefault(item => item.TaskId == taskId);
-		if (workItem is null)
-			return Result.Failure(new Error("WorkItemNotFound", "The work item does not belong to this case."));
-
-		var titleResult = workItem.ChangeTitle(title);
-		if (titleResult.IsFailure)
-			return titleResult;
-
-		return workItem.ChangeDescription(description);
-	}
 }

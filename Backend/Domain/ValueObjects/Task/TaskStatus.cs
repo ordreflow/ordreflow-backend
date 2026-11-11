@@ -3,5 +3,7 @@ namespace Domain.ValueObjects;
 public enum TaskStatus
 {
     Open = 1,
-    Closed = 2
+    InProgress = 2,
+    Finished = 3,
+    Cancelled = 4
 }
