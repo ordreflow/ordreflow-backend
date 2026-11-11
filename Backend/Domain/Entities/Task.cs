@@ -2,6 +2,10 @@ using TaskStatus = Domain.ValueObjects.TaskStatus;
 
 namespace Domain.Entities;
 
+/*  Summary
+ *  Tasks under Catagories, a task could be everyting employee does, from meetings to assignments,
+ *  everything employees can register time to.
+ */
 public sealed class Task
 {
     public Guid Id { get; set; }

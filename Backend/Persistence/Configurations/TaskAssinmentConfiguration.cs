@@ -6,9 +6,9 @@ using Task = Domain.Entities.Task;
 
 namespace Persistence.Configurations;
 
-public sealed class TaskAssinmentConfiguration : IEntityTypeConfiguration<TaskAssinment>
+public sealed class TaskAssinmentConfiguration : IEntityTypeConfiguration<TaskAssignment>
 {
-    public void Configure(EntityTypeBuilder<TaskAssinment> entity)
+    public void Configure(EntityTypeBuilder<TaskAssignment> entity)
     {
         entity.ToTable("task_assinments");
         entity.HasKey(x => new { x.TaskId, x.AssignedTo });

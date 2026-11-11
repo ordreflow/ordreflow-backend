@@ -3,12 +3,20 @@ using Domain.Entities;
 
 namespace Domain.Aggregate;
 
+/*  Summary
+ *  TimeEntries is the employeees timeregistrations and only stores the relevant information which can be changed.
+ *  The rest will be in TimeEntryAudit, so that changes can be auditted
+ */
 public sealed class TimeEntry
 {
+    //list of all the Audits (versions/changes) that has been made in the timeentry
     private readonly List<TimeEntryAudit> _audits = new();
-
     public Guid Id { get; private set; }
+    
+    // Who belongs the timeentry to
     public Guid EmployeeId { get; private set; }
+    
+    // Same list as first, just only in readmode
     public IReadOnlyCollection<TimeEntryAudit> Audits => _audits.AsReadOnly();
 
     private TimeEntry()

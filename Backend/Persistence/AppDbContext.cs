@@ -29,7 +29,7 @@ public class AppDbContext : IdentityUserContext<ApplicationUser, Guid>
     public DbSet<DepartmentEmployee> DepartmentEmployees => Set<DepartmentEmployee>();
     public DbSet<DepartmentManager> DepartmentManagers => Set<DepartmentManager>();
     public DbSet<Catagory> Catagories => Set<Catagory>();
-    public DbSet<TaskAssinment> TaskAssinments => Set<TaskAssinment>();
+    public DbSet<TaskAssignment> TaskAssinments => Set<TaskAssignment>();
     public DbSet<CatagoryReviewer> CatagoryReviewers => Set<CatagoryReviewer>();
     public DbSet<AccessPrivilege> AccessPrivileges => Set<AccessPrivilege>();
     public DbSet<AccessTask> AccessTasks => Set<AccessTask>();

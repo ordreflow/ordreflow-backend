@@ -3,17 +3,35 @@ using Domain.ValueObjects;
 
 namespace Domain.Entities;
 
+/*  Summary
+ *  When a time entry is created/edited, it will be stored as an TimeEntryAudit, so that the database has every
+ *  version of the time entry, and is autditted, (we can see who did what and when for every time entry)
+ */
+
+
 public sealed class TimeEntryAudit
 {
     public Guid Id { get; private set; }
+    
+    // which time entry is the audit for
     public Guid TimeEntryId { get; private set; }
+    
+    // which employee did the audit
     public Guid ActorId { get; private set; }
+    
+    // if the timeentry is closed, then id for which employee
     public Guid? ClosedBy { get; private set; }
+    
+    // which task do the timeentry belong to (by having it here, insted of in timeentry, employees can edit timeentries and move them to other tasks
     public Guid TaskId { get; private set; }
+    
+    // the date for the time registration
     public DateOnly WorkDate { get; private set; }
     public double Duration { get; private set; }
     public string Description { get; private set; } = null!;
     public TimeEntryStatus Status { get; private set; }
+    
+    // when was the audit made
     public DateTime AuditTime { get; private set; }
 
     private TimeEntryAudit()
