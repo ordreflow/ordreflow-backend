@@ -1,3 +1,5 @@
+using Domain.Entities;
+
 namespace Domain.Aggregate;
 
 /* Summary
@@ -8,8 +10,9 @@ namespace Domain.Aggregate;
  * */
 public sealed class AccessPrivilege
 {
-    public Guid Id { get; set; }
+    private readonly List<AccessTask> _tasks = new();
     
+    public Guid Id { get; set; }
     //Who gave the access
     public Guid IssuedBy { get; set; }
     //who got access
@@ -22,6 +25,8 @@ public sealed class AccessPrivilege
     
     //When the accessprivilege expires
     public DateTime ExpiresAtUtc { get; set; }
+    
+    public IReadOnlyCollection<AccessTask> Tasks => _tasks.AsReadOnly();
 }
 
 //Create, Edit, Close, GetAll, getIssuedTo, getIssuedBy

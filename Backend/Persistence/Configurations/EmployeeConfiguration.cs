@@ -18,5 +18,13 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         entity.Property(x => x.Title).HasColumnName("title");
         entity.Property(x => x.CreatedAt).HasColumnName("created_at")
             .HasColumnType("timestamp with time zone").IsRequired();
+
+        entity.HasMany(x => x.Accesses)
+            .WithOne()
+            .HasForeignKey(x => x.EmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.Navigation(x => x.Accesses)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

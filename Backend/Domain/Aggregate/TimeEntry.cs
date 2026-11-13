@@ -11,6 +11,7 @@ public sealed class TimeEntry
 {
     //list of all the Audits (versions/changes) that has been made in the timeentry
     private readonly List<TimeEntryAudit> _audits = new();
+    private readonly List<TimeEntryReview> _reviews = new();
     public Guid Id { get; private set; }
     
     // Who belongs the timeentry to
@@ -18,6 +19,7 @@ public sealed class TimeEntry
     
     // Same list as first, just only in readmode
     public IReadOnlyCollection<TimeEntryAudit> Audits => _audits.AsReadOnly();
+    public IReadOnlyCollection<TimeEntryReview> Reviews => _reviews.AsReadOnly();
 
     private TimeEntry()
     {

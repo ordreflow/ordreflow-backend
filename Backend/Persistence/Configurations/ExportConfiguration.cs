@@ -20,5 +20,13 @@ public sealed class ExportConfiguration : IEntityTypeConfiguration<Export>
 
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.ExportedBy)
             .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasMany(x => x.TimeEntries)
+            .WithOne()
+            .HasForeignKey(x => x.ExportId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.Navigation(x => x.TimeEntries)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

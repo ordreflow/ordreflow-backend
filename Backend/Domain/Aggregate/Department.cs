@@ -9,8 +9,11 @@ namespace Domain.Aggregate;
  */
 public sealed class Department
 {
+    private readonly List<Catagory> _catagories = new();
+    
     public Guid Id { get; set; }
     public string Name { get; set; }
+    public IReadOnlyCollection<Catagory> Catagories => _catagories.AsReadOnly();
 }
 
 //Create, Edit, Delete, EditManagers, EditEmployees

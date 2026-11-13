@@ -31,7 +31,15 @@ public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
             .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
 
+        entity.HasMany(x => x.Reviews)
+            .WithOne()
+            .HasForeignKey(x => x.TimeEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         entity.Navigation(x => x.Audits)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        entity.Navigation(x => x.Reviews)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

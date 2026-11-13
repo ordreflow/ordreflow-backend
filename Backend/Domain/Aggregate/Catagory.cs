@@ -1,4 +1,6 @@
+using Domain.Entities;
 using Domain.ValueObjects;
+using Task = Domain.Entities.Task;
 
 namespace Domain.Aggregate;
 
@@ -9,6 +11,8 @@ namespace Domain.Aggregate;
  */
 public sealed class Catagory
 {
+    private readonly List<Task> _tasks = new();
+    
     public Guid Id { get; set; }
     public Guid CreatedBy { get; set; }
     public Guid DepartmentId { get; set; }
@@ -20,6 +24,7 @@ public sealed class Catagory
     public bool InternalOnly { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
+    public IReadOnlyCollection<Task> Tasks => _tasks.AsReadOnly();
 }
 
 // Create, Close, Edit, SetInternalOnly

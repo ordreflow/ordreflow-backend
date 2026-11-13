@@ -1,3 +1,5 @@
+using Domain.Entities;
+
 namespace Domain.Aggregate;
 
 /*  Summary
@@ -5,15 +7,15 @@ namespace Domain.Aggregate;
  */
 public sealed class Export
 {
-    public Guid Id { get; set; }
+    private readonly List<TimeEntryExport> _timeEntries = new();
     
+    public Guid Id { get; set; }
     // Who exported
     public Guid ExportedBy { get; set; }
     public DateTime CreatedAt { get; set; }
-    
     //TimeEntries from date
     public DateOnly DateFrom { get; set; }
-    
     //TimeEntries to date
     public DateOnly DateTo { get; set; }
+    public IReadOnlyCollection<TimeEntryExport> TimeEntries => _timeEntries.AsReadOnly();
 }

@@ -1,4 +1,3 @@
-using Domain.Aggregate;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -15,8 +14,5 @@ public sealed class EmployeeSystemAccessConfiguration : IEntityTypeConfiguration
         entity.Property(x => x.EmployeeId).HasColumnName("employee_id");
         entity.Property(x => x.Permission).HasColumnName("permission")
             .HasConversion<string>().IsRequired();
-
-        entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

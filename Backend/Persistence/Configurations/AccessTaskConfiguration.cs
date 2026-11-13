@@ -1,4 +1,3 @@
-using Domain.Aggregate;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -16,8 +15,6 @@ public sealed class AccessTaskConfiguration : IEntityTypeConfiguration<AccessTas
         entity.Property(x => x.AccessId).HasColumnName("access_id");
         entity.Property(x => x.TaskId).HasColumnName("task_id");
 
-        entity.HasOne<AccessPrivilege>().WithMany().HasForeignKey(x => x.AccessId)
-            .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne<Task>().WithMany().HasForeignKey(x => x.TaskId)
             .OnDelete(DeleteBehavior.Restrict);
     }

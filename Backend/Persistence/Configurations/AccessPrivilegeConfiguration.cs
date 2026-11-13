@@ -25,5 +25,13 @@ public sealed class AccessPrivilegeConfiguration : IEntityTypeConfiguration<Acce
             .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.IssuedTo)
             .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasMany(x => x.Tasks)
+            .WithOne()
+            .HasForeignKey(x => x.AccessId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.Navigation(x => x.Tasks)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

@@ -25,7 +25,12 @@ public sealed class CatagoryConfiguration : IEntityTypeConfiguration<Catagory>
 
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.CreatedBy)
             .OnDelete(DeleteBehavior.Restrict);
-        entity.HasOne<Department>().WithMany().HasForeignKey(x => x.DepartmentId)
+        entity.HasMany(x => x.Tasks)
+            .WithOne()
+            .HasForeignKey(x => x.CatagoryId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        entity.Navigation(x => x.Tasks)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

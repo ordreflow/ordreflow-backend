@@ -1,6 +1,5 @@
 namespace Persistence.Configurations;
 
-using Domain.Aggregate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Domain.Entities;
@@ -42,10 +41,5 @@ public class TaskConfiguration : IEntityTypeConfiguration<Task>
         entity.Property(x => x.ClosedAt)
             .HasColumnName("closed_at")
             .HasColumnType("timestamp with time zone");
-
-        entity.HasOne<Catagory>()
-            .WithMany()
-            .HasForeignKey(x => x.CatagoryId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

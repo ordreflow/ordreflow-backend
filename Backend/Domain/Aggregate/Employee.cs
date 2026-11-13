@@ -1,3 +1,4 @@
+using Domain.Entities;
 using Domain.ValueObjects;
 
 namespace Domain.Aggregate;
@@ -7,6 +8,8 @@ namespace Domain.Aggregate;
  */
 public sealed class Employee
 {
+    private readonly List<EmployeeSystemAccess> _accesses = new();
+    
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
     public string Email { get; set; } = null!;
@@ -17,6 +20,7 @@ public sealed class Employee
     // Nothing functional, just an optional title that can be put in to see the role of the employee if needed
     public string? Title { get; set; }
     public DateTime CreatedAt { get; set; }
+    public IReadOnlyCollection<EmployeeSystemAccess> Accesses => _accesses.AsReadOnly();
 }
 
 // Create, Edit, 

@@ -13,5 +13,13 @@ public sealed class DepartmentConfiguration : IEntityTypeConfiguration<Departmen
 
         entity.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
         entity.Property(x => x.Name).HasColumnName("name").IsRequired();
+
+        entity.HasMany(x => x.Catagories)
+            .WithOne()
+            .HasForeignKey(x => x.DepartmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.Navigation(x => x.Catagories)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

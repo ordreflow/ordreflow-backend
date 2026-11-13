@@ -34,11 +34,6 @@ public class TimeEntryReviewConfiguration : IEntityTypeConfiguration<TimeEntryRe
             .HasConversion<string>()
             .IsRequired();
 
-        entity.HasOne<TimeEntry>()
-            .WithMany()
-            .HasForeignKey(x => x.TimeEntryId)
-            .OnDelete(DeleteBehavior.Restrict);
-
         entity.HasOne<Employee>()
             .WithMany()
             .HasForeignKey(x => x.ReviewerId)
