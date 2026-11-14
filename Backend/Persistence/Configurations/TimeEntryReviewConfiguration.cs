@@ -26,12 +26,16 @@ public class TimeEntryReviewConfiguration : IEntityTypeConfiguration<TimeEntryRe
             .IsRequired();
 
         entity.Property(x => x.Description)
-            .HasColumnName("description")
-            .IsRequired();
+            .HasColumnName("description");
 
         entity.Property(x => x.Status)
             .HasColumnName("status")
             .HasConversion<string>()
+            .IsRequired();
+
+        entity.Property(x => x.ReviewedAtUtc)
+            .HasColumnName("reviewed_at_utc")
+            .HasColumnType("timestamp with time zone")
             .IsRequired();
 
         entity.HasOne<Employee>()

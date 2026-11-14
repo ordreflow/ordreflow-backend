@@ -1,6 +1,6 @@
 namespace Application.Commands;
 
-public sealed record ReturnTimeEntryCommand(
+public sealed record RejectTimeEntryCommand(
     Guid TimeEntryId,
     Guid ReviewerId,
-    string Reason);
+    string? Reason);

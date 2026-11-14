@@ -1,5 +1,6 @@
 using Core.Tools.OperationResult;
 using Domain.Entities;
+using Domain.ValueObjects;
 
 namespace Domain.Aggregate;
 
@@ -13,6 +14,7 @@ public sealed class TimeEntry
     private readonly List<TimeEntryAudit> _audits = new();
     private readonly List<TimeEntryReview> _reviews = new();
     public Guid Id { get; private set; }
+    public long Revision { get; private set; }
     
     // Who belongs the timeentry to
     public Guid EmployeeId { get; private set; }
@@ -64,8 +66,44 @@ public sealed class TimeEntry
             return Result.Failure(new Error("AuditTimeNotIncreasing", "The audit must be later than the current version."));
 
         _audits.Add(audit);
+        Revision++;
         return Result.Success();
     }
 
     public TimeEntryAudit? GetCurrentAudit() => _audits.MaxBy(audit => audit.AuditTime);
+
+    public Result Approve(Guid reviewerId, DateTime reviewedAtUtc, bool allowSelfReview) =>
+        Decide(reviewerId, ReviewStatus.Approved, null, reviewedAtUtc, allowSelfReview);
+
+    public Result Reject(Guid reviewerId, string? reason, DateTime reviewedAtUtc, bool allowSelfReview) =>
+        Decide(reviewerId, ReviewStatus.Rejected, reason, reviewedAtUtc, allowSelfReview);
+
+    private Result Decide(
+        Guid reviewerId, ReviewStatus decision, string? reason, DateTime reviewedAtUtc, bool allowSelfReview)
+    {
+        var current = GetCurrentAudit();
+        if (current is null || current.Status != TimeEntryStatus.ReadyForApproval)
+            return Result.Failure(new Error("TimeEntryNotReady", "Only a ready time entry can be reviewed."));
+
+        if (!allowSelfReview && reviewerId == EmployeeId)
+            return Result.Failure(new Error("SelfReviewForbidden", "Reviewing your own entry is not permitted."));
+
+        var review = TimeEntryReview.Create(Id, reviewerId, decision, reason, reviewedAtUtc);
+        if (review.IsFailure)
+            return Result.Failure(review.Errors.ToArray());
+
+        var audit = TimeEntryAudit.Create(
+            Id, reviewerId, current.TaskId, current.WorkDate, current.Duration,
+            current.Description, decision == ReviewStatus.Approved ? TimeEntryStatus.Approved : TimeEntryStatus.Rejected,
+            reviewedAtUtc);
+        if (audit.IsFailure)
+            return Result.Failure(audit.Errors.ToArray());
+
+        var appended = AddAudit(audit.Value);
+        if (appended.IsFailure)
+            return appended;
+
+        _reviews.Add(review.Value);
+        return Result.Success();
+    }
 }

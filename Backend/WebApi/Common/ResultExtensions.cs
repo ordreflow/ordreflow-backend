@@ -18,6 +18,9 @@ public static class ResultExtensions
         if (errors.Any(error => error.Code.EndsWith("Forbidden", StringComparison.Ordinal)))
             return TypedResults.Json(errors, statusCode: StatusCodes.Status403Forbidden);
 
+        if (errors.Any(error => error.Code.EndsWith("Conflict", StringComparison.Ordinal)))
+            return TypedResults.Json(errors, statusCode: StatusCodes.Status409Conflict);
+
         return TypedResults.BadRequest(errors);
     }
 }

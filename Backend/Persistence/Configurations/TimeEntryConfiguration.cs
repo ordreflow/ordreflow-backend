@@ -16,6 +16,10 @@ public class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
             .HasColumnName("id")
             .ValueGeneratedNever();
 
+        entity.Property(x => x.Revision)
+            .HasColumnName("revision")
+            .IsConcurrencyToken();
+
         entity.Property(x => x.EmployeeId)
             .HasColumnName("employee_id")
             .IsRequired();
