@@ -1,5 +1,5 @@
 namespace Application.Commands;
 
-public sealed record AcceptTimeEntryCommand(
+public sealed record ApproveTimeEntryCommand(
     Guid TimeEntryId,
     Guid ReviewerId);

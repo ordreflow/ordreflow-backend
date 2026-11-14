@@ -3,6 +3,7 @@ using Application.Extenstions;
 using Application.Interfaces;
 using Domain.Interfaces.IUnitOfWork;
 using Domain.Interfaces;
+using Domain.ValueObjects;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -65,6 +66,9 @@ builder.Services
     });
 builder.Services.AddAuthorization(AuthorizationPolicies.Configure);
 builder.Services.AddScoped<IAuthorizationHandler, SystemPermissionAuthorizationHandler>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(new TimeEntryReviewPolicy(
+    builder.Configuration.GetValue("TimeEntryReviews:AllowSelfReview", true)));
 
 builder.Services.AddApplication();
 

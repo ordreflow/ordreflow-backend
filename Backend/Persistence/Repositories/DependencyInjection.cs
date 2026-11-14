@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<ITopOrdersRepository, TopOrdersRepository>();
         services.AddScoped<IEmployeeAccessRepository, EmployeeAccessRepository>();
         services.AddScoped<IReviewQueueRepository, ReviewQueueRepository>();
+        services.AddScoped<IReviewDecisionRepository, ReviewDecisionRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPasswordVerifier, PasswordVerifier>();

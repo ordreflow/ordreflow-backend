@@ -17,6 +17,7 @@ public static class DependencyInjection
 
     services.AddScoped<QueryDispatcher>();
     services.AddScoped<IQueryDispatcher, QueryDispatcher>();
+    services.AddScoped<TimeEntryReviewCoordinator>();
 
     services.AddScoped<TimeRegistrationDomainService>();
     services.AddScoped<TaskRemovalDomainService>();
@@ -85,4 +86,3 @@ public static class DependencyInjection
 }
     
 }
-

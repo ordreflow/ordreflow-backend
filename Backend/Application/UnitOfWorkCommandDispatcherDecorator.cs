@@ -30,9 +30,15 @@ public class UnitOfWorkCommandDispatcherDecorator : ICommandDispatcher
         }
 
         // 3. If everything went well, save all changes made by the handler at once
-        await _unitOfWork.SaveChangesAsync();
+        try
+        {
+            await _unitOfWork.SaveChangesAsync();
+        }
+        catch (ConcurrentTimeEntryException)
+        {
+            return Result.Failure(new Error("TimeEntryConflict", "The time entry changed; refresh and retry."));
+        }
 
         return result;
     }
 }
-
