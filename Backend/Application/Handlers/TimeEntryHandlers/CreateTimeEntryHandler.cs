@@ -1,77 +1,68 @@
 ﻿using Application.Commands;
 using Core.Tools.OperationResult;
+using Domain.Aggregate;
 using Domain.Entities;
 using Domain.Interfaces;
-using Domain.Services;
-using Domain.Aggregate;
 using Domain.ValueObjects;
 
 namespace Application.Handlers;
 
-public class CreateTimeEntryHandler : ICommandHandler<CreateTimeEntryCommand>
+public sealed class CreateTimeEntryHandler(
+    IEmployeeAccessRepository employees,
+    ITimeRegistrationRepository registration,
+    TimeProvider clock) : ICommandHandler<CreateTimeEntryCommand>
 {
-    private readonly ITimeEntryRepository _timeEntryRepository;
-    private readonly IUserRepository _userRepository;
-    private readonly ITaskRepository _taskRepository;
-    private readonly IOrderRepository _orderRepository;
-    private readonly TimeRegistrationDomainService _registrationService;
-
-    public CreateTimeEntryHandler(
-        ITimeEntryRepository timeEntryRepository,
-        IUserRepository userRepository,
-        ITaskRepository taskRepository,
-        IOrderRepository orderRepository,
-        TimeRegistrationDomainService registrationService)
-    {
-        _timeEntryRepository = timeEntryRepository;
-        _userRepository = userRepository;
-        _taskRepository = taskRepository;
-        _orderRepository = orderRepository;
-        _registrationService = registrationService;
-    }
-
     public async Task<Result> HandleAsync(CreateTimeEntryCommand command)
     {
-      
-      var employeeId = UserId.Create(command.EmployeeId);
-        var taskId = TaskId.Create(command.TaskId);
+        if (command.EmployeeId == Guid.Empty)
+            return Result.Failure(new Error("EmployeeRequired", "An employee is required."));
 
-        if (employeeId.IsFailure)
-            return Result.Failure(employeeId.Errors.ToArray());
-        if (taskId.IsFailure)
-            return Result.Failure(taskId.Errors.ToArray());
+        var employee = await employees.GetWithAccessesAsync(EmployeeId.Create(command.EmployeeId).Value);
+        if (employee is null || !employee.HasPermission(SystemPermission.Employee))
+            return Result.Failure(new Error("EmployeeAccessForbidden", "Active employee permission is required."));
 
-        var employee = await _userRepository.GetAsync(employeeId.Value);
-        if (employee is null)
-            return Result.Failure(new Error("EmployeeNotFound", "The employee was not found."));
+        if (command.TaskId == Guid.Empty)
+            return Result.Failure(new Error("TaskRequired", "A task is required."));
+        if (command.Date == default)
+            return Result.Failure(new Error("WorkDateRequired", "A work date is required."));
+        var duration = Duration.Create(command.Hours);
+        if (duration.IsFailure)
+            return Result.Failure(duration.Errors.ToArray());
+        var workDate = WorkDate.Create(DateOnly.FromDateTime(command.Date));
+        if (workDate.IsFailure)
+            return Result.Failure(workDate.Errors.ToArray());
+        var description = TimeEntryDescription.Create(command.Comment);
+        if (description.IsFailure)
+            return Result.Failure(description.Errors.ToArray());
 
-        var task = await _taskRepository.GetAsync(taskId.Value);
-        if (task is null || task.OrderId is null)
+        var task = await registration.GetTaskAsync(TaskId.Create(command.TaskId).Value);
+        if (task is null)
             return Result.Failure(new Error("TaskNotFound", "The task was not found."));
 
-        var order = await _orderRepository.GetAsync(task.OrderId);
-        if (order is null)
-            return Result.Failure(new Error("OrderNotFound", "The order was not found."));
+        var catagory = await registration.GetCatagoryAsync(task.CatagoryId);
+        if (catagory is null)
+            return Result.Failure(new Error("CatagoryNotFound", "The task's category was not found."));
 
-        var entryResult = TimeEntry.Create(
-            employeeId.Value,
-            taskId.Value,
-            command.Date,
-            command.Hours,
-            command.Comment);
+        var isDepartmentMember = !catagory.InternalOnly ||
+            await registration.IsDepartmentMemberAsync(employee.Id, catagory.DepartmentId);
+        var assignment = await registration.GetAssignmentAccessAsync(task.Id, employee.Id);
+        var access = catagory.CanRegisterTime(
+            task, employee, isDepartmentMember, assignment.HasAssignments, assignment.IsAssigned);
+        if (access.IsFailure)
+            return access;
 
-        if (entryResult.IsFailure)
-            return Result.Failure(entryResult.Errors.ToArray());
+        var entryId = TimeEntryId.Create(Guid.NewGuid()).Value;
+        var audit = TimeEntryAudit.Create(
+            entryId, employee.Id, task.Id, workDate.Value, duration.Value,
+            description.Value, TimeEntryStatus.Draft, clock.GetUtcNow().UtcDateTime);
+        if (audit.IsFailure)
+            return Result.Failure(audit.Errors.ToArray());
 
-        var registrationResult = _registrationService.Register(
-            employee,
-            order,
-            entryResult.Value);
+        var entry = TimeEntry.Create(employee.Id, audit.Value);
+        if (entry.IsFailure)
+            return Result.Failure(entry.Errors.ToArray());
 
-        if (registrationResult.IsFailure)
-            return registrationResult;
-
-        await _timeEntryRepository.AddAsync(entryResult.Value);
+        await registration.AddAsync(entry.Value);
         return Result.Success();
     }
 }

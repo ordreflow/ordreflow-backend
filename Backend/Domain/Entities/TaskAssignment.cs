@@ -1,3 +1,5 @@
+using Domain.ValueObjects;
+
 namespace Domain.Entities;
 
 /*  Summart
@@ -6,10 +8,10 @@ namespace Domain.Entities;
  */
 public sealed class TaskAssignment
 {
-    public Guid TaskId { get; set; }
+    public TaskId TaskId { get; set; } = null!;
     
     //which employee is it assigned to
-    public Guid AssignedTo { get; set; }
-    public double ExpectedDuration { get; set; }
-    public DateTime ExpectedDeadline { get; set; }
+    public EmployeeId AssignedTo { get; set; } = null!;
+    public PlannedDuration ExpectedDuration { get; set; } = null!;
+    public TargetCompletionDate ExpectedDeadline { get; set; } = null!;
 }

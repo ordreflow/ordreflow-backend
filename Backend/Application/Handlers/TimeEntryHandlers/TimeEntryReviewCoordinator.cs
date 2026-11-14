@@ -21,24 +21,25 @@ public sealed class TimeEntryReviewCoordinator(
         if (reviewerId == Guid.Empty)
             return Result.Failure(new Error("ReviewerRequired", "A reviewer is required."));
 
-        var reviewer = await employees.GetWithAccessesAsync(reviewerId);
+        var reviewerKey = EmployeeId.Create(reviewerId).Value;
+        var reviewer = await employees.GetWithAccessesAsync(reviewerKey);
         if (reviewer is null || !reviewer.CanReviewTimeEntries())
             return Result.Failure(new Error("ReviewForbidden", "An active category reviewer permission is required."));
 
         if (entryId == Guid.Empty)
             return Result.Failure(new Error("TimeEntryIdRequired", "A time entry is required."));
 
-        var entry = await entries.GetForDecisionAsync(entryId);
+        var entry = await entries.GetForDecisionAsync(TimeEntryId.Create(entryId).Value);
         if (entry is null)
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
 
         var current = entry.GetCurrentAudit();
-        if (current is null || !await entries.HasReviewerTaskAccessAsync(reviewerId, current.TaskId))
+        if (current is null || !await entries.HasReviewerTaskAccessAsync(reviewerKey, current.TaskId))
             return Result.Failure(new Error("ReviewScopeForbidden", "The reviewer is not assigned to this category."));
 
         var reviewedAtUtc = clock.GetUtcNow().UtcDateTime;
         return approve
-            ? entry.Approve(reviewerId, reviewedAtUtc, policy.AllowSelfReview)
-            : entry.Reject(reviewerId, reason, reviewedAtUtc, policy.AllowSelfReview);
+            ? entry.Approve(reviewerKey, reviewedAtUtc, policy.AllowSelfReview)
+            : entry.Reject(reviewerKey, reason, reviewedAtUtc, policy.AllowSelfReview);
     }
 }

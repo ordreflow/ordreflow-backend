@@ -1,9 +1,11 @@
+using Domain.ValueObjects;
+
 namespace Domain.Entities;
 
 
 // Access privilege and Tasks has many-to-many relations´
 public sealed class AccessTask
 {
-    public Guid AccessId { get; set; }
-    public Guid TaskId { get; set; }
+    public AccessPrivilegeId AccessId { get; set; } = null!;
+    public TaskId TaskId { get; set; } = null!;
 }

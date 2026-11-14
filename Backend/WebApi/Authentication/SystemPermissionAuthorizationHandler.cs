@@ -16,7 +16,7 @@ public sealed class SystemPermissionAuthorizationHandler(IEmployeeAccessReposito
         if (!Guid.TryParse(subject, out var employeeId) || employeeId == Guid.Empty)
             return;
 
-        var employee = await employees.GetWithAccessesAsync(employeeId);
+        var employee = await employees.GetWithAccessesAsync(EmployeeId.Create(employeeId).Value);
         if (employee is not null && employee.HasPermission(SystemPermission.Employee) &&
             employee.HasPermission(requirement.Permission))
             context.Succeed(requirement);

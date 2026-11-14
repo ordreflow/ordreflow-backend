@@ -17,17 +17,18 @@ public class IdentityUserAccountProvisioner(UserManager<ApplicationUser> userMan
         if (employeeId == Guid.Empty || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             return Result.Failure(new Error("InvalidAccount", "A valid employee, email and password are required."));
 
-        var employee = context.Employees.Local.FirstOrDefault(value => value.Id == employeeId)
+        var employeeKey = EmployeeId.Create(employeeId).Value;
+        var employee = context.Employees.Local.FirstOrDefault(value => value.Id == employeeKey)
             ?? await context.Employees.Include(value => value.Accesses)
-                .SingleOrDefaultAsync(value => value.Id == employeeId);
+                .SingleOrDefaultAsync(value => value.Id == employeeKey);
         if (employee is null || !employee.HasPermission(SystemPermission.Employee))
             return Result.Failure(new Error("EmployeeAccessForbidden", "An active employee account is required."));
-        if (!string.Equals(employee.Email, email, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(employee.Email.Value, email, StringComparison.OrdinalIgnoreCase))
             return Result.Failure(new Error("InvalidAccount", "The login email must match the employee email."));
 
         var account = new ApplicationUser
         {
-            EmployeeId = employeeId,
+            EmployeeId = employeeKey,
             UserName = email,
             Email = email
         };

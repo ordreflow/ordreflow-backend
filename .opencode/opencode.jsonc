@@ -4,6 +4,64 @@
   // Reuse the repository instructions for both agent tools.
   "instructions": ["../.claude/CLAUDE.md"],
 
+  // Fast free fallback for built-in explore/general tasks
+  "model": "opencode/deepseek-v4.1-flash-free",
+
+  "agents": {
+    "plan": {
+      "model": {
+        "providerID": "openai",
+        "model": "gpt-6-astra",
+        "variant": "high"
+      },
+      "prompt": "You are planning work for the OrdreFlow .NET 8 backend. Break complex tasks into clear layer boundaries and delegate investigation to subagents using the task tool when helpful: use @domain-specialist for Domain/Application logic, @api-specialist for WebApi/DTOs/OpenAPI, @database-specialist for EF Core/PostgreSQL, and @architecture-reviewer to validate structural design before finalizing the plan."
+    },
+    "build": {
+      "model": {
+        "providerID": "openai",
+        "model": "gpt-6.1-sol",
+        "variant": "medium"
+      },
+      "prompt": "You are implementing changes in the OrdreFlow .NET 8 backend. Coordinate implementation across layers and delegate focused work to subagents via the task tool: @domain-specialist for Domain/Application, @api-specialist for WebApi, @database-specialist for Persistence/migrations, and @test-engineer for tests. Always invoke @reviewer (and @architecture-reviewer for major refactors) to inspect the final diff before finishing."
+    },
+
+    // Subagents
+    "domain-specialist": {
+      "model": {
+        "providerID": "openai",
+        "model": "gpt-6.1-sol",
+        "variant": "medium"
+      }
+    },
+    "database-specialist": {
+      "model": {
+        "providerID": "openai",
+        "model": "gpt-6.1-sol",
+        "variant": "medium"
+      }
+    },
+    "api-specialist": {
+      "model": "opencode/deepseek-v4.1-flash-free"
+    },
+    "test-engineer": {
+      "model": "opencode/glm-5.3-flash-free"
+    },
+    "architecture-reviewer": {
+      "model": {
+        "providerID": "openai",
+        "model": "gpt-6-astra",
+        "variant": "high"
+      }
+    },
+    "reviewer": {
+      "model": {
+        "providerID": "openai",
+        "model": "gpt-6.1-sol",
+        "variant": "high"
+      }
+    }
+  },
+
   // OpenCode evaluates object rules in order; the last matching rule wins.
   "permission": {
     "read": {
@@ -37,7 +95,7 @@
     "lsp": "allow",
     "question": "allow",
     "todowrite": "allow",
-    "task": "ask",
+    "task": "allow",
     "skill": "ask",
     "webfetch": "ask",
     "websearch": "ask",

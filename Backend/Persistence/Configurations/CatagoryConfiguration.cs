@@ -14,7 +14,7 @@ public sealed class CatagoryConfiguration : IEntityTypeConfiguration<Catagory>
         entity.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
         entity.Property(x => x.CreatedBy).HasColumnName("created_by").IsRequired();
         entity.Property(x => x.DepartmentId).HasColumnName("department_id").IsRequired();
-        entity.Property(x => x.Name).HasColumnName("name").IsRequired();
+        entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
         entity.Property(x => x.Description).HasColumnName("description");
         entity.Property(x => x.Status).HasColumnName("status").HasConversion<string>().IsRequired();
         entity.Property(x => x.InternalOnly).HasColumnName("internal_only");

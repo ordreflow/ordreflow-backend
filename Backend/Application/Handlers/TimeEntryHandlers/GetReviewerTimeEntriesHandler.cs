@@ -21,7 +21,7 @@ public sealed class GetReviewerTimeEntriesHandler(
             return Result<IReadOnlyList<TimeEntryDto>>.Failure(
                 new Error("ReviewerRequired", "A reviewer is required."));
 
-        var reviewer = await employeeAccessRepository.GetWithAccessesAsync(query.ReviewerId);
+        var reviewer = await employeeAccessRepository.GetWithAccessesAsync(EmployeeId.Create(query.ReviewerId).Value);
         if (reviewer is null || !reviewer.CanReviewTimeEntries())
             return Result<IReadOnlyList<TimeEntryDto>>.Failure(
                 new Error("ReviewForbidden", "An active category reviewer permission is required."));
@@ -49,10 +49,10 @@ public sealed class GetReviewerTimeEntriesHandler(
                 audit.Status != TimeEntryStatus.ReadyForApproval)
                 continue;
 
-            if (query.FromDate is { } from && audit.WorkDate < DateOnly.FromDateTime(from))
+            if (query.FromDate is { } from && audit.WorkDate.Value < DateOnly.FromDateTime(from))
                 continue;
 
-            if (query.ToDateExclusive is { } to && audit.WorkDate >= DateOnly.FromDateTime(to))
+            if (query.ToDateExclusive is { } to && audit.WorkDate.Value >= DateOnly.FromDateTime(to))
                 continue;
 
             filtered.Add(ToDto(entry, audit));
@@ -65,11 +65,11 @@ public sealed class GetReviewerTimeEntriesHandler(
     }
 
     private static TimeEntryDto ToDto(TimeEntry entry, TimeEntryAudit audit) => new(
-        entry.Id,
-        audit.TaskId,
-        audit.WorkDate.ToDateTime(TimeOnly.MinValue),
-        (decimal)audit.Duration,
-        audit.Description,
-        entry.EmployeeId,
+        entry.Id.Value,
+        audit.TaskId.Value,
+        audit.WorkDate.Value.ToDateTime(TimeOnly.MinValue),
+        audit.Duration.Value,
+        audit.Description.Value,
+        entry.EmployeeId.Value,
         audit.Status.ToString());
 }

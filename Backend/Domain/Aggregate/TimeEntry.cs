@@ -13,11 +13,11 @@ public sealed class TimeEntry
     //list of all the Audits (versions/changes) that has been made in the timeentry
     private readonly List<TimeEntryAudit> _audits = new();
     private readonly List<TimeEntryReview> _reviews = new();
-    public Guid Id { get; private set; }
+    public TimeEntryId Id { get; private set; } = null!;
     public long Revision { get; private set; }
     
     // Who belongs the timeentry to
-    public Guid EmployeeId { get; private set; }
+    public EmployeeId EmployeeId { get; private set; } = null!;
     
     // Same list as first, just only in readmode
     public IReadOnlyCollection<TimeEntryAudit> Audits => _audits.AsReadOnly();
@@ -27,15 +27,15 @@ public sealed class TimeEntry
     {
     }
 
-    public static Result<TimeEntry> Create(Guid employeeId, TimeEntryAudit initialAudit)
+    public static Result<TimeEntry> Create(EmployeeId employeeId, TimeEntryAudit initialAudit)
     {
-        if (employeeId == Guid.Empty)
+        if (employeeId is null)
             return Result<TimeEntry>.Failure(new Error("EmployeeRequired", "An employee is required."));
 
         if (initialAudit is null)
             return Result<TimeEntry>.Failure(new Error("AuditRequired", "An initial audit is required."));
 
-        if (initialAudit.TimeEntryId == Guid.Empty)
+        if (initialAudit.TimeEntryId is null)
             return Result<TimeEntry>.Failure(new Error("TimeEntryIdRequired", "The audit must identify its time entry."));
 
         var entry = new TimeEntry
@@ -72,14 +72,14 @@ public sealed class TimeEntry
 
     public TimeEntryAudit? GetCurrentAudit() => _audits.MaxBy(audit => audit.AuditTime);
 
-    public Result Approve(Guid reviewerId, DateTime reviewedAtUtc, bool allowSelfReview) =>
+    public Result Approve(EmployeeId reviewerId, DateTime reviewedAtUtc, bool allowSelfReview) =>
         Decide(reviewerId, ReviewStatus.Approved, null, reviewedAtUtc, allowSelfReview);
 
-    public Result Reject(Guid reviewerId, string? reason, DateTime reviewedAtUtc, bool allowSelfReview) =>
+    public Result Reject(EmployeeId reviewerId, string? reason, DateTime reviewedAtUtc, bool allowSelfReview) =>
         Decide(reviewerId, ReviewStatus.Rejected, reason, reviewedAtUtc, allowSelfReview);
 
     private Result Decide(
-        Guid reviewerId, ReviewStatus decision, string? reason, DateTime reviewedAtUtc, bool allowSelfReview)
+        EmployeeId reviewerId, ReviewStatus decision, string? reason, DateTime reviewedAtUtc, bool allowSelfReview)
     {
         var current = GetCurrentAudit();
         if (current is null || current.Status != TimeEntryStatus.ReadyForApproval)

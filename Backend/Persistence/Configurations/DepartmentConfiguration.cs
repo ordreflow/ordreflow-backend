@@ -12,7 +12,7 @@ public sealed class DepartmentConfiguration : IEntityTypeConfiguration<Departmen
         entity.HasKey(x => x.Id);
 
         entity.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-        entity.Property(x => x.Name).HasColumnName("name").IsRequired();
+        entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
 
         entity.HasMany(x => x.Catagories)
             .WithOne()

@@ -14,10 +14,10 @@ public sealed class LoginPermissionTests
     {
         var employee = Employee.Create("Employee", "employee@test.invalid", DateTime.UtcNow).Value;
         var tokens = new FakeTokenGenerator();
-        var handler = new LoginHandler(new FakePasswordVerifier(employee.Id),
+        var handler = new LoginHandler(new FakePasswordVerifier(employee.Id.Value),
             new FakeEmployeeRepository(employee), tokens);
 
-        var result = await handler.HandleAsync(new LoginCommand(employee.Email, "correct password"));
+        var result = await handler.HandleAsync(new LoginCommand(employee.Email.Value, "correct password"));
 
         Assert.True(result.IsSuccess);
         Assert.Same(employee, tokens.GeneratedFor);
@@ -30,10 +30,10 @@ public sealed class LoginPermissionTests
         var employee = Employee.Create("Employee", "employee@test.invalid", DateTime.UtcNow).Value;
         employee.Status = EmployeeStatus.Deactivated;
         var tokens = new FakeTokenGenerator();
-        var handler = new LoginHandler(new FakePasswordVerifier(employee.Id),
+        var handler = new LoginHandler(new FakePasswordVerifier(employee.Id.Value),
             new FakeEmployeeRepository(employee), tokens);
 
-        var result = await handler.HandleAsync(new LoginCommand(employee.Email, "correct password"));
+        var result = await handler.HandleAsync(new LoginCommand(employee.Email.Value, "correct password"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("UserInactive", Assert.Single(result.Errors).Code);
@@ -45,14 +45,16 @@ public sealed class LoginPermissionTests
     {
         var employee = new Employee
         {
-            Id = Guid.NewGuid(), Name = "Employee", Email = "employee@test.invalid",
+            Id = EmployeeId.Create(Guid.NewGuid()).Value,
+            Name = PersonName.Create("Employee").Value,
+            Email = EmailAddress.Create("employee@test.invalid").Value,
             Status = EmployeeStatus.Active, CreatedAt = DateTime.UtcNow
         };
         var tokens = new FakeTokenGenerator();
-        var handler = new LoginHandler(new FakePasswordVerifier(employee.Id),
+        var handler = new LoginHandler(new FakePasswordVerifier(employee.Id.Value),
             new FakeEmployeeRepository(employee), tokens);
 
-        var result = await handler.HandleAsync(new LoginCommand(employee.Email, "correct password"));
+        var result = await handler.HandleAsync(new LoginCommand(employee.Email.Value, "correct password"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("AccessForbidden", Assert.Single(result.Errors).Code);
@@ -78,7 +80,7 @@ public sealed class LoginPermissionTests
 
     private sealed class FakeEmployeeRepository(Employee? employee = null) : IEmployeeAccessRepository
     {
-        public Task<Employee?> GetWithAccessesAsync(Guid employeeId, CancellationToken cancellationToken = default)
+        public Task<Employee?> GetWithAccessesAsync(EmployeeId employeeId, CancellationToken cancellationToken = default)
         {
             if (employee is null)
                 throw new InvalidOperationException("Invalid credentials must not look up an employee.");

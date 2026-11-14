@@ -1,6 +1,8 @@
+using Core.Tools.OperationResult;
 using Domain.Entities;
 using Domain.ValueObjects;
 using Task = Domain.Entities.Task;
+using TaskStatus = Domain.ValueObjects.TaskStatus;
 
 namespace Domain.Aggregate;
 
@@ -13,10 +15,10 @@ public sealed class Catagory
 {
     private readonly List<Task> _tasks = new();
     
-    public Guid Id { get; set; }
-    public Guid CreatedBy { get; set; }
-    public Guid DepartmentId { get; set; }
-    public string Name { get; set; } = null!;
+    public CatagoryId Id { get; set; } = null!;
+    public EmployeeId CreatedBy { get; set; } = null!;
+    public DepartmentId DepartmentId { get; set; } = null!;
+    public CatagoryName Name { get; set; } = null!;
     public string? Description { get; set; }
     public CatagoryStatus Status { get; set; }
     
@@ -25,6 +27,30 @@ public sealed class Catagory
     public DateTime CreatedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
     public IReadOnlyCollection<Task> Tasks => _tasks.AsReadOnly();
+
+    public Result CanRegisterTime(
+        Task task, Employee employee, bool isDepartmentMember, bool hasAssignments, bool isAssigned)
+    {
+        if (employee is null || !employee.HasPermission(SystemPermission.Employee))
+            return Result.Failure(new Error("EmployeeAccessForbidden", "Active employee access is required."));
+
+        if (task is null || task.CatagoryId != Id)
+            return Result.Failure(new Error("TaskCategoryMismatch", "The task does not belong to this category."));
+
+        if (Status != CatagoryStatus.Active)
+            return Result.Failure(new Error("CatagoryClosed", "Time cannot be registered in a closed category."));
+
+        if (task.Status != TaskStatus.Active)
+            return Result.Failure(new Error("TaskClosed", "Time cannot be registered on a closed task."));
+
+        if (InternalOnly && !isDepartmentMember)
+            return Result.Failure(new Error("CatagoryAccessForbidden", "This category is restricted to its department."));
+
+        if (hasAssignments && !isAssigned)
+            return Result.Failure(new Error("TaskAssignmentForbidden", "This task is assigned to other employees."));
+
+        return Result.Success();
+    }
 }
 
 // Create, Close, Edit, SetInternalOnly

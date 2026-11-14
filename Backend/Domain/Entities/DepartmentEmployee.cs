@@ -1,3 +1,5 @@
+using Domain.ValueObjects;
+
 namespace Domain.Entities;
 
 /*  Summary
@@ -8,6 +10,6 @@ namespace Domain.Entities;
 
 public sealed class DepartmentEmployee
 {
-    public Guid DepartmentId { get; set; }
-    public Guid EmployeeId { get; set; }
+    public DepartmentId DepartmentId { get; set; } = null!;
+    public EmployeeId EmployeeId { get; set; } = null!;
 }

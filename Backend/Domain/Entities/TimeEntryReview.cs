@@ -8,34 +8,40 @@ namespace Domain.Entities;
  */
 public sealed class TimeEntryReview
 {
-    public Guid Id { get; private set; }
-    public Guid TimeEntryId { get; private set; }
-    public Guid ReviewerId { get; private set; }
-    public string? Description { get; private set; }
+    public TimeEntryReviewId Id { get; private set; } = null!;
+    public TimeEntryId TimeEntryId { get; private set; } = null!;
+    public EmployeeId ReviewerId { get; private set; } = null!;
+    public RejectionReason? Description { get; private set; }
     public ReviewStatus Status { get; private set; }
     public DateTime ReviewedAtUtc { get; private set; }
 
     private TimeEntryReview() { }
 
     public static Result<TimeEntryReview> Create(
-        Guid timeEntryId, Guid reviewerId, ReviewStatus status, string? reason, DateTime reviewedAtUtc)
+        TimeEntryId timeEntryId, EmployeeId reviewerId, ReviewStatus status, string? reason, DateTime reviewedAtUtc)
     {
-        if (timeEntryId == Guid.Empty || reviewerId == Guid.Empty)
+        if (timeEntryId is null || reviewerId is null)
             return Result<TimeEntryReview>.Failure(new Error("ReviewIdentityRequired", "The entry and reviewer are required."));
         if (!Enum.IsDefined(status))
             return Result<TimeEntryReview>.Failure(new Error("InvalidReviewStatus", "The review status is invalid."));
         if (reviewedAtUtc.Kind != DateTimeKind.Utc)
             return Result<TimeEntryReview>.Failure(new Error("ReviewTimeUtcRequired", "The review time must be UTC."));
-        if (status == ReviewStatus.Rejected && string.IsNullOrWhiteSpace(reason))
-            return Result<TimeEntryReview>.Failure(new Error("RejectReasonRequired", "A rejection reason is required."));
+        RejectionReason? rejectionReason = null;
+        if (status == ReviewStatus.Rejected)
+        {
+            var parsedReason = RejectionReason.Create(reason);
+            if (parsedReason.IsFailure)
+                return Result<TimeEntryReview>.Failure(parsedReason.Errors.ToArray());
+            rejectionReason = parsedReason.Value;
+        }
 
         return Result<TimeEntryReview>.Success(new TimeEntryReview
         {
-            Id = Guid.NewGuid(),
+            Id = TimeEntryReviewId.Create(Guid.NewGuid()).Value,
             TimeEntryId = timeEntryId,
             ReviewerId = reviewerId,
             Status = status,
-            Description = status == ReviewStatus.Rejected ? reason!.Trim() : null,
+            Description = rejectionReason,
             ReviewedAtUtc = reviewedAtUtc
         });
     }

@@ -1,4 +1,5 @@
 using Domain.Entities;
+using Domain.ValueObjects;
 
 namespace Domain.Aggregate;
 
@@ -12,11 +13,11 @@ public sealed class AccessPrivilege
 {
     private readonly List<AccessTask> _tasks = new();
     
-    public Guid Id { get; set; }
+    public AccessPrivilegeId Id { get; set; } = null!;
     //Who gave the access
-    public Guid IssuedBy { get; set; }
+    public EmployeeId IssuedBy { get; set; } = null!;
     //who got access
-    public Guid IssuedTo { get; set; }
+    public EmployeeId IssuedTo { get; set; } = null!;
     //When was the access issued
     public DateTime IssuedAtUtc { get; set; }
     

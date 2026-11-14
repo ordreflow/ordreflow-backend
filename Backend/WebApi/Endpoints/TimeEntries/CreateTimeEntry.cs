@@ -12,7 +12,7 @@ namespace WebAPI.endpoints.TimeEntries;
 public sealed class CreateTimeEntry(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<CreateTimeEntryRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
+    [Authorize(Policy = AuthorizationPolicies.Employee)]
     [HttpPost("time_entries")]
     public override async Task<IResult> HandleAsync(CreateTimeEntryRequest request)
     {
@@ -28,6 +28,6 @@ public sealed class CreateTimeEntry(ICommandDispatcher dispatcher)
 
         return result.IsSuccess
             ? TypedResults.NoContent()
-            : TypedResults.BadRequest(result.Errors);
+            : result.Errors.ToErrorResult();
     }
 }

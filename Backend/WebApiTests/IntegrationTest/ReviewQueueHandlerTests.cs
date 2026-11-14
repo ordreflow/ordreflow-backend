@@ -88,7 +88,7 @@ public sealed class ReviewQueueHandlerTests
         using var connection = new SqliteConnection("Data Source=:memory:");
         await using var context = await CreateContextAsync(connection);
         var reviewerId = await AddReviewerAsync(context);
-        var queue = new FakeReviewQueueRepository { CatagoryIds = [Guid.NewGuid()] };
+        var queue = new FakeReviewQueueRepository { CatagoryIds = [NewCatagoryId()] };
         var handler = new GetReviewerTimeEntriesHandler(new EmployeeAccessRepository(context), queue);
 
         var result = await handler.HandleAsync(new GetReviewerTimeEntriesQuery(reviewerId, null, null, null));
@@ -105,9 +105,9 @@ public sealed class ReviewQueueHandlerTests
         using var connection = new SqliteConnection("Data Source=:memory:");
         await using var context = await CreateContextAsync(connection);
         var reviewerId = await AddReviewerAsync(context);
-        var employeeId = Guid.NewGuid(); // The entry owner need not be in the reviewer's department.
-        var authorizedTaskId = Guid.NewGuid();
-        var otherTaskId = Guid.NewGuid();
+        var employeeId = NewEmployeeId(); // The entry owner need not be in the reviewer's department.
+        var authorizedTaskId = NewTaskId();
+        var otherTaskId = NewTaskId();
         var workDate = new DateOnly(2026, 11, 14);
 
         var movedOut = Entry(employeeId, authorizedTaskId, workDate, TimeEntryStatus.ReadyForApproval);
@@ -120,7 +120,7 @@ public sealed class ReviewQueueHandlerTests
 
         var queue = new FakeReviewQueueRepository
         {
-            CatagoryIds = [Guid.NewGuid()],
+            CatagoryIds = [NewCatagoryId()],
             TaskIds = [authorizedTaskId],
             Candidates = [approved, movedOut, draft, movedIn]
         };
@@ -130,9 +130,9 @@ public sealed class ReviewQueueHandlerTests
 
         Assert.True(result.IsSuccess);
         var row = Assert.Single(result.Value);
-        Assert.Equal(movedIn.Id, row.Id);
-        Assert.Equal(authorizedTaskId, row.TaskId);
-        Assert.Equal(employeeId, row.EmployeeId);
+        Assert.Equal(movedIn.Id.Value, row.Id);
+        Assert.Equal(authorizedTaskId.Value, row.TaskId);
+        Assert.Equal(employeeId.Value, row.EmployeeId);
         Assert.Equal(workDate.ToDateTime(TimeOnly.MinValue), row.Date);
         Assert.Equal(2.25m, row.Hours);
         Assert.Equal("Latest version", row.Comment);
@@ -146,8 +146,8 @@ public sealed class ReviewQueueHandlerTests
         using var connection = new SqliteConnection("Data Source=:memory:");
         await using var context = await CreateContextAsync(connection);
         var reviewerId = await AddReviewerAsync(context);
-        var employeeId = Guid.NewGuid();
-        var taskId = Guid.NewGuid();
+        var employeeId = NewEmployeeId();
+        var taskId = NewTaskId();
         var start = new DateOnly(2026, 11, 14);
         var endExclusive = start.AddDays(2);
         var before = Entry(employeeId, taskId, start.AddDays(-1), TimeEntryStatus.ReadyForApproval);
@@ -158,7 +158,7 @@ public sealed class ReviewQueueHandlerTests
         AddAudit(changedDate, taskId, start.AddDays(1), TimeEntryStatus.ReadyForApproval);
         var queue = new FakeReviewQueueRepository
         {
-            CatagoryIds = [Guid.NewGuid()],
+            CatagoryIds = [NewCatagoryId()],
             TaskIds = [taskId],
             Candidates = [onEnd, inside, before, changedDate, onStart]
         };
@@ -168,7 +168,7 @@ public sealed class ReviewQueueHandlerTests
             reviewerId, start.ToDateTime(TimeOnly.MinValue), endExclusive.ToDateTime(TimeOnly.MinValue), null));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { onStart.Id, inside.Id, changedDate.Id }.Order(),
+        Assert.Equal(new[] { onStart.Id.Value, inside.Id.Value, changedDate.Id.Value }.Order(),
             result.Value.Select(row => row.Id).Order());
         Assert.Equal(start.ToDateTime(TimeOnly.MinValue), result.Value[0].Date);
         Assert.All(result.Value.Skip(1), row => Assert.Equal(start.AddDays(1).ToDateTime(TimeOnly.MinValue), row.Date));
@@ -180,7 +180,7 @@ public sealed class ReviewQueueHandlerTests
         using var connection = new SqliteConnection("Data Source=:memory:");
         await using var context = await CreateContextAsync(connection);
         var reviewerId = await AddReviewerAsync(context);
-        var queue = new FakeReviewQueueRepository { CatagoryIds = [Guid.NewGuid()] };
+        var queue = new FakeReviewQueueRepository { CatagoryIds = [NewCatagoryId()] };
         var handler = new GetReviewerTimeEntriesHandler(new EmployeeAccessRepository(context), queue);
 
         var result = await handler.HandleAsync(new GetReviewerTimeEntriesQuery(
@@ -208,52 +208,58 @@ public sealed class ReviewQueueHandlerTests
         employee.Status = status;
         context.Employees.Add(employee);
         await context.SaveChangesAsync();
-        return employee.Id;
+        return employee.Id.Value;
     }
 
-    private static TimeEntry Entry(Guid employeeId, Guid taskId, DateOnly workDate, TimeEntryStatus status)
+    private static EmployeeId NewEmployeeId() => EmployeeId.Create(Guid.NewGuid()).Value;
+    private static TaskId NewTaskId() => TaskId.Create(Guid.NewGuid()).Value;
+    private static CatagoryId NewCatagoryId() => CatagoryId.Create(Guid.NewGuid()).Value;
+
+    private static TimeEntry Entry(EmployeeId employeeId, TaskId taskId, DateOnly workDate, TimeEntryStatus status)
     {
-        var id = Guid.NewGuid();
+        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
         return TimeEntry.Create(employeeId,
-            TimeEntryAudit.Create(id, employeeId, taskId, workDate, 1.5, "Initial version",
+            TimeEntryAudit.Create(id, employeeId, taskId, WorkDate.Create(workDate).Value,
+                Duration.Create(1.5m).Value, TimeEntryDescription.Create("Initial version").Value,
                 status, FirstAuditTime).Value).Value;
     }
 
-    private static void AddAudit(TimeEntry entry, Guid taskId, DateOnly workDate, TimeEntryStatus status) =>
+    private static void AddAudit(TimeEntry entry, TaskId taskId, DateOnly workDate, TimeEntryStatus status) =>
         Assert.True(entry.AddAudit(TimeEntryAudit.Create(entry.Id, entry.EmployeeId, taskId,
-            workDate, 2.25, "Latest version", status, FirstAuditTime.AddMinutes(1)).Value).IsSuccess);
+            WorkDate.Create(workDate).Value, Duration.Create(2.25m).Value,
+            TimeEntryDescription.Create("Latest version").Value, status, FirstAuditTime.AddMinutes(1)).Value).IsSuccess);
 
     private sealed class UnexpectedEmployeeAccessRepository : IEmployeeAccessRepository
     {
-        public Task<Employee?> GetWithAccessesAsync(Guid employeeId, CancellationToken cancellationToken = default) =>
+        public Task<Employee?> GetWithAccessesAsync(EmployeeId employeeId, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("An empty reviewer ID must not trigger a database lookup.");
     }
 
     private sealed class FakeReviewQueueRepository : IReviewQueueRepository
     {
-        public IReadOnlyList<Guid> CatagoryIds { get; init; } = [];
-        public IReadOnlyList<Guid> TaskIds { get; init; } = [];
+        public IReadOnlyList<CatagoryId> CatagoryIds { get; init; } = [];
+        public IReadOnlyList<TaskId> TaskIds { get; init; } = [];
         public IReadOnlyList<TimeEntry> Candidates { get; init; } = [];
         public int CatagoryLookups { get; private set; }
         public int TaskLookups { get; private set; }
         public int EntryLookups { get; private set; }
 
-        public Task<IReadOnlyList<Guid>> GetAssignedCatagoryIdsAsync(
-            Guid employeeId, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<CatagoryId>> GetAssignedCatagoryIdsAsync(
+            EmployeeId employeeId, CancellationToken cancellationToken = default)
         {
             CatagoryLookups++;
             return Task.FromResult(CatagoryIds);
         }
 
-        public Task<IReadOnlyList<Guid>> GetTaskIdsAsync(
-            IReadOnlyCollection<Guid> catagoryIds, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<TaskId>> GetTaskIdsAsync(
+            IReadOnlyCollection<CatagoryId> catagoryIds, CancellationToken cancellationToken = default)
         {
             TaskLookups++;
             return Task.FromResult(TaskIds);
         }
 
         public Task<IReadOnlyList<TimeEntry>> GetCandidatesWithAuditsAsync(
-            IReadOnlyCollection<Guid> taskIds, CancellationToken cancellationToken = default)
+            IReadOnlyCollection<TaskId> taskIds, CancellationToken cancellationToken = default)
         {
             EntryLookups++;
             return Task.FromResult(Candidates);

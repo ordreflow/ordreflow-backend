@@ -16,9 +16,9 @@ public sealed class TaskAssinmentConfiguration : IEntityTypeConfiguration<TaskAs
         entity.Property(x => x.TaskId).HasColumnName("task_id");
         entity.Property(x => x.AssignedTo).HasColumnName("assigned_to");
         entity.Property(x => x.ExpectedDuration).HasColumnName("expected_duration")
-            .HasColumnType("double precision");
+            .HasColumnType("numeric");
         entity.Property(x => x.ExpectedDeadline).HasColumnName("expected_deadline")
-            .HasColumnType("timestamp with time zone");
+            .HasColumnType("date");
 
         entity.HasOne<Task>().WithMany().HasForeignKey(x => x.TaskId)
             .OnDelete(DeleteBehavior.Restrict);

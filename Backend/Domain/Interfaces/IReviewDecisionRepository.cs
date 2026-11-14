@@ -1,9 +1,10 @@
 using Domain.Aggregate;
+using Domain.ValueObjects;
 
 namespace Domain.Interfaces;
 
 public interface IReviewDecisionRepository
 {
-    Task<TimeEntry?> GetForDecisionAsync(Guid entryId, CancellationToken cancellationToken = default);
-    Task<bool> HasReviewerTaskAccessAsync(Guid reviewerId, Guid taskId, CancellationToken cancellationToken = default);
+    Task<TimeEntry?> GetForDecisionAsync(TimeEntryId entryId, CancellationToken cancellationToken = default);
+    Task<bool> HasReviewerTaskAccessAsync(EmployeeId reviewerId, TaskId taskId, CancellationToken cancellationToken = default);
 }

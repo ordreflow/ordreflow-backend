@@ -1,3 +1,5 @@
+using Domain.ValueObjects;
+
 namespace Domain.Entities;
 
 /*  Summary
@@ -7,6 +9,6 @@ namespace Domain.Entities;
  */
 public sealed class TimeEntryExport
 {
-    public Guid ExportId { get; set; }
-    public Guid TimeEntryId { get; set; }
+    public ExportId ExportId { get; set; } = null!;
+    public TimeEntryId TimeEntryId { get; set; } = null!;
 }

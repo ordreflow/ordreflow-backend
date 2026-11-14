@@ -28,7 +28,7 @@ public sealed class LoginHandler(
         if (employeeId is null)
             return Result<LoginDto>.Failure(InvalidCredentials);
 
-        var employee = await employees.GetWithAccessesAsync(employeeId.Value);
+        var employee = await employees.GetWithAccessesAsync(EmployeeId.Create(employeeId.Value).Value);
         if (employee is null)
             return Result<LoginDto>.Failure(InvalidCredentials);
 
