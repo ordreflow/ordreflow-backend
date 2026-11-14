@@ -1,16 +1,17 @@
 using Domain.Aggregate;
 using Domain.Interfaces;
+using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace Persistence.Repositories;
 
 public sealed class ReviewQueueRepository(AppDbContext context) : IReviewQueueRepository
 {
-    public async Task<IReadOnlyList<Guid>> GetAssignedCatagoryIdsAsync(
-        Guid employeeId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CatagoryId>> GetAssignedCatagoryIdsAsync(
+        EmployeeId employeeId, CancellationToken cancellationToken = default)
     {
-        if (employeeId == Guid.Empty)
-            return Array.Empty<Guid>();
+        if (employeeId is null)
+            return Array.Empty<CatagoryId>();
 
         return await context.CatagoryReviewers
             .AsNoTracking()
@@ -20,11 +21,11 @@ public sealed class ReviewQueueRepository(AppDbContext context) : IReviewQueueRe
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Guid>> GetTaskIdsAsync(
-        IReadOnlyCollection<Guid> catagoryIds, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<TaskId>> GetTaskIdsAsync(
+        IReadOnlyCollection<CatagoryId> catagoryIds, CancellationToken cancellationToken = default)
     {
         if (catagoryIds.Count == 0)
-            return Array.Empty<Guid>();
+            return Array.Empty<TaskId>();
 
         return await context.Tasks
             .AsNoTracking()
@@ -34,7 +35,7 @@ public sealed class ReviewQueueRepository(AppDbContext context) : IReviewQueueRe
     }
 
     public async Task<IReadOnlyList<TimeEntry>> GetCandidatesWithAuditsAsync(
-        IReadOnlyCollection<Guid> taskIds, CancellationToken cancellationToken = default)
+        IReadOnlyCollection<TaskId> taskIds, CancellationToken cancellationToken = default)
     {
         if (taskIds.Count == 0)
             return Array.Empty<TimeEntry>();

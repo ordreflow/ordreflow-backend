@@ -18,27 +18,42 @@ public sealed class TimeEntryReviewCoordinator(
 
     private async Task<Result> DecideAsync(Guid entryId, Guid reviewerId, string? reason, bool approve)
     {
-        if (reviewerId == Guid.Empty)
-            return Result.Failure(new Error("ReviewerRequired", "A reviewer is required."));
+        var typedReviewerId = EmployeeId.Create(reviewerId);
+        if (typedReviewerId.IsFailure)
+            return Result.Failure(typedReviewerId.Errors.ToArray());
 
-        var reviewer = await employees.GetWithAccessesAsync(reviewerId);
+        var reviewer = await employees.GetWithAccessesAsync(typedReviewerId.Value);
         if (reviewer is null || !reviewer.CanReviewTimeEntries())
             return Result.Failure(new Error("ReviewForbidden", "An active category reviewer permission is required."));
 
-        if (entryId == Guid.Empty)
-            return Result.Failure(new Error("TimeEntryIdRequired", "A time entry is required."));
+        var typedEntryId = TimeEntryId.Create(entryId);
+        if (typedEntryId.IsFailure)
+            return Result.Failure(typedEntryId.Errors.ToArray());
 
-        var entry = await entries.GetForDecisionAsync(entryId);
+        var entry = await entries.GetForDecisionAsync(typedEntryId.Value);
         if (entry is null)
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
 
         var current = entry.GetCurrentAudit();
-        if (current is null || !await entries.HasReviewerTaskAccessAsync(reviewerId, current.TaskId))
+        if (current is null ||
+            !await entries.HasReviewerTaskAccessAsync(typedReviewerId.Value, current.TaskId))
             return Result.Failure(new Error("ReviewScopeForbidden", "The reviewer is not assigned to this category."));
 
         var reviewedAtUtc = clock.GetUtcNow().UtcDateTime;
         return approve
-            ? entry.Approve(reviewerId, reviewedAtUtc, policy.AllowSelfReview)
-            : entry.Reject(reviewerId, reason, reviewedAtUtc, policy.AllowSelfReview);
+            ? entry.Approve(typedReviewerId.Value, reviewedAtUtc, policy)
+            : RejectEntry(entry, typedReviewerId.Value, reason, reviewedAtUtc);
+    }
+
+    private Result RejectEntry(
+        Domain.Aggregate.TimeEntry entry,
+        EmployeeId reviewerId,
+        string? reason,
+        DateTime reviewedAtUtc)
+    {
+        var rejectionReason = RejectionReason.Create(reason);
+        return rejectionReason.IsFailure
+            ? Result.Failure(rejectionReason.Errors.ToArray())
+            : entry.Reject(reviewerId, rejectionReason.Value, reviewedAtUtc, policy);
     }
 }

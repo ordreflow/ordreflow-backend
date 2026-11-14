@@ -13,9 +13,9 @@ public sealed class Catagory
 {
     private readonly List<Task> _tasks = new();
     
-    public Guid Id { get; set; }
-    public Guid CreatedBy { get; set; }
-    public Guid DepartmentId { get; set; }
+    public CatagoryId Id { get; private set; } = null!;
+    public EmployeeId CreatedBy { get; private set; } = null!;
+    public DepartmentId DepartmentId { get; private set; } = null!;
     public string Name { get; set; } = null!;
     public string? Description { get; set; }
     public CatagoryStatus Status { get; set; }

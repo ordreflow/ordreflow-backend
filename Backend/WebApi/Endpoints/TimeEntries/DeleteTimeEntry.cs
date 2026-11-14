@@ -11,7 +11,7 @@ namespace WebAPI.endpoints.TimeEntries;
 
 /// <summary>
 /// Deletes an editable time entry belonging to the authenticated employee.
-/// Only Draft or Returned entries can be deleted; accepted/finalized entries
+/// Only Draft or Rejected entries can be deleted; approved/closed entries
 /// are preserved for auditability.
 /// </summary>
 public sealed class DeleteTimeEntry(
@@ -20,7 +20,7 @@ public sealed class DeleteTimeEntry(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
+    [Authorize(Policy = AuthorizationPolicies.Employee)]
     [HttpDelete("time_entries/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]

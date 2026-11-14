@@ -10,10 +10,10 @@ namespace Domain.Aggregate;
 
 public sealed class RegistrationPeriodMode
 {
-    public Guid Id { get; private set; }
+    public RegistrationPeriodModeId Id { get; private set; } = null!;
     
     // Who set the configuration
-    public Guid AdminId { get; private set; }
+    public EmployeeId AdminId { get; private set; } = null!;
     
     // What is the setting set to, check the different values in ValueObjects.RegistrationInterval.cs
     public RegistrationInterval Interval { get; private set; }
@@ -30,11 +30,11 @@ public sealed class RegistrationPeriodMode
     }
 
     public static Result<RegistrationPeriodMode> Create(
-        Guid adminId,
+        EmployeeId adminId,
         RegistrationInterval interval,
         int? dayInMonth)
     {
-        if (adminId == Guid.Empty)
+        if (adminId is null)
             return Result<RegistrationPeriodMode>.Failure(new Error("AdminRequired", "An administrator is required."));
 
         if (!Enum.IsDefined(interval))
@@ -45,11 +45,56 @@ public sealed class RegistrationPeriodMode
 
         return Result<RegistrationPeriodMode>.Success(new RegistrationPeriodMode
         {
-            Id = Guid.NewGuid(),
+            Id = RegistrationPeriodModeId.New(),
             AdminId = adminId,
             Interval = interval,
             DayInMonth = dayInMonth,
             CreatedDate = DateTime.UtcNow
         });
+    }
+
+    public Result<WorkDatePeriod> GetPermittedWorkDates(DateOnly today)
+    {
+        if (today == default)
+            return Result<WorkDatePeriod>.Failure(
+                new Error("CurrentDateRequired", "The current date is required."));
+
+        DateOnly from;
+        DateOnly through;
+        switch (Interval)
+        {
+            case RegistrationInterval.Daily:
+                from = through = today;
+                break;
+            case RegistrationInterval.Weekly:
+                from = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+                through = from.AddDays(6);
+                break;
+            case RegistrationInterval.Monthy:
+                from = new DateOnly(today.Year, today.Month, 1);
+                through = from.AddMonths(1).AddDays(-1);
+                break;
+            case RegistrationInterval.DayInMonth when DayInMonth is >= 1 and <= 28:
+                var thisMonthAnchor = new DateOnly(today.Year, today.Month, DayInMonth.Value);
+                from = today >= thisMonthAnchor
+                    ? thisMonthAnchor
+                    : thisMonthAnchor.AddMonths(-1);
+                through = from.AddMonths(1).AddDays(-1);
+                break;
+            case RegistrationInterval.DayInMonth:
+                return Result<WorkDatePeriod>.Failure(
+                    new Error("InvalidRegistrationPeriod", "A valid day of month is required for this interval."));
+            default:
+                return Result<WorkDatePeriod>.Failure(
+                    new Error("InvalidInterval", "The registration interval is invalid."));
+        }
+
+        var firstDate = WorkDate.Create(from);
+        var lastDate = WorkDate.Create(through);
+        if (firstDate.IsFailure || lastDate.IsFailure)
+            return Result<WorkDatePeriod>.Failure(
+                (firstDate.IsFailure ? firstDate.Errors : lastDate.Errors).ToArray());
+
+        return WorkDatePeriod.Create(firstDate.Value, lastDate.Value);
     }
 }

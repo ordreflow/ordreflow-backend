@@ -1,3 +1,5 @@
+using Domain.ValueObjects;
+
 namespace Domain.Entities;
 
 /*  Summary
@@ -7,7 +9,7 @@ namespace Domain.Entities;
  */
 public sealed class DepartmentManager
 {
-    public Guid DepartmentId { get; set; }
+    public DepartmentId DepartmentId { get; set; } = null!;
     // Employee that is assigned as Department manager
-    public Guid ManagerId { get; set; }
+    public EmployeeId ManagerId { get; set; } = null!;
 }

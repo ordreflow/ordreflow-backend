@@ -1,3 +1,5 @@
+using Domain.ValueObjects;
+
 namespace Domain.Aggregate;
 
 /*  Summary
@@ -10,9 +12,9 @@ namespace Domain.Aggregate;
 public sealed class Department
 {
     private readonly List<Catagory> _catagories = new();
-    
-    public Guid Id { get; set; }
-    public string Name { get; set; }
+
+    public DepartmentId Id { get; private set; } = null!;
+    public string Name { get; private set; } = null!;
     public IReadOnlyCollection<Catagory> Catagories => _catagories.AsReadOnly();
 }
 

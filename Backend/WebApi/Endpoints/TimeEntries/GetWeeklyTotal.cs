@@ -13,7 +13,7 @@ public sealed class GetWeeklyTotal(
     IQueryDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
+    [Authorize(Policy = AuthorizationPolicies.Employee)]
     [HttpGet("time_entries/weekly-total")]
     public override async Task<IResult> HandleAsync( [FromQuery] ViewTimeEntriesRequest request)
     {
@@ -27,7 +27,7 @@ public sealed class GetWeeklyTotal(
                 request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue)));
 
         if (result.IsFailure)
-            return TypedResults.BadRequest(result.Errors);
+            return result.Errors.ToErrorResult();
 
         return TypedResults.Ok(new WeeklyTotalResponse(
             request.FromDate,

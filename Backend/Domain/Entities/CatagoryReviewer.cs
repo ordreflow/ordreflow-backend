@@ -1,3 +1,5 @@
+using Domain.ValueObjects;
+
 namespace Domain.Entities;
 
 /*
@@ -8,6 +10,6 @@ namespace Domain.Entities;
  */
 public sealed class CatagoryReviewer
 {
-    public Guid EmployeeId { get; set; }
-    public Guid CatagoryId { get; set; }
+    public EmployeeId EmployeeId { get; set; } = null!;
+    public CatagoryId CatagoryId { get; set; } = null!;
 }
