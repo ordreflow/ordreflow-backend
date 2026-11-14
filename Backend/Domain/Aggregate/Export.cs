@@ -1,4 +1,5 @@
 using Domain.Entities;
+using Domain.ValueObjects;
 
 namespace Domain.Aggregate;
 
@@ -9,13 +10,13 @@ public sealed class Export
 {
     private readonly List<TimeEntryExport> _timeEntries = new();
     
-    public Guid Id { get; set; }
+    public ExportId Id { get; private set; } = null!;
     // Who exported
-    public Guid ExportedBy { get; set; }
+    public EmployeeId ExportedBy { get; private set; } = null!;
     public DateTime CreatedAt { get; set; }
     //TimeEntries from date
-    public DateOnly DateFrom { get; set; }
+    public DateOnly DateFrom { get; private set; }
     //TimeEntries to date
-    public DateOnly DateTo { get; set; }
+    public DateOnly DateTo { get; private set; }
     public IReadOnlyCollection<TimeEntryExport> TimeEntries => _timeEntries.AsReadOnly();
 }

@@ -10,6 +10,6 @@ namespace Domain.Entities;
 
 public sealed class EmployeeSystemAccess
 {
-    public Guid EmployeeId { get; set; }
+    public EmployeeId EmployeeId { get; set; } = null!;
     public SystemPermission Permission { get; set; }
 }

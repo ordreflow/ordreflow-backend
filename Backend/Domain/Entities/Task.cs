@@ -1,3 +1,4 @@
+using Domain.ValueObjects;
 using TaskStatus = Domain.ValueObjects.TaskStatus;
 
 namespace Domain.Entities;
@@ -8,8 +9,8 @@ namespace Domain.Entities;
  */
 public sealed class Task
 {
-    public Guid Id { get; set; }
-    public Guid CatagoryId { get; set; }
+    public TaskId Id { get; set; } = null!;
+    public CatagoryId CatagoryId { get; set; } = null!;
     public TaskStatus Status { get; set; }
     public string Name { get; set; } = null!;
     public string? Description { get; set; }

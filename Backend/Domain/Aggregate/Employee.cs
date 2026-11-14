@@ -11,7 +11,7 @@ public sealed class Employee
 {
     private readonly List<EmployeeSystemAccess> _accesses = new();
     
-    public Guid Id { get; set; }
+    public EmployeeId Id { get; private set; } = null!;
     public string Name { get; set; } = null!;
     public string Email { get; set; } = null!;
     
@@ -34,7 +34,7 @@ public sealed class Employee
 
         var employee = new Employee
         {
-            Id = Guid.NewGuid(),
+            Id = EmployeeId.New(),
             Name = name.Trim(),
             Email = email.Trim(),
             Status = EmployeeStatus.Active,
@@ -54,7 +54,7 @@ public sealed class Employee
 
     public Result GrantPermission(SystemPermission permission)
     {
-        if (Id == Guid.Empty)
+        if (Id is null)
             return Result.Failure(new Error("EmployeeIdRequired", "An employee ID is required."));
         if (!Enum.IsDefined(permission))
             return Result.Failure(new Error("InvalidSystemPermission", "The permission is invalid."));

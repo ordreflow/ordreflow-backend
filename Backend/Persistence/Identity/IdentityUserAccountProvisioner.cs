@@ -14,12 +14,13 @@ public class IdentityUserAccountProvisioner(UserManager<ApplicationUser> userMan
         string email,
         string password)
     {
-        if (employeeId == Guid.Empty || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        var typedEmployeeId = EmployeeId.Create(employeeId);
+        if (typedEmployeeId.IsFailure || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             return Result.Failure(new Error("InvalidAccount", "A valid employee, email and password are required."));
 
-        var employee = context.Employees.Local.FirstOrDefault(value => value.Id == employeeId)
+        var employee = context.Employees.Local.FirstOrDefault(value => value.Id == typedEmployeeId.Value)
             ?? await context.Employees.Include(value => value.Accesses)
-                .SingleOrDefaultAsync(value => value.Id == employeeId);
+                .SingleOrDefaultAsync(value => value.Id == typedEmployeeId.Value);
         if (employee is null || !employee.HasPermission(SystemPermission.Employee))
             return Result.Failure(new Error("EmployeeAccessForbidden", "An active employee account is required."));
         if (!string.Equals(employee.Email, email, StringComparison.OrdinalIgnoreCase))
@@ -27,7 +28,7 @@ public class IdentityUserAccountProvisioner(UserManager<ApplicationUser> userMan
 
         var account = new ApplicationUser
         {
-            EmployeeId = employeeId,
+            EmployeeId = typedEmployeeId.Value,
             UserName = email,
             Email = email
         };

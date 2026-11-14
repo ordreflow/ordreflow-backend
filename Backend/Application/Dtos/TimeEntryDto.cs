@@ -7,4 +7,5 @@ public sealed record TimeEntryDto(
     decimal Hours,
     string? Comment,
     Guid EmployeeId,
-    string Status);
+    string Status,
+    string? RejectionReason = null);

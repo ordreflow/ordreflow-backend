@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Domain.Aggregate;
 using Domain.Entities;
+using Domain.ValueObjects;
 using Persistence.Identity;
 using Task = Domain.Entities.Task;
 
@@ -33,6 +34,25 @@ public class AppDbContext : IdentityUserContext<ApplicationUser, Guid>
     public DbSet<CatagoryReviewer> CatagoryReviewers => Set<CatagoryReviewer>();
     public DbSet<AccessPrivilege> AccessPrivileges => Set<AccessPrivilege>();
     public DbSet<AccessTask> AccessTasks => Set<AccessTask>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+
+        configurationBuilder.Properties<EmployeeId>().HaveConversion<EmployeeIdValueConverter>();
+        configurationBuilder.Properties<DepartmentId>().HaveConversion<DepartmentIdValueConverter>();
+        configurationBuilder.Properties<CatagoryId>().HaveConversion<CatagoryIdValueConverter>();
+        configurationBuilder.Properties<TaskId>().HaveConversion<TaskIdValueConverter>();
+        configurationBuilder.Properties<TimeEntryId>().HaveConversion<TimeEntryIdValueConverter>();
+        configurationBuilder.Properties<TimeEntryAuditId>().HaveConversion<TimeEntryAuditIdValueConverter>();
+        configurationBuilder.Properties<TimeEntryReviewId>().HaveConversion<TimeEntryReviewIdValueConverter>();
+        configurationBuilder.Properties<RegistrationPeriodModeId>().HaveConversion<RegistrationPeriodModeIdValueConverter>();
+        configurationBuilder.Properties<AccessPrivilegeId>().HaveConversion<AccessPrivilegeIdValueConverter>();
+        configurationBuilder.Properties<ExportId>().HaveConversion<ExportIdValueConverter>();
+        configurationBuilder.Properties<WorkDate>().HaveConversion<WorkDateValueConverter>();
+        configurationBuilder.Properties<WorkDuration>().HaveConversion<WorkDurationValueConverter>();
+        configurationBuilder.Properties<WorkDescription>().HaveConversion<WorkDescriptionValueConverter>();
+    }
 
     protected override void OnModelCreating(
         ModelBuilder modelBuilder)

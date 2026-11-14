@@ -1,39 +1,20 @@
 ﻿using Application.Commands;
+using Application.Interfaces;
 using Core.Tools.OperationResult;
-using Domain.Entities;
 using Domain.Interfaces;
-using Domain.Services;
 using Domain.Aggregate;
 using Domain.ValueObjects;
 
 namespace Application.Handlers;
 
-public class CreateTimeEntryHandler : ICommandHandler<CreateTimeEntryCommand>
+public sealed class CreateTimeEntryHandler(
+    ITimeEntryRepository timeEntryRepository,
+    IRegistrationPeriodModeRepository registrationPeriodModeRepository,
+    IWorkItemEligibilityQuery workItemEligibilityQuery) : ICommandHandler<CreateTimeEntryCommand>
 {
-    private readonly ITimeEntryRepository _timeEntryRepository;
-    private readonly IUserRepository _userRepository;
-    private readonly ITaskRepository _taskRepository;
-    private readonly IOrderRepository _orderRepository;
-    private readonly TimeRegistrationDomainService _registrationService;
-
-    public CreateTimeEntryHandler(
-        ITimeEntryRepository timeEntryRepository,
-        IUserRepository userRepository,
-        ITaskRepository taskRepository,
-        IOrderRepository orderRepository,
-        TimeRegistrationDomainService registrationService)
-    {
-        _timeEntryRepository = timeEntryRepository;
-        _userRepository = userRepository;
-        _taskRepository = taskRepository;
-        _orderRepository = orderRepository;
-        _registrationService = registrationService;
-    }
-
     public async Task<Result> HandleAsync(CreateTimeEntryCommand command)
     {
-      
-      var employeeId = UserId.Create(command.EmployeeId);
+        var employeeId = EmployeeId.Create(command.EmployeeId);
         var taskId = TaskId.Create(command.TaskId);
 
         if (employeeId.IsFailure)
@@ -41,37 +22,43 @@ public class CreateTimeEntryHandler : ICommandHandler<CreateTimeEntryCommand>
         if (taskId.IsFailure)
             return Result.Failure(taskId.Errors.ToArray());
 
-        var employee = await _userRepository.GetAsync(employeeId.Value);
-        if (employee is null)
-            return Result.Failure(new Error("EmployeeNotFound", "The employee was not found."));
+        var workDate = TimeEntryHandlerSupport.ToWorkDate(command.Date);
+        var duration = WorkDuration.Create((double)command.Hours);
+        var description = WorkDescription.Create(command.Comment);
+        var validations = Result.Combine(workDate, duration, description);
+        if (validations.IsFailure)
+            return validations;
 
-        var task = await _taskRepository.GetAsync(taskId.Value);
-        if (task is null || task.OrderId is null)
-            return Result.Failure(new Error("TaskNotFound", "The task was not found."));
+        var permittedWorkItem = await TimeEntryHandlerSupport.GetPermittedWorkItemAsync(
+            workItemEligibilityQuery,
+            employeeId.Value,
+            taskId.Value);
+        if (permittedWorkItem.IsFailure)
+            return Result.Failure(permittedWorkItem.Errors.ToArray());
 
-        var order = await _orderRepository.GetAsync(task.OrderId);
-        if (order is null)
-            return Result.Failure(new Error("OrderNotFound", "The order was not found."));
+        var permittedDates = await TimeEntryHandlerSupport.GetPermittedWorkDatesAsync(
+            registrationPeriodModeRepository,
+            DateOnly.FromDateTime(DateTime.UtcNow));
+        if (permittedDates.IsFailure)
+            return Result.Failure(permittedDates.Errors.ToArray());
 
-        var entryResult = TimeEntry.Create(
+        var recordedAtUtc = DateTime.UtcNow;
+        var entryResult = TimeEntry.Record(
             employeeId.Value,
             taskId.Value,
-            command.Date,
-            command.Hours,
-            command.Comment);
-
+            workDate.Value,
+            duration.Value,
+            description.Value,
+            permittedDates.Value,
+            recordedAtUtc);
         if (entryResult.IsFailure)
             return Result.Failure(entryResult.Errors.ToArray());
 
-        var registrationResult = _registrationService.Register(
-            employee,
-            order,
-            entryResult.Value);
+        var submitted = entryResult.Value.Submit(employeeId.Value, recordedAtUtc.AddMilliseconds(1));
+        if (submitted.IsFailure)
+            return submitted;
 
-        if (registrationResult.IsFailure)
-            return registrationResult;
-
-        await _timeEntryRepository.AddAsync(entryResult.Value);
+        await timeEntryRepository.AddAsync(entryResult.Value);
         return Result.Success();
     }
 }

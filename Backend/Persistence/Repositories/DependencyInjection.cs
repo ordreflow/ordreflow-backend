@@ -16,6 +16,8 @@ public static class DependencyInjection
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
+        services.AddScoped<IRegistrationPeriodModeRepository, RegistrationPeriodModeRepository>();
+        services.AddScoped<IWorkItemEligibilityQuery, WorkItemEligibilityQuery>();
         services.AddScoped<ITopOrdersRepository, TopOrdersRepository>();
         services.AddScoped<IEmployeeAccessRepository, EmployeeAccessRepository>();
         services.AddScoped<IReviewQueueRepository, ReviewQueueRepository>();

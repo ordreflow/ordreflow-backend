@@ -11,24 +11,24 @@ namespace Domain.Entities;
 
 public sealed class TimeEntryAudit
 {
-    public Guid Id { get; private set; }
+    public TimeEntryAuditId Id { get; private set; } = null!;
     
     // which timeentry is the audit for
-    public Guid TimeEntryId { get; private set; }
+    public TimeEntryId TimeEntryId { get; private set; } = null!;
     
     // which employee did the audit
-    public Guid ActorId { get; private set; }
+    public EmployeeId ActorId { get; private set; } = null!;
     
     // if the timeentry is closed, then id for which employee
-    public Guid? ClosedBy { get; private set; }
+    public EmployeeId? ClosedBy { get; private set; }
     
     // which task do the timeentry belong to (by having it here, insted of in timeentry, employees can edit timeentries and move them to other tasks
-    public Guid TaskId { get; private set; }
+    public TaskId TaskId { get; private set; } = null!;
     
     // the date for the time registration
-    public DateOnly WorkDate { get; private set; }
-    public double Duration { get; private set; }
-    public string Description { get; private set; } = null!;
+    public WorkDate WorkDate { get; private set; } = null!;
+    public WorkDuration Duration { get; private set; } = null!;
+    public WorkDescription Description { get; private set; } = null!;
     public TimeEntryStatus Status { get; private set; }
     
     // when was the audit made
@@ -39,32 +39,32 @@ public sealed class TimeEntryAudit
     }
 
     public static Result<TimeEntryAudit> Create(
-        Guid timeEntryId,
-        Guid actorId,
-        Guid taskId,
-        DateOnly workDate,
-        double duration,
-        string description,
+        TimeEntryId timeEntryId,
+        EmployeeId actorId,
+        TaskId taskId,
+        WorkDate workDate,
+        WorkDuration duration,
+        WorkDescription description,
         TimeEntryStatus status,
         DateTime auditTime,
-        Guid? closedBy = null)
+        EmployeeId? closedBy = null)
     {
-        if (timeEntryId == Guid.Empty)
+        if (timeEntryId is null)
             return Result<TimeEntryAudit>.Failure(new Error("TimeEntryIdRequired", "A time entry is required."));
 
-        if (actorId == Guid.Empty)
+        if (actorId is null)
             return Result<TimeEntryAudit>.Failure(new Error("ActorRequired", "An actor is required."));
 
-        if (taskId == Guid.Empty)
+        if (taskId is null)
             return Result<TimeEntryAudit>.Failure(new Error("TaskRequired", "A task is required."));
 
-        if (closedBy == Guid.Empty)
-            return Result<TimeEntryAudit>.Failure(new Error("InvalidCloser", "The closer ID cannot be empty."));
-
-        if (workDate == default)
+        if (workDate is null)
             return Result<TimeEntryAudit>.Failure(new Error("WorkDateRequired", "A work date is required."));
 
-        if (string.IsNullOrWhiteSpace(description))
+        if (duration is null)
+            return Result<TimeEntryAudit>.Failure(new Error("InvalidDuration", "A duration is required."));
+
+        if (description is null)
             return Result<TimeEntryAudit>.Failure(new Error("DescriptionRequired", "A description is required."));
 
         if (!Enum.IsDefined(status))
@@ -75,7 +75,7 @@ public sealed class TimeEntryAudit
 
         return Result<TimeEntryAudit>.Success(new TimeEntryAudit
         {
-            Id = Guid.NewGuid(),
+            Id = TimeEntryAuditId.New(),
             TimeEntryId = timeEntryId,
             ActorId = actorId,
             ClosedBy = closedBy,
