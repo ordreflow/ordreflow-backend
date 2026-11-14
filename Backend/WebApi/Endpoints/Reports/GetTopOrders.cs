@@ -13,7 +13,7 @@ namespace WebAPI.endpoints.Reports;
 public sealed class GetTopOrders(IQueryDispatcher dispatcher)
     : ApiEndpoint.WithRequest<GetTopOrdersRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("reports/top-orders")]
     public override async Task<IResult> HandleAsync(
         [FromQuery] GetTopOrdersRequest request)

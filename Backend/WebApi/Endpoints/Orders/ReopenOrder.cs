@@ -14,7 +14,7 @@ public sealed class ReopenOrder(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPost("orders/{id:guid}/reopen")]
     public override async Task<IResult> HandleAsync(
         [FromRoute] Guid id)

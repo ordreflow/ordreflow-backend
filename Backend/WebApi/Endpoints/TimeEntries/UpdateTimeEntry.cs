@@ -11,7 +11,7 @@ namespace WebAPI.endpoints.TimeEntries;
 public sealed class UpdateTimeEntry(ICommandDispatcher dispatcher)
     : EndpointBase
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPut("time_entries/{id:guid}")]
     public async Task<IResult> HandleAsync(
         [FromRoute] Guid id,

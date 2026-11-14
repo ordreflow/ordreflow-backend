@@ -18,7 +18,7 @@ public sealed class ViewOrders(
         .WithoutRequest
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("orders")]
     public override async Task<IResult> HandleAsync()
     {

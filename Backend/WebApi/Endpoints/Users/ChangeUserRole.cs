@@ -11,7 +11,7 @@ namespace WebAPI.endpoints.Users;
 public sealed class ChangeUserRole(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ChangeUserRoleRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPost("users/{id:guid}/role")]
     public override async Task<IResult> HandleAsync(ChangeUserRoleRequest request)
     {

@@ -28,8 +28,8 @@ public sealed class Login(
         if (result.IsSuccess)
             return TypedResults.Ok(mapper.Map<LoginResponse>(result.Value));
 
-        // Wrong email or password -> 401, valid login for an inactive user -> 403.
-        var statusCode = result.Errors.Any(error => error.Code == "UserInactive")
+        // Invalid credentials -> 401; verified accounts without active employee access -> 403.
+        var statusCode = result.Errors.Any(error => error.Code is "UserInactive" or "AccessForbidden")
             ? StatusCodes.Status403Forbidden
             : StatusCodes.Status401Unauthorized;
 

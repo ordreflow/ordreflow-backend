@@ -18,44 +18,48 @@ public static class IdentitySeeder
         if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
             return;
 
-        var email = EmailAddress.Create(adminEmail);
-        if (email.IsFailure)
+        if (!System.Net.Mail.MailAddress.TryCreate(adminEmail, out var address))
             throw new InvalidOperationException("ADMIN_EMAIL is not a valid email address.");
 
-        var name = PersonName.Create(string.IsNullOrWhiteSpace(adminName) ? "Administrator" : adminName);
-        if (name.IsFailure)
-            throw new InvalidOperationException("ADMIN_NAME is not a valid name.");
+        var email = address.Address;
+        var name = string.IsNullOrWhiteSpace(adminName) ? "Administrator" : adminName.Trim();
 
         using var scope = services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        if (await userManager.FindByEmailAsync(email.Value.Value) is not null)
+        if (await userManager.FindByEmailAsync(email) is not null)
             return;
 
         await using var transaction = await context.Database.BeginTransactionAsync();
 
-        var user = await context.Users.FirstOrDefaultAsync(x => x.Email == email.Value);
-        if (user is null)
+        var employee = await context.Employees.Include(value => value.Accesses)
+            .SingleOrDefaultAsync(value => value.Email == email);
+        if (employee is null)
         {
-            user = User.Create(name.Value, email.Value, UserRole.Admin).Value;
-            context.Users.Add(user);
+            var created = Employee.Create(name, email, DateTime.UtcNow);
+            if (created.IsFailure)
+                throw new InvalidOperationException("The admin employee could not be created.");
+            employee = created.Value;
+            if (employee.GrantPermission(SystemPermission.Administrator).IsFailure)
+                throw new InvalidOperationException("The admin permission could not be granted.");
+            context.Employees.Add(employee);
         }
-        else if (user.Role != UserRole.Admin)
+        else if (!employee.HasPermission(SystemPermission.Employee) ||
+                 !employee.HasPermission(SystemPermission.Administrator))
         {
-            throw new InvalidOperationException("ADMIN_EMAIL belongs to an existing user who is not an admin.");
+            throw new InvalidOperationException("ADMIN_EMAIL belongs to an employee without administrator access.");
         }
 
         var account = new ApplicationUser
         {
-            UserId = user.UserId,
-            UserName = email.Value.Value,
-            Email = email.Value.Value,
+            EmployeeId = employee.Id,
+            UserName = email,
+            Email = email,
             EmailConfirmed = true
         };
 
         EnsureSucceeded(await userManager.CreateAsync(account, adminPassword));
-        EnsureSucceeded(await userManager.AddToRoleAsync(account, IdentityRoles.Admin));
 
         await transaction.CommitAsync();
     }

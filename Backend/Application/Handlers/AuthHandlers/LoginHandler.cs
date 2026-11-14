@@ -11,7 +11,7 @@ namespace Application.Handlers;
 // while ICommandDispatcher only returns a plain Result.
 public sealed class LoginHandler(
     IPasswordVerifier passwordVerifier,
-    IUserRepository userRepository,
+    IEmployeeAccessRepository employees,
     IAccessTokenGenerator tokenGenerator) : IQueryHandler<
         LoginCommand,
         Result<LoginDto>>
@@ -21,23 +21,24 @@ public sealed class LoginHandler(
 
     public async Task<Result<LoginDto>> HandleAsync(LoginCommand command)
     {
-        var email = EmailAddress.Create(command.Email);
-        if (email.IsFailure || string.IsNullOrEmpty(command.Password))
+        if (string.IsNullOrWhiteSpace(command.Email) || string.IsNullOrWhiteSpace(command.Password))
             return Result<LoginDto>.Failure(InvalidCredentials);
 
-        var userId = await passwordVerifier.VerifyAsync(email.Value, command.Password);
-        if (userId is null)
+        var employeeId = await passwordVerifier.VerifyAsync(command.Email.Trim(), command.Password);
+        if (employeeId is null)
             return Result<LoginDto>.Failure(InvalidCredentials);
 
-        var user = await userRepository.GetAsync(userId);
-        if (user is null)
+        var employee = await employees.GetWithAccessesAsync(employeeId.Value);
+        if (employee is null)
             return Result<LoginDto>.Failure(InvalidCredentials);
 
         // Checked after the password, so the status is not revealed to someone without valid credentials.
-        if (user.Status != UserStatus.Active)
+        if (employee.Status != EmployeeStatus.Active)
             return Result<LoginDto>.Failure(new Error("UserInactive", "The user is inactive."));
+        if (!employee.HasPermission(SystemPermission.Employee))
+            return Result<LoginDto>.Failure(new Error("AccessForbidden", "Employee access is required."));
 
-        var token = tokenGenerator.Generate(user);
+        var token = tokenGenerator.Generate(employee);
         return Result<LoginDto>.Success(new LoginDto(token.Value, token.ExpiresAt));
     }
 }

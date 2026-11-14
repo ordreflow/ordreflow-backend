@@ -11,7 +11,7 @@ namespace WebAPI.endpoints.Users;
 public sealed class AssignManager(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<AssignManagerRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPost("users/{id:guid}/manager")]
     public override async Task<IResult> HandleAsync(AssignManagerRequest request)
     {

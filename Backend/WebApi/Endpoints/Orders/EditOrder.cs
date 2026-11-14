@@ -14,7 +14,7 @@ public sealed class EditOrder(
         .WithRequest<UpdateOrderRequest>
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPut("orders/{id:guid}")]
     public override async Task<IResult> HandleAsync(
         UpdateOrderRequest updateOrderRequest)

@@ -16,7 +16,7 @@ public sealed class ViewMyTasks(
     IMapper mapper)
     : EndpointBase
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("tasks/me")]
     public async Task<IResult> HandleAsync()
     {

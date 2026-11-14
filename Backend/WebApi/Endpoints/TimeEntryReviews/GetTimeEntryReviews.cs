@@ -15,7 +15,7 @@ namespace WebAPI.endpoints.TimeEntryReviews;
 public sealed class GetTimeEntryReviews(IQueryDispatcher dispatcher, IMapper mapper)
     : ApiEndpoint.WithRequest<Guid>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("time_entries/{id:guid}/reviews")]
     [ProducesResponseType(typeof(GetTimeEntryReviewsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
