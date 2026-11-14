@@ -6,7 +6,9 @@ using Domain.ValueObjects;
 namespace Application.Handlers;
 
 public sealed class DeleteTimeEntryHandler(
-    ITimeEntryRepository timeEntryRepository) : ICommandHandler<DeleteTimeEntryCommand>
+    ITimeEntryRepository timeEntryRepository,
+    IRegistrationPeriodModeRepository registrationPeriodModeRepository)
+    : ICommandHandler<DeleteTimeEntryCommand>
 {
     public async Task<Result> HandleAsync(DeleteTimeEntryCommand command)
     {
@@ -15,23 +17,25 @@ public sealed class DeleteTimeEntryHandler(
         if (entryIdResult.IsFailure)
             return Result.Failure(entryIdResult.Errors.ToArray());
 
-        var employeeIdResult = UserId.Create(command.EmployeeId);
+        var employeeIdResult = EmployeeId.Create(command.EmployeeId);
 
         if (employeeIdResult.IsFailure)
             return Result.Failure(employeeIdResult.Errors.ToArray());
 
-        var entry = await timeEntryRepository.GetAsync(entryIdResult.Value);
+        var entry = await timeEntryRepository.GetWithHistoryAsync(entryIdResult.Value);
 
         if (entry is null)
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
 
-        var editCheck = entry.CanEdit(employeeIdResult.Value);
+        var permittedDates = await TimeEntryHandlerSupport.GetPermittedWorkDatesAsync(
+            registrationPeriodModeRepository,
+            DateOnly.FromDateTime(DateTime.UtcNow));
+        if (permittedDates.IsFailure)
+            return Result.Failure(permittedDates.Errors.ToArray());
 
-        if (editCheck.IsFailure)
-            return editCheck;
-
-        await timeEntryRepository.RemoveAsync(entryIdResult.Value);
-
-        return Result.Success();
+        return entry.Delete(
+            employeeIdResult.Value,
+            permittedDates.Value,
+            DateTime.UtcNow);
     }
 }

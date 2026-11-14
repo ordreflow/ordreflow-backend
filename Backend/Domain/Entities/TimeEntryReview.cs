@@ -1,5 +1,6 @@
 using Core.Tools.OperationResult;
 using Domain.ValueObjects;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Domain.Entities;
 

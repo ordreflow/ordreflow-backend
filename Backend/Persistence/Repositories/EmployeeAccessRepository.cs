@@ -1,4 +1,5 @@
 using Domain.Aggregate;
+using Domain.ValueObjects;
 using Domain.Interfaces;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;

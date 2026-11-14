@@ -10,30 +10,42 @@ public class TimeEntryRepository(AppDbContext context)
     : GenericRepository<TimeEntry, TimeEntryId>(context),
         ITimeEntryRepository
 {
-    public Task<TimeEntry?> GetWithReviewsAsync(TimeEntryId id) =>
+    public Task<TimeEntry?> GetWithHistoryAsync(TimeEntryId id) =>
         Context.TimeEntries
-            .AsNoTracking()
+            .Include(entry => entry.Audits)
             .Include(entry => entry.Reviews)
             .SingleOrDefaultAsync(entry => entry.Id == id);
 
-    public async Task<IReadOnlyList<TimeEntry>> GetByEmployeeIdAsync(
-        UserId employeeId)
+    public Task<TimeEntry?> GetWithReviewsAsync(TimeEntryId id) =>
+        GetWithHistoryAsync(id);
+
+    public async Task<IReadOnlyList<TimeEntry>> GetByEmployeeIdAsync(EmployeeId employeeId)
     {
         return await Context.TimeEntries
+            .AsNoTracking()
+            .Include(entry => entry.Audits)
+            .Include(entry => entry.Reviews)
             .Where(entry => entry.EmployeeId == employeeId)
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<TimeEntry>> GetByManagerIdAsync(
-        UserId managerId)
+    public async Task<IReadOnlyList<TimeEntry>> GetByManagerIdAsync(Guid managerId)
     {
+        var typedManagerId = EmployeeId.Create(managerId);
+        if (typedManagerId.IsFailure)
+            return Array.Empty<TimeEntry>();
+
+        var departmentIds = Context.DepartmentManagers
+            .Where(item => item.ManagerId == typedManagerId.Value)
+            .Select(item => item.DepartmentId);
         return await Context.TimeEntries
+            .Include(entry => entry.Audits)
             .Join(
-                Context.Users,
+                Context.DepartmentEmployees,
                 entry => entry.EmployeeId,
-                employee => employee.UserId,
-                (entry, employee) => new { entry, employee })
-            .Where(x => x.employee.ManagerId == managerId)
+                membership => membership.EmployeeId,
+                (entry, membership) => new { entry, membership })
+            .Where(x => departmentIds.Contains(x.membership.DepartmentId))
             .Select(x => x.entry)
             .ToListAsync();
     }
@@ -42,16 +54,19 @@ public class TimeEntryRepository(AppDbContext context)
         DateTime from,
         DateTime to)
     {
-        return await Context.TimeEntries
-            .Where(entry =>
-                entry.Date >= from &&
-                entry.Date < to)
+        var entries = await Context.TimeEntries
+            .Include(entry => entry.Audits)
             .ToListAsync();
+        return entries
+            .Where(entry => entry.GetCurrentAudit() is { } audit &&
+                            audit.WorkDate.Value >= DateOnly.FromDateTime(from) &&
+                            audit.WorkDate.Value < DateOnly.FromDateTime(to))
+            .ToArray();
     }
 
     public async Task<bool> ExistsForTaskAsync(TaskId taskId)
     {
-        return await Context.TimeEntries
-            .AnyAsync(entry => entry.TaskId == taskId);
+        return await Context.TimeEntryAudits
+            .AnyAsync(audit => audit.TaskId == taskId);
     }
 }

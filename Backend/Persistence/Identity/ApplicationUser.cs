@@ -2,6 +2,7 @@ namespace Persistence.Identity;
 
 using Domain.ValueObjects;
 using Microsoft.AspNetCore.Identity;
+using Domain.ValueObjects;
 
 // Identity login account for an employee. System permissions live on EmployeeSystemAccess.
 public class ApplicationUser : IdentityUser<Guid>

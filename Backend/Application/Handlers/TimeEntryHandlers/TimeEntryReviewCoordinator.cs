@@ -18,16 +18,18 @@ public sealed class TimeEntryReviewCoordinator(
 
     private async Task<Result> DecideAsync(Guid entryId, Guid reviewerId, string? reason, bool approve)
     {
-        if (reviewerId == Guid.Empty)
-            return Result.Failure(new Error("ReviewerRequired", "A reviewer is required."));
+        var typedReviewerId = EmployeeId.Create(reviewerId);
+        if (typedReviewerId.IsFailure)
+            return Result.Failure(typedReviewerId.Errors.ToArray());
 
         var reviewerKey = EmployeeId.Create(reviewerId).Value;
         var reviewer = await employees.GetWithAccessesAsync(reviewerKey);
         if (reviewer is null || !reviewer.CanReviewTimeEntries())
             return Result.Failure(new Error("ReviewForbidden", "An active category reviewer permission is required."));
 
-        if (entryId == Guid.Empty)
-            return Result.Failure(new Error("TimeEntryIdRequired", "A time entry is required."));
+        var typedEntryId = TimeEntryId.Create(entryId);
+        if (typedEntryId.IsFailure)
+            return Result.Failure(typedEntryId.Errors.ToArray());
 
         var entry = await entries.GetForDecisionAsync(TimeEntryId.Create(entryId).Value);
         if (entry is null)

@@ -14,7 +14,8 @@ public class IdentityUserAccountProvisioner(UserManager<ApplicationUser> userMan
         string email,
         string password)
     {
-        if (employeeId == Guid.Empty || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        var typedEmployeeId = EmployeeId.Create(employeeId);
+        if (typedEmployeeId.IsFailure || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             return Result.Failure(new Error("InvalidAccount", "A valid employee, email and password are required."));
 
         var employeeKey = EmployeeId.Create(employeeId).Value;

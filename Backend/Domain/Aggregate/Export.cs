@@ -15,8 +15,8 @@ public sealed class Export
     public EmployeeId ExportedBy { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
     //TimeEntries from date
-    public DateOnly DateFrom { get; set; }
+    public DateOnly DateFrom { get; private set; }
     //TimeEntries to date
-    public DateOnly DateTo { get; set; }
+    public DateOnly DateTo { get; private set; }
     public IReadOnlyCollection<TimeEntryExport> TimeEntries => _timeEntries.AsReadOnly();
 }

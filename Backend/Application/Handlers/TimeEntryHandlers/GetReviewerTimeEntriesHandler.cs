@@ -17,9 +17,10 @@ public sealed class GetReviewerTimeEntriesHandler(
     public async Task<Result<IReadOnlyList<TimeEntryDto>>> HandleAsync(
         GetReviewerTimeEntriesQuery query)
     {
-        if (query.ReviewerId == Guid.Empty)
+        var reviewerId = EmployeeId.Create(query.ReviewerId);
+        if (reviewerId.IsFailure)
             return Result<IReadOnlyList<TimeEntryDto>>.Failure(
-                new Error("ReviewerRequired", "A reviewer is required."));
+                reviewerId.Errors.ToArray());
 
         var reviewer = await employeeAccessRepository.GetWithAccessesAsync(EmployeeId.Create(query.ReviewerId).Value);
         if (reviewer is null || !reviewer.CanReviewTimeEntries())

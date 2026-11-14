@@ -22,7 +22,7 @@ public sealed class AccessPrivilege
     public DateTime IssuedAtUtc { get; set; }
     
     //How long back in date the employee can go to edit timeregistrations
-    public DateOnly EarliestWorkDate { get; set; }
+    public DateOnly EarliestWorkDate { get; private set; }
     
     //When the accessprivilege expires
     public DateTime ExpiresAtUtc { get; set; }

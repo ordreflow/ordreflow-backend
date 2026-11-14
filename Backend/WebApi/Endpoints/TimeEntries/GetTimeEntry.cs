@@ -13,7 +13,7 @@ using WebAPI.Authentication;
 namespace WebAPI.endpoints.TimeEntries;
 
 /// <summary>
-/// Gets one time entry, subject to owner/manager/admin authorization.
+/// Gets one time entry owned by the authenticated employee.
 /// </summary>
 public sealed class GetTimeEntry(
     IQueryDispatcher dispatcher,
@@ -22,7 +22,7 @@ public sealed class GetTimeEntry(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
+    [Authorize(Policy = AuthorizationPolicies.Employee)]
     [HttpGet("time_entries/{id:guid}")]
     [ProducesResponseType(typeof(TimeEntryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]
