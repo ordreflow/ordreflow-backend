@@ -54,7 +54,45 @@ public sealed class ReviewDecisionDomainTests
         Assert.True(valid.IsSuccess);
         Assert.Equal(TimeEntryStatus.Rejected, entry.GetCurrentAudit()!.Status);
         Assert.Equal("Fix the date", Assert.Single(entry.Reviews).Description!.Value);
+        Assert.Equal("Fix the date", entry.CurrentRejectionReason?.Value);
         Assert.Equal(Reviewed, Assert.Single(entry.Reviews).ReviewedAtUtc);
+    }
+
+    [Fact]
+    public void Resubmitting_keeps_review_history_but_clears_current_rejection_reason()
+    {
+        var employeeId = EmployeeId.Create(Guid.NewGuid()).Value;
+        var entry = NewEntry(employeeId, TaskId.Create(Guid.NewGuid()).Value);
+        var reviewerId = EmployeeId.Create(Guid.NewGuid()).Value;
+        Assert.True(entry.Reject(reviewerId, "Fix the date", Reviewed, allowSelfReview: false).IsSuccess);
+        var date = entry.CurrentWorkDate!;
+        var period = WorkDatePeriod.Create(date, date).Value;
+
+        var result = entry.Resubmit(employeeId, period, Reviewed.AddMinutes(1));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TimeEntryStatus.ReadyForApproval, entry.CurrentStatus);
+        Assert.Null(entry.CurrentRejectionReason);
+        Assert.Equal("Fix the date", Assert.Single(entry.Reviews).Description!.Value);
+    }
+
+    [Fact]
+    public void Approved_entry_cannot_be_edited_or_deleted_even_in_an_open_period()
+    {
+        var employeeId = EmployeeId.Create(Guid.NewGuid()).Value;
+        var entry = NewEntry(employeeId, TaskId.Create(Guid.NewGuid()).Value);
+        Assert.True(entry.Approve(EmployeeId.Create(Guid.NewGuid()).Value, Reviewed, allowSelfReview: false).IsSuccess);
+        var current = entry.GetCurrentAudit()!;
+        var period = WorkDatePeriod.Create(current.WorkDate, current.WorkDate).Value;
+
+        var change = entry.Change(employeeId, current.WorkDate, Duration.Create(4m).Value,
+            current.Description, period, Reviewed.AddMinutes(1));
+        var delete = entry.Delete(employeeId, period, Reviewed.AddMinutes(1));
+
+        Assert.Equal("TimeEntryNotEditable", Assert.Single(change.Errors).Code);
+        Assert.Equal("TimeEntryNotEditable", Assert.Single(delete.Errors).Code);
+        Assert.Equal(TimeEntryStatus.Approved, entry.CurrentStatus);
+        Assert.Equal(2, entry.Revision);
     }
 
     [Fact]

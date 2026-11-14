@@ -37,7 +37,7 @@ public sealed class GetTimeEntryReviewsHandler(
                 review.Id.Value,
                 review.TimeEntryId.Value,
                 review.Status.ToString(),
-                review.RejectionReason?.Value,
+                review.Description?.Value,
                 review.ReviewedAtUtc))
             .ToArray();
 

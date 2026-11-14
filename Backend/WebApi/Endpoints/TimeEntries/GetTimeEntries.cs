@@ -23,6 +23,10 @@ public sealed class GetTimeEntries(
         if (!HttpContext.TryGetCurrentUserId(out var employeeId))
             return TypedResults.Unauthorized();
 
+        if (request.FromDate == default || request.ToDate == DateOnly.MaxValue ||
+            request.ToDate < request.FromDate)
+            return new[] { new Error("InvalidDateRange", "A valid date range with an exclusive end boundary is required.") }.ToErrorResult();
+
         var result = await dispatcher.DispatchAsync<GetMyTimeEntriesForWeekQuery, Result<IReadOnlyList<TimeEntryDto>>>(
             new GetMyTimeEntriesForWeekQuery(
                 employeeId,

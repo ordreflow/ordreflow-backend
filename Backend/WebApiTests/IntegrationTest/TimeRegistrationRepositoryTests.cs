@@ -68,10 +68,13 @@ public sealed class TimeRegistrationRepositoryTests
         context.Departments.Add(department);
         context.Catagories.Add(catagory);
         context.Tasks.Add(task);
+        context.RegistrationPeriodModes.Add(
+            RegistrationPeriodMode.Create(employee.Id, RegistrationInterval.Weekly, null).Value);
         await context.SaveChangesAsync();
 
         var handler = new CreateTimeEntryHandler(new EmployeeAccessRepository(context),
-            new TimeRegistrationRepository(context), TimeProvider.System);
+            new TimeRegistrationRepository(context), new RegistrationPeriodModeRepository(context),
+            new RegistrationClock(), TimeZoneInfo.Utc);
         var result = await handler.HandleAsync(new CreateTimeEntryCommand(
             employee.Id.Value, task.Id.Value, new DateTime(2026, 11, 14), 3.5m, null));
         Assert.True(result.IsSuccess);
@@ -82,12 +85,18 @@ public sealed class TimeRegistrationRepositoryTests
         Assert.Equal(employee.Id, saved.EmployeeId);
         Assert.Equal(1, saved.Revision);
         var audit = Assert.Single(saved.Audits);
-        Assert.Equal(TimeEntryStatus.Draft, audit.Status);
+        Assert.Equal(TimeEntryStatus.ReadyForApproval, audit.Status);
         Assert.Equal(task.Id, audit.TaskId);
         Assert.Equal(employee.Id, audit.ActorId);
         Assert.Equal(new DateOnly(2026, 11, 14), audit.WorkDate.Value);
         Assert.Equal(3.5m, audit.Duration.Value);
         Assert.Equal(string.Empty, audit.Description.Value);
+    }
+
+    private sealed class RegistrationClock : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() =>
+            new(2026, 11, 14, 12, 0, 0, TimeSpan.Zero);
     }
 
     private static async Task<AppDbContext> CreateContextAsync(SqliteConnection connection)

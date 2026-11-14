@@ -31,7 +31,7 @@ public sealed class CreateTimeEntryHandlerTests
     }
 
     [Fact]
-    public async Task Active_employee_creates_draft_entry_with_initial_utc_audit_on_general_task()
+    public async Task Active_employee_creates_ready_entry_with_initial_utc_audit_on_general_task()
     {
         var employee = Employee();
         var work = Work();
@@ -50,7 +50,7 @@ public sealed class CreateTimeEntryHandlerTests
         Assert.Equal(new DateOnly(2026, 11, 14), audit.WorkDate.Value);
         Assert.Equal(2.5m, audit.Duration.Value);
         Assert.Equal(string.Empty, audit.Description.Value);
-        Assert.Equal(TimeEntryStatus.Draft, audit.Status);
+        Assert.Equal(TimeEntryStatus.ReadyForApproval, audit.Status);
         Assert.Equal(DateTimeKind.Utc, audit.AuditTime.Kind);
         Assert.Equal(0, work.MembershipLookups);
     }
@@ -150,8 +150,78 @@ public sealed class CreateTimeEntryHandlerTests
         }
     }
 
+    [Fact]
+    public async Task Registration_outside_the_open_period_is_not_added()
+    {
+        var employee = Employee();
+        var work = Work();
+
+        var result = await Handler(employee, work).HandleAsync(
+            Command(employee.Id, work.WorkItem.Id) with { Date = new DateTime(2026, 11, 8) });
+
+        Assert.Equal("WorkDateNotPermitted", Assert.Single(result.Errors).Code);
+        Assert.Null(work.Added);
+    }
+
+    [Fact]
+    public async Task Missing_period_configuration_does_not_allow_registration()
+    {
+        var employee = Employee();
+        var work = Work();
+        var handler = new CreateTimeEntryHandler(new FakeEmployeeRepository(employee), work,
+            new FakePeriodRepository(null), new FixedTimeProvider(), TimeZoneInfo.Utc);
+
+        var result = await handler.HandleAsync(Command(employee.Id, work.WorkItem.Id));
+
+        Assert.Equal("RegistrationPeriodNotConfigured", Assert.Single(result.Errors).Code);
+        Assert.Null(work.Added);
+    }
+
+    [Fact]
+    public async Task Registration_period_uses_company_local_date_and_audit_keeps_utc()
+    {
+        var employee = Employee();
+        var work = Work();
+        var period = RegistrationPeriodMode.Create(employee.Id, RegistrationInterval.Daily, null).Value;
+        var zone = TimeZoneInfo.CreateCustomTimeZone("TestCompany", TimeSpan.FromHours(2), "TestCompany", "TestCompany");
+        var instant = new DateTimeOffset(2026, 11, 14, 23, 30, 0, TimeSpan.Zero);
+        var handler = new CreateTimeEntryHandler(new FakeEmployeeRepository(employee), work,
+            new FakePeriodRepository(period), new FixedTimeProvider(instant), zone);
+
+        var result = await handler.HandleAsync(
+            Command(employee.Id, work.WorkItem.Id) with { Date = new DateTime(2026, 11, 15) });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(instant.UtcDateTime, work.Added!.GetCurrentAudit()!.AuditTime);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Newly_registered_entry_can_be_reviewed_without_a_submit_step(bool approve)
+    {
+        var employee = Employee();
+        var work = Work();
+        Assert.True((await Handler(employee, work).HandleAsync(Command(employee.Id, work.WorkItem.Id))).IsSuccess);
+        var entry = work.Added!;
+        var reviewer = EmployeeId.Create(Guid.NewGuid()).Value;
+        var reviewedAt = entry.GetCurrentAudit()!.AuditTime.AddMinutes(1);
+
+        var decision = approve
+            ? entry.Approve(reviewer, reviewedAt, allowSelfReview: false)
+            : entry.Reject(reviewer, "Please correct", reviewedAt, allowSelfReview: false);
+
+        Assert.True(decision.IsSuccess);
+        Assert.Equal(approve ? TimeEntryStatus.Approved : TimeEntryStatus.Rejected, entry.CurrentStatus);
+        Assert.Equal(approve ? null : "Please correct", entry.CurrentRejectionReason?.Value);
+        Assert.Equal(2, entry.Revision);
+        Assert.Single(entry.Reviews);
+    }
+
     private static CreateTimeEntryHandler Handler(Employee employee, FakeRegistrationRepository work) =>
-        new(new FakeEmployeeRepository(employee), work, new FixedTimeProvider());
+        new(new FakeEmployeeRepository(employee), work,
+            new FakePeriodRepository(RegistrationPeriodMode.Create(employee.Id, RegistrationInterval.Weekly, null).Value),
+            new FixedTimeProvider(), TimeZoneInfo.Utc);
 
     private static CreateTimeEntryCommand Command(EmployeeId employeeId, TaskId taskId) =>
         new(employeeId.Value, taskId.Value, new DateTime(2026, 11, 14), 2.5m, "Work");
@@ -175,10 +245,16 @@ public sealed class CreateTimeEntryHandlerTests
         }, category);
     }
 
-    private sealed class FixedTimeProvider : TimeProvider
+    private sealed class FixedTimeProvider(DateTimeOffset? instant = null) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() =>
-            new(2026, 11, 14, 12, 0, 0, TimeSpan.Zero);
+            instant ?? new DateTimeOffset(2026, 11, 14, 12, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class FakePeriodRepository(RegistrationPeriodMode? mode) : IRegistrationPeriodModeRepository
+    {
+        public Task<RegistrationPeriodMode?> GetCurrentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(mode);
     }
 
     private sealed class FakeEmployeeRepository(Employee employee) : IEmployeeAccessRepository

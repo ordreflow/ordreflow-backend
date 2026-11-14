@@ -19,7 +19,7 @@ public sealed class RegistrationPeriodMode
     public RegistrationInterval Interval { get; private set; }
     
     // If DayInMonth is selected in Interval, which day is it. it can be a day between 1st and 28th in a month.
-    // If for example the day was 18, then an Interval would the from 18th to 17th next month
+    // If the cutoff is 18, the period runs from the 19th through the next 18th.
     public CutoffDay? DayInMonth { get; private set; }
     
     // When was the configuration made
@@ -48,6 +48,13 @@ public sealed class RegistrationPeriodMode
                 return Result<RegistrationPeriodMode>.Failure(parsedDay.Errors.ToArray());
             cutoffDay = parsedDay.Value;
         }
+
+        if (interval == RegistrationInterval.DayInMonth && cutoffDay is null)
+            return Result<RegistrationPeriodMode>.Failure(
+                new Error("InvalidDayInMonth", "A cutoff day is required for a custom monthly period."));
+        if (interval != RegistrationInterval.DayInMonth && cutoffDay is not null)
+            return Result<RegistrationPeriodMode>.Failure(
+                new Error("InvalidDayInMonth", "A cutoff day is only valid for a custom monthly period."));
 
         return Result<RegistrationPeriodMode>.Success(new RegistrationPeriodMode
         {
@@ -80,12 +87,10 @@ public sealed class RegistrationPeriodMode
                 from = new DateOnly(today.Year, today.Month, 1);
                 through = from.AddMonths(1).AddDays(-1);
                 break;
-            case RegistrationInterval.DayInMonth when DayInMonth is >= 1 and <= 28:
-                var thisMonthAnchor = new DateOnly(today.Year, today.Month, DayInMonth.Value);
-                from = today >= thisMonthAnchor
-                    ? thisMonthAnchor
-                    : thisMonthAnchor.AddMonths(-1);
-                through = from.AddMonths(1).AddDays(-1);
+            case RegistrationInterval.DayInMonth when DayInMonth is not null:
+                var cutoff = new DateOnly(today.Year, today.Month, DayInMonth.Value);
+                through = today <= cutoff ? cutoff : cutoff.AddMonths(1);
+                from = through.AddMonths(-1).AddDays(1);
                 break;
             case RegistrationInterval.DayInMonth:
                 return Result<WorkDatePeriod>.Failure(

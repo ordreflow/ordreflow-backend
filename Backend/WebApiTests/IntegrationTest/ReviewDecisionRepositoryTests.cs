@@ -13,8 +13,11 @@ namespace WebApiTests.IntegrationTest;
 
 public sealed class ReviewDecisionRepositoryTests
 {
-    [Fact]
-    public async Task Scope_uses_the_task_category_and_a_second_review_of_the_same_version_conflicts()
+    [Theory]
+    [InlineData("review")]
+    [InlineData("edit")]
+    [InlineData("delete")]
+    public async Task Scope_uses_the_task_category_and_a_stale_write_cannot_overwrite_approval(string competingAction)
     {
         using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -81,7 +84,16 @@ public sealed class ReviewDecisionRepositoryTests
         Assert.Single(first.Audits);
         Assert.Empty(first.Reviews);
         Assert.True(first.Approve(reviewer.Id, initialTime.AddMinutes(1), allowSelfReview: true).IsSuccess);
-        Assert.True(second.Reject(reviewer.Id, "Incorrect hours", initialTime.AddMinutes(2), allowSelfReview: true).IsSuccess);
+        var current = second.GetCurrentAudit()!;
+        var period = WorkDatePeriod.Create(current.WorkDate, current.WorkDate).Value;
+        var competingWrite = competingAction switch
+        {
+            "edit" => second.Change(worker.Id, current.WorkDate, Duration.Create(4m).Value,
+                current.Description, period, initialTime.AddMinutes(2)),
+            "delete" => second.Delete(worker.Id, period, initialTime.AddMinutes(2)),
+            _ => second.Reject(reviewer.Id, "Incorrect hours", initialTime.AddMinutes(2), allowSelfReview: true)
+        };
+        Assert.True(competingWrite.IsSuccess);
 
         await new UnitOfWork(firstContext).SaveChangesAsync();
         await Assert.ThrowsAsync<ConcurrentTimeEntryException>(

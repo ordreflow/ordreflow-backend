@@ -11,7 +11,7 @@ namespace WebAPI.endpoints.TimeEntries;
 
 /// <summary>
 /// Deletes an editable time entry belonging to the authenticated employee.
-/// Only Draft or Rejected entries can be deleted; approved/closed entries
+/// Draft, ReadyForApproval, and Rejected entries can be deleted; approved/closed entries
 /// are preserved for auditability.
 /// </summary>
 public sealed class DeleteTimeEntry(

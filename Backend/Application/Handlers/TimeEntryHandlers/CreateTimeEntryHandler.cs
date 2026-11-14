@@ -1,8 +1,6 @@
 ﻿using Application.Commands;
-using Application.Interfaces;
 using Core.Tools.OperationResult;
 using Domain.Aggregate;
-using Domain.Entities;
 using Domain.Interfaces;
 using Domain.ValueObjects;
 
@@ -11,7 +9,9 @@ namespace Application.Handlers;
 public sealed class CreateTimeEntryHandler(
     IEmployeeAccessRepository employees,
     ITimeRegistrationRepository registration,
-    TimeProvider clock) : ICommandHandler<CreateTimeEntryCommand>
+    IRegistrationPeriodModeRepository periods,
+    TimeProvider clock,
+    TimeZoneInfo companyTimeZone) : ICommandHandler<CreateTimeEntryCommand>
 {
     public async Task<Result> HandleAsync(CreateTimeEntryCommand command)
     {
@@ -52,14 +52,15 @@ public sealed class CreateTimeEntryHandler(
         if (access.IsFailure)
             return access;
 
-        var entryId = TimeEntryId.Create(Guid.NewGuid()).Value;
-        var audit = TimeEntryAudit.Create(
-            entryId, employee.Id, task.Id, workDate.Value, duration.Value,
-            description.Value, TimeEntryStatus.Draft, clock.GetUtcNow().UtcDateTime);
-        if (audit.IsFailure)
-            return Result.Failure(audit.Errors.ToArray());
+        var now = clock.GetUtcNow();
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, companyTimeZone).DateTime);
+        var permittedDates = await TimeEntryHandlerSupport.GetPermittedWorkDatesAsync(periods, today);
+        if (permittedDates.IsFailure)
+            return Result.Failure(permittedDates.Errors.ToArray());
 
-        var entry = TimeEntry.Create(employee.Id, audit.Value);
+        var entry = TimeEntry.Record(
+            employee.Id, task.Id, workDate.Value, duration.Value,
+            description.Value, permittedDates.Value, now.UtcDateTime);
         if (entry.IsFailure)
             return Result.Failure(entry.Errors.ToArray());
 

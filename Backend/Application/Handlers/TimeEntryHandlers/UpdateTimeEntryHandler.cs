@@ -7,7 +7,9 @@ namespace Application.Handlers;
 
 public sealed class UpdateTimeEntryHandler(
     ITimeEntryRepository repository,
-    IRegistrationPeriodModeRepository registrationPeriodModeRepository)
+    IRegistrationPeriodModeRepository registrationPeriodModeRepository,
+    TimeProvider clock,
+    TimeZoneInfo companyTimeZone)
     : ICommandHandler<UpdateTimeEntryCommand>
 {
     public async Task<Result> HandleAsync(UpdateTimeEntryCommand command)
@@ -24,15 +26,17 @@ public sealed class UpdateTimeEntryHandler(
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
 
         var workDate = TimeEntryHandlerSupport.ToWorkDate(command.Date);
-        var duration = WorkDuration.Create((double)command.Hours);
-        var description = WorkDescription.Create(command.Comment);
+        var duration = Duration.Create(command.Hours);
+        var description = TimeEntryDescription.Create(command.Comment);
         var validations = Result.Combine(workDate, duration, description);
         if (validations.IsFailure)
             return validations;
 
+        var now = clock.GetUtcNow();
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, companyTimeZone).DateTime);
         var permittedDates = await TimeEntryHandlerSupport.GetPermittedWorkDatesAsync(
             registrationPeriodModeRepository,
-            DateOnly.FromDateTime(DateTime.UtcNow));
+            today);
         if (permittedDates.IsFailure)
             return Result.Failure(permittedDates.Errors.ToArray());
 
@@ -42,6 +46,6 @@ public sealed class UpdateTimeEntryHandler(
             duration.Value,
             description.Value,
             permittedDates.Value,
-            DateTime.UtcNow);
+            now.UtcDateTime);
     }
 }

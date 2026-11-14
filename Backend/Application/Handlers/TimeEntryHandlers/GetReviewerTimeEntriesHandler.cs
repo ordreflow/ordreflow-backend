@@ -22,7 +22,7 @@ public sealed class GetReviewerTimeEntriesHandler(
             return Result<IReadOnlyList<TimeEntryDto>>.Failure(
                 reviewerId.Errors.ToArray());
 
-        var reviewer = await employeeAccessRepository.GetWithAccessesAsync(EmployeeId.Create(query.ReviewerId).Value);
+        var reviewer = await employeeAccessRepository.GetWithAccessesAsync(reviewerId.Value);
         if (reviewer is null || !reviewer.CanReviewTimeEntries())
             return Result<IReadOnlyList<TimeEntryDto>>.Failure(
                 new Error("ReviewForbidden", "An active category reviewer permission is required."));

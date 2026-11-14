@@ -28,6 +28,10 @@ public sealed class GetReviewerTimeEntries(
         if (!HttpContext.TryGetCurrentUserId(out var reviewerId))
             return TypedResults.Unauthorized();
 
+        if (request.FromDate == default || request.ToDate == DateOnly.MaxValue ||
+            request.ToDate < request.FromDate)
+            return new[] { new Error("InvalidDateRange", "A valid date range with an exclusive end boundary is required.") }.ToErrorResult();
+
         var result = await dispatcher.DispatchAsync<GetReviewerTimeEntriesQuery, Result<IReadOnlyList<TimeEntryDto>>>(
             new GetReviewerTimeEntriesQuery(
                 reviewerId,

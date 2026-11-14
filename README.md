@@ -318,6 +318,26 @@ The backend is organized around a stable core and outer adapters:
 - Secrets must not be committed to the repository.
 - The POC should use real PostgreSQL persistence rather than only an in-memory test database.
 
+## Temporary M3 time-registration flow
+
+UC-01 currently registers entries directly as `ReadyForApproval`, so they can
+reach the category-reviewer queue without a separate draft submission step.
+The Draft state remains in the domain for the later draft/submission workflow.
+Registration requires a configured registration period and rejects work dates
+outside that period. `Company__TimeZone` sets the company-local date used for
+creation, edit, delete, and resubmission cutoffs (for example `Europe/Copenhagen`);
+it defaults to `UTC`.
+Audit timestamps remain UTC. Custom monthly periods include the selected
+cutoff day and restart on the following day.
+
+Employees can edit or delete their own Draft, ReadyForApproval, and Rejected
+entries while their work dates are permitted. Approved and Closed entries are
+locked, and Deleted entries cannot be changed again. Every successful edit
+sets the entry to `ReadyForApproval`, including corrections of rejected entries;
+no separate resubmission is needed after editing. The previous rejection reason
+remains in review history, but is no longer the current rejection reason.
+The explicit resubmit endpoint supports resubmitting a rejected entry unchanged.
+
 ## Local PostgreSQL with Flox
 
 The Flox manifest includes PostgreSQL as a local-only service. Its data

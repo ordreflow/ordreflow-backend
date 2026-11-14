@@ -22,7 +22,7 @@ public sealed class TimeEntryReviewCoordinator(
         if (typedReviewerId.IsFailure)
             return Result.Failure(typedReviewerId.Errors.ToArray());
 
-        var reviewerKey = EmployeeId.Create(reviewerId).Value;
+        var reviewerKey = typedReviewerId.Value;
         var reviewer = await employees.GetWithAccessesAsync(reviewerKey);
         if (reviewer is null || !reviewer.CanReviewTimeEntries())
             return Result.Failure(new Error("ReviewForbidden", "An active category reviewer permission is required."));
@@ -31,7 +31,7 @@ public sealed class TimeEntryReviewCoordinator(
         if (typedEntryId.IsFailure)
             return Result.Failure(typedEntryId.Errors.ToArray());
 
-        var entry = await entries.GetForDecisionAsync(TimeEntryId.Create(entryId).Value);
+        var entry = await entries.GetForDecisionAsync(typedEntryId.Value);
         if (entry is null)
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
 

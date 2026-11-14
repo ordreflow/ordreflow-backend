@@ -8,7 +8,7 @@ using WebAPI.Authentication;
 namespace WebAPI.endpoints.TimeEntries;
 
 /// <summary>
-/// Resubmits a rejected time entry for approval after any required correction.
+/// Resubmits an unchanged rejected entry. Editing already submits it for approval.
 /// </summary>
 public sealed class ResubmitTimeEntry(ICommandDispatcher dispatcher)
     : EndpointBase

@@ -67,6 +67,8 @@ builder.Services
 builder.Services.AddAuthorization(AuthorizationPolicies.Configure);
 builder.Services.AddScoped<IAuthorizationHandler, SystemPermissionAuthorizationHandler>();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById(
+    builder.Configuration["Company:TimeZone"] ?? "UTC"));
 builder.Services.AddSingleton(new TimeEntryReviewPolicy(
     builder.Configuration.GetValue("TimeEntryReviews:AllowSelfReview", true)));
 

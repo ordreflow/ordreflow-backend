@@ -24,7 +24,7 @@ public sealed class ReviewQueueHandlerTests
         var result = await handler.HandleAsync(new GetReviewerTimeEntriesQuery(Guid.Empty, null, null, null));
 
         Assert.True(result.IsFailure);
-        Assert.Equal("ReviewerRequired", Assert.Single(result.Errors).Code);
+        Assert.Equal("EmployeeIdEmpty", Assert.Single(result.Errors).Code);
         Assert.Equal(0, queue.CatagoryLookups);
     }
 

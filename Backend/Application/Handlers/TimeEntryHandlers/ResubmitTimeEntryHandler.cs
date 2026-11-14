@@ -7,7 +7,9 @@ namespace Application.Handlers;
 
 public sealed class ResubmitTimeEntryHandler(
     ITimeEntryRepository timeEntryRepository,
-    IRegistrationPeriodModeRepository registrationPeriodModeRepository)
+    IRegistrationPeriodModeRepository registrationPeriodModeRepository,
+    TimeProvider clock,
+    TimeZoneInfo companyTimeZone)
     : ICommandHandler<ResubmitTimeEntryCommand>
 {
     public async Task<Result> HandleAsync(ResubmitTimeEntryCommand command)
@@ -21,15 +23,17 @@ public sealed class ResubmitTimeEntryHandler(
         if (entry is null)
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
 
+        var now = clock.GetUtcNow();
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, companyTimeZone).DateTime);
         var permittedDates = await TimeEntryHandlerSupport.GetPermittedWorkDatesAsync(
             registrationPeriodModeRepository,
-            DateOnly.FromDateTime(DateTime.UtcNow));
+            today);
         if (permittedDates.IsFailure)
             return Result.Failure(permittedDates.Errors.ToArray());
 
         return entry.Resubmit(
             employeeId.Value,
             permittedDates.Value,
-            DateTime.UtcNow);
+            now.UtcDateTime);
     }
 }

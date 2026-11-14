@@ -24,11 +24,11 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
 
         var entries = await GetMyEntriesAsync(s.Employee, WeekFrom, WeekTo);
 
-        Assert.Contains(entries, e => e.Id == entry.Id && e.Status == "Returned");
+        Assert.Contains(entries, e => e.Id == entry.Id && e.Status == "Rejected");
     }
 
     [Fact]
-    public async Task Employee_correction_moves_returned_entry_directly_to_draft()
+    public async Task Employee_correction_moves_rejected_entry_directly_to_ready_for_approval()
     {
         var (s, entry) = await ReturnedEntryAsync();
 
@@ -39,11 +39,11 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         var updated = await GetEntryAsync(s.Employee, entry.Id);
         Assert.Equal(6m, updated.Hours);
         Assert.Equal("corrected", updated.Comment);
-        Assert.Equal("Draft", updated.Status);
+        Assert.Equal("ReadyForApproval", updated.Status);
     }
 
     [Fact]
-    public async Task Employee_can_resubmit_unedited_returned_entry_to_draft()
+    public async Task Employee_can_resubmit_unedited_rejected_entry_to_ready_for_approval()
     {
         var (s, entry) = await ReturnedEntryAsync();
 
@@ -51,7 +51,7 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var resubmitted = await GetEntryAsync(s.Employee, entry.Id);
-        Assert.Equal("Draft", resubmitted.Status);
+        Assert.Equal("ReadyForApproval", resubmitted.Status);
         Assert.Equal(4m, resubmitted.Hours);
         Assert.Equal("first try", resubmitted.Comment);
     }
@@ -65,7 +65,7 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         var accept = await s.Manager.Client.PostAsync($"/api/time_entries/{entry.Id}/accept", null);
 
         Assert.Equal(HttpStatusCode.NoContent, accept.StatusCode);
-        Assert.Equal("Accepted", (await GetEntryAsync(s.Employee, entry.Id)).Status);
+        Assert.Equal("Approved", (await GetEntryAsync(s.Employee, entry.Id)).Status);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         var originalReviews = await s.Employee.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
             $"/api/time_entries/{entry.Id}/reviews");
         var returnedReview = Assert.Single(originalReviews!.Items);
-        Assert.Equal("Returned", returnedReview.Decision);
+        Assert.Equal("Rejected", returnedReview.Decision);
         Assert.Equal("Wrong hours", returnedReview.Reason);
 
         var correctedDate = Monday.AddDays(1);
@@ -87,7 +87,7 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         Assert.Equal(correctedDate.Date, corrected.Date.Date);
         Assert.Equal(6m, corrected.Hours);
         Assert.Equal("corrected", corrected.Comment);
-        Assert.Equal("Draft", corrected.Status);
+        Assert.Equal("ReadyForApproval", corrected.Status);
         var reviewsAfterCorrection = await s.Employee.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
             $"/api/time_entries/{entry.Id}/reviews");
         Assert.Equal(returnedReview, Assert.Single(reviewsAfterCorrection!.Items));
@@ -95,12 +95,12 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         var accept = await s.Manager.Client.PostAsync($"/api/time_entries/{entry.Id}/accept", null);
 
         Assert.Equal(HttpStatusCode.NoContent, accept.StatusCode);
-        Assert.Equal("Accepted", (await GetEntryAsync(s.Employee, entry.Id)).Status);
+        Assert.Equal("Approved", (await GetEntryAsync(s.Employee, entry.Id)).Status);
         var reviewsAfterAccept = await s.Manager.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
             $"/api/time_entries/{entry.Id}/reviews");
         Assert.Equal(2, reviewsAfterAccept!.Items.Count);
         Assert.Contains(returnedReview, reviewsAfterAccept.Items);
-        var acceptedReview = Assert.Single(reviewsAfterAccept.Items.Where(r => r.Decision == "Accepted"));
+        var acceptedReview = Assert.Single(reviewsAfterAccept.Items.Where(r => r.Decision == "Approved"));
         Assert.Null(acceptedReview.Reason);
     }
 
@@ -113,7 +113,7 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         var before = await GetEntryAsync(s.Employee, entry.Id);
         var originalReviews = await s.Employee.Client.GetFromJsonAsync<GetTimeEntryReviewsResponse>(
             $"/api/time_entries/{entry.Id}/reviews");
-        Assert.Equal("Returned", before.Status);
+        Assert.Equal("Rejected", before.Status);
         Assert.Single(originalReviews!.Items);
 
         var date = invalidField == "date" ? default : Monday.AddDays(1);
@@ -139,8 +139,8 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
             $"/api/time_entries/{entry.Id}/reviews");
 
         Assert.Equal(2, reviews!.Items.Count);
-        Assert.Contains(reviews.Items, r => r.Decision == "Returned" && r.Reason == "Wrong hours");
-        Assert.Contains(reviews.Items, r => r.Decision == "Accepted");
+        Assert.Contains(reviews.Items, r => r.Decision == "Rejected" && r.Reason == "Wrong hours");
+        Assert.Contains(reviews.Items, r => r.Decision == "Approved");
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         var response = await s.Employee.Client.PostAsync($"/api/time_entries/{entry.Id}/resubmit", null);
 
         Assert.False(response.IsSuccessStatusCode);
-        Assert.Equal("Draft", (await GetEntryAsync(s.Employee, entry.Id)).Status);
+        Assert.Equal("ReadyForApproval", (await GetEntryAsync(s.Employee, entry.Id)).Status);
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public class ReturnedTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(f
         var response = await colleague.Client.PostAsync($"/api/time_entries/{entry.Id}/resubmit", null);
 
         Assert.False(response.IsSuccessStatusCode);
-        Assert.Equal("Returned", (await GetEntryAsync(s.Employee, entry.Id)).Status);
+        Assert.Equal("Rejected", (await GetEntryAsync(s.Employee, entry.Id)).Status);
     }
 
     [Fact]

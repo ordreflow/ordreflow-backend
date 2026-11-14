@@ -7,7 +7,9 @@ namespace Application.Handlers;
 
 public sealed class DeleteTimeEntryHandler(
     ITimeEntryRepository timeEntryRepository,
-    IRegistrationPeriodModeRepository registrationPeriodModeRepository)
+    IRegistrationPeriodModeRepository registrationPeriodModeRepository,
+    TimeProvider clock,
+    TimeZoneInfo companyTimeZone)
     : ICommandHandler<DeleteTimeEntryCommand>
 {
     public async Task<Result> HandleAsync(DeleteTimeEntryCommand command)
@@ -27,15 +29,17 @@ public sealed class DeleteTimeEntryHandler(
         if (entry is null)
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
 
+        var now = clock.GetUtcNow();
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, companyTimeZone).DateTime);
         var permittedDates = await TimeEntryHandlerSupport.GetPermittedWorkDatesAsync(
             registrationPeriodModeRepository,
-            DateOnly.FromDateTime(DateTime.UtcNow));
+            today);
         if (permittedDates.IsFailure)
             return Result.Failure(permittedDates.Errors.ToArray());
 
         return entry.Delete(
             employeeIdResult.Value,
             permittedDates.Value,
-            DateTime.UtcNow);
+            now.UtcDateTime);
     }
 }

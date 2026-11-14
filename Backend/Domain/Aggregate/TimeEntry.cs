@@ -32,7 +32,12 @@ public sealed class TimeEntry
     public WorkDate? CurrentWorkDate => CurrentAudit?.WorkDate;
 
     [NotMapped]
-    public WorkDuration? CurrentDuration => CurrentAudit?.Duration;
+    public Duration? CurrentDuration => CurrentAudit?.Duration;
+
+    [NotMapped]
+    public RejectionReason? CurrentRejectionReason => CurrentStatus == TimeEntryStatus.Rejected
+        ? _reviews.MaxBy(review => review.ReviewedAtUtc)?.Description
+        : null;
 
     public static Result<TimeEntry> Create(EmployeeId employeeId, TimeEntryAudit initialAudit)
     {
@@ -59,8 +64,8 @@ public sealed class TimeEntry
         EmployeeId employeeId,
         TaskId taskId,
         WorkDate workDate,
-        WorkDuration duration,
-        WorkDescription description,
+        Duration duration,
+        TimeEntryDescription description,
         WorkDatePeriod permittedPeriod,
         DateTime recordedAtUtc)
     {
@@ -73,7 +78,7 @@ public sealed class TimeEntry
         if (permittedPeriod is null || !permittedPeriod.Contains(workDate))
             return Result<TimeEntry>.Failure(new Error("WorkDateNotPermitted", "The work date is outside the permitted registration period."));
 
-        var entryId = TimeEntryId.New();
+        var entryId = TimeEntryId.Create(Guid.NewGuid()).Value;
         var audit = TimeEntryAudit.Create(
             entryId,
             employeeId,
@@ -81,7 +86,8 @@ public sealed class TimeEntry
             workDate,
             duration,
             description,
-            TimeEntryStatus.Draft,
+            // Temporary UC-01 workflow: registration submits directly for review.
+            TimeEntryStatus.ReadyForApproval,
             recordedAtUtc);
         return audit.IsFailure
             ? Result<TimeEntry>.Failure(audit.Errors.ToArray())
@@ -104,8 +110,8 @@ public sealed class TimeEntry
     public Result Change(
         EmployeeId employeeId,
         WorkDate workDate,
-        WorkDuration duration,
-        WorkDescription description,
+        Duration duration,
+        TimeEntryDescription description,
         WorkDatePeriod permittedPeriod,
         DateTime changedAtUtc)
     {
@@ -114,7 +120,7 @@ public sealed class TimeEntry
             return owner;
 
         var current = GetCurrentAudit();
-        if (current is null || current.Status is not (TimeEntryStatus.Draft or TimeEntryStatus.Rejected))
+        if (current is null || current.Status is not (TimeEntryStatus.Draft or TimeEntryStatus.ReadyForApproval or TimeEntryStatus.Rejected))
             return Result.Failure(new Error("TimeEntryNotEditable", "The time entry is not in an editable state."));
         if (workDate is null || duration is null || description is null)
             return Result.Failure(new Error("TimeEntryDetailsRequired", "Date, duration and description are required."));
@@ -124,7 +130,7 @@ public sealed class TimeEntry
             return Result.Failure(new Error("WorkDateNotPermitted", "The current and new work dates must be inside the permitted period."));
 
         var audit = TimeEntryAudit.Create(
-            Id, employeeId, current.TaskId, workDate, duration, description, current.Status, changedAtUtc);
+            Id, employeeId, current.TaskId, workDate, duration, description, TimeEntryStatus.ReadyForApproval, changedAtUtc);
         return audit.IsFailure
             ? Result.Failure(audit.Errors.ToArray())
             : AddAudit(audit.Value);
@@ -137,7 +143,7 @@ public sealed class TimeEntry
             return owner;
 
         var current = GetCurrentAudit();
-        if (current is null || current.Status is not (TimeEntryStatus.Draft or TimeEntryStatus.Rejected))
+        if (current is null || current.Status is not (TimeEntryStatus.Draft or TimeEntryStatus.ReadyForApproval or TimeEntryStatus.Rejected))
             return Result.Failure(new Error("TimeEntryNotEditable", "The time entry is not in a deletable state."));
         if (permittedPeriod is null || !permittedPeriod.Contains(current.WorkDate))
             return Result.Failure(new Error("WorkDateNotPermitted", "The work date is outside the permitted registration period."));
@@ -199,13 +205,10 @@ public sealed class TimeEntry
     {
         if (reviewerId is null)
             return Result.Failure(new Error("ReviewerRequired", "A reviewer is required."));
-        if (policy is null)
-            return Result.Failure(new Error("ReviewPolicyRequired", "A review policy is required."));
-
         var current = GetCurrentAudit();
         if (current?.Status != TimeEntryStatus.ReadyForApproval)
             return Result.Failure(new Error("TimeEntryNotReady", "Only a ready time entry can be reviewed."));
-        if (!policy.AllowSelfReview && reviewerId == EmployeeId)
+        if (!allowSelfReview && reviewerId == EmployeeId)
             return Result.Failure(new Error("SelfReviewForbidden", "Reviewing your own entry is not permitted."));
 
         var review = TimeEntryReview.Create(Id, reviewerId, decision, reason, reviewedAtUtc);

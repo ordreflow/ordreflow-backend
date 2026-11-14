@@ -57,13 +57,3 @@ internal sealed class WorkDateValueConverter : ValueConverter<WorkDate, DateOnly
 {
     public WorkDateValueConverter() : base(date => date.Value, value => WorkDate.Create(value).Value) { }
 }
-
-internal sealed class WorkDurationValueConverter : ValueConverter<WorkDuration, double>
-{
-    public WorkDurationValueConverter() : base(duration => duration.Value, value => WorkDuration.Create(value).Value) { }
-}
-
-internal sealed class WorkDescriptionValueConverter : ValueConverter<WorkDescription, string>
-{
-    public WorkDescriptionValueConverter() : base(description => description.Value, value => WorkDescription.Create(value).Value) { }
-}

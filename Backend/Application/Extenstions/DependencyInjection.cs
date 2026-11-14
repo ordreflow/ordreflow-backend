@@ -2,7 +2,6 @@
 
 using System.Reflection;
 using Domain.Interfaces.IUnitOfWork;
-using Domain.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Application.Extenstions;
@@ -18,10 +17,6 @@ public static class DependencyInjection
     services.AddScoped<QueryDispatcher>();
     services.AddScoped<IQueryDispatcher, QueryDispatcher>();
     services.AddScoped<TimeEntryReviewCoordinator>();
-
-    services.AddScoped<TimeRegistrationDomainService>();
-    services.AddScoped<TaskRemovalDomainService>();
-    services.AddScoped<TimeEntryReviewDomainService>();
 
     services.AddScoped<ICommandDispatcher>(provider =>
     {

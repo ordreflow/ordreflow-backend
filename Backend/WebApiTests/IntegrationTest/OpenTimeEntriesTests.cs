@@ -83,7 +83,7 @@ public class OpenTimeEntriesTests(TestWebAppFactory factory) : ApiTestBase(facto
         Assert.Equal(6m, updated.Hours);
         Assert.Equal("new", updated.Comment);
         Assert.Equal(Monday.AddDays(1).Date, updated.Date.Date);
-        Assert.Equal("Draft", updated.Status);
+        Assert.Equal("ReadyForApproval", updated.Status);
     }
 
     [Fact]
