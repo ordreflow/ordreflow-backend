@@ -11,7 +11,7 @@ namespace WebAPI.endpoints.Orders;
 public sealed class CreateOrder(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<CreateOrderRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPost("orders")]
     public override async Task<IResult> HandleAsync(CreateOrderRequest request)
     {

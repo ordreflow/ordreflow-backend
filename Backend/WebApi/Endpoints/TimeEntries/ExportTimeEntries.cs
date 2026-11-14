@@ -13,7 +13,7 @@ public sealed class ExportTimeEntries(
     IQueryDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ExportTimeEntriesRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("time_entries/export")]
     public override async Task<IResult> HandleAsync( [FromQuery] ExportTimeEntriesRequest request)
     {

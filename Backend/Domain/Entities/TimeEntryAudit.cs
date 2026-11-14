@@ -13,7 +13,7 @@ public sealed class TimeEntryAudit
 {
     public Guid Id { get; private set; }
     
-    // which time entry is the audit for
+    // which timeentry is the audit for
     public Guid TimeEntryId { get; private set; }
     
     // which employee did the audit

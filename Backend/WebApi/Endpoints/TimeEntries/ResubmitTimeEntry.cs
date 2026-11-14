@@ -13,7 +13,7 @@ namespace WebAPI.endpoints.TimeEntries;
 public sealed class ResubmitTimeEntry(ICommandDispatcher dispatcher)
     : EndpointBase
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPost("time_entries/{id:guid}/resubmit")]
     public async Task<IResult> HandleAsync([FromRoute] Guid id)
     {

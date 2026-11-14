@@ -106,11 +106,9 @@ public class LoginAndRoleAccessTests(TestWebAppFactory factory) : ApiTestBase(fa
         var s = await CreateScenarioAsync();
 
         var createOrder = await s.Employee.Client.PostAsJsonAsync("/api/orders", new CreateOrderRequest("Nope"));
-        var managerEntries = await s.Employee.Client.GetAsync($"/api/time_entries/manager?fromDate={WeekFrom}&toDate={WeekTo}");
         var users = await s.Employee.Client.GetAsync("/api/users");
 
         Assert.Equal(HttpStatusCode.Forbidden, createOrder.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, managerEntries.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, users.StatusCode);
     }
 

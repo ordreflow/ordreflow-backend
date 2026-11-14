@@ -18,7 +18,7 @@ public sealed class ViewOrder(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("orders/{id:guid}")]
     public override async Task<IResult> HandleAsync(
         [FromRoute] Guid id)

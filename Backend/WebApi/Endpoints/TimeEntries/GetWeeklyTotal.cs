@@ -13,7 +13,7 @@ public sealed class GetWeeklyTotal(
     IQueryDispatcher dispatcher)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("time_entries/weekly-total")]
     public override async Task<IResult> HandleAsync( [FromQuery] ViewTimeEntriesRequest request)
     {

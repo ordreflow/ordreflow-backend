@@ -22,7 +22,7 @@ public sealed class ViewTask(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("tasks/{id:guid}")]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]

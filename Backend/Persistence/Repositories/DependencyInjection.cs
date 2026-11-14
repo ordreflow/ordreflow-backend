@@ -17,10 +17,12 @@ public static class DependencyInjection
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
         services.AddScoped<ITopOrdersRepository, TopOrdersRepository>();
+        services.AddScoped<IEmployeeAccessRepository, EmployeeAccessRepository>();
+        services.AddScoped<IReviewQueueRepository, ReviewQueueRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPasswordVerifier, PasswordVerifier>();
-        services.AddScoped<IUserAccountProvisioner, IdentityUserAccountProvisioner>();
+        services.AddScoped<IEmployeeAccountProvisioner, IdentityUserAccountProvisioner>();
 
 
         return services;

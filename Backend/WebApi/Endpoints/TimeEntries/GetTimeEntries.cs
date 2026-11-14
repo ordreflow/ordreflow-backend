@@ -16,7 +16,7 @@ public sealed class GetTimeEntries(
     IMapper mapper)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("time_entries")]
     public override async Task<IResult> HandleAsync( [FromQuery] ViewTimeEntriesRequest request)
     {

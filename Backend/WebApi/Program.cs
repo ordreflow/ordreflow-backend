@@ -5,6 +5,7 @@ using Domain.Interfaces.IUnitOfWork;
 using Domain.Interfaces;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -39,7 +40,6 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Identity
 builder.Services
     .AddIdentityCore<ApplicationUser>(options => options.User.RequireUniqueEmail = true)
-    .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<AppDbContext>();
 
 // Authentication (JWT settings come from the JWT_* environment variables)
@@ -51,7 +51,7 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        // Keep the claim names from the token, so "sub" and "role" are read as-is.
+        // Preserve "sub" so authorization can resolve the internal employee ID.
         options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -60,11 +60,11 @@ builder.Services
             IssuerSigningKey = jwtOptions.SigningKey,
             ValidateIssuerSigningKey = true,
             NameClaimType = JwtRegisteredClaimNames.Sub,
-            RoleClaimType = JwtTokenGenerator.RoleClaimType,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
 builder.Services.AddAuthorization(AuthorizationPolicies.Configure);
+builder.Services.AddScoped<IAuthorizationHandler, SystemPermissionAuthorizationHandler>();
 
 builder.Services.AddApplication();
 

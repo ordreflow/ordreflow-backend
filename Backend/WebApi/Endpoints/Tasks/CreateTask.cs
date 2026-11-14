@@ -11,7 +11,7 @@ namespace WebAPI.endpoints.Tasks;
 public sealed class CreateTask(ICommandDispatcher dispatcher)
     : ApiEndpoint.WithRequest<CreateTaskRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPost("tasks")]
     public override async Task<IResult> HandleAsync(CreateTaskRequest request)
     {

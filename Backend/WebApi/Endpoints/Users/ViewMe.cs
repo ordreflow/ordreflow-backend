@@ -21,7 +21,7 @@ public sealed class ViewMe(
         .WithoutRequest
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpGet("users/me")]
     public override async Task<IResult> HandleAsync()
     {

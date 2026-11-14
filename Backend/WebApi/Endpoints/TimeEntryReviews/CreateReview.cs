@@ -12,7 +12,7 @@ namespace WebAPI.endpoints.TimeEntryReviews;
 public sealed class CreateReview(ICommandDispatcher dispatcher)
     : EndpointBase
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPost("time_entries/{id:guid}/review")]
     public async Task<IResult> HandleAsync(
         [FromRoute] Guid id,

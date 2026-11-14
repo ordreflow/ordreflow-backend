@@ -15,7 +15,7 @@ public sealed class ReopenTask(
         .WithRequest<Guid>
         .AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.UnavailableUntilRefactored)]
     [HttpPost("tasks/{id:guid}/reopen")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(IEnumerable<Error>), StatusCodes.Status400BadRequest)]

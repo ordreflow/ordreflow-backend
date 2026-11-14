@@ -26,6 +26,7 @@ public sealed class TimeEntryAuditConfiguration : IEntityTypeConfiguration<TimeE
             .HasColumnType("timestamp with time zone").IsRequired();
 
         entity.HasIndex(x => new { x.TimeEntryId, x.AuditTime }).IsUnique();
+        entity.HasIndex(x => new { x.TaskId, x.TimeEntryId });
 
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActorId)
             .OnDelete(DeleteBehavior.Restrict);
