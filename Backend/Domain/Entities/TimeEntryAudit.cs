@@ -27,8 +27,8 @@ public sealed class TimeEntryAudit
     
     // the date for the time registration
     public WorkDate WorkDate { get; private set; } = null!;
-    public WorkDuration Duration { get; private set; } = null!;
-    public WorkDescription Description { get; private set; } = null!;
+    public Duration Duration { get; private set; } = null!;
+    public TimeEntryDescription Description { get; private set; } = null!;
     public TimeEntryStatus Status { get; private set; }
     
     // when was the audit made
@@ -43,8 +43,8 @@ public sealed class TimeEntryAudit
         EmployeeId actorId,
         TaskId taskId,
         WorkDate workDate,
-        WorkDuration duration,
-        WorkDescription description,
+        Duration duration,
+        TimeEntryDescription description,
         TimeEntryStatus status,
         DateTime auditTime,
         EmployeeId? closedBy = null)
@@ -62,10 +62,10 @@ public sealed class TimeEntryAudit
             return Result<TimeEntryAudit>.Failure(new Error("WorkDateRequired", "A work date is required."));
 
         if (duration is null)
-            return Result<TimeEntryAudit>.Failure(new Error("InvalidDuration", "A duration is required."));
+            return Result<TimeEntryAudit>.Failure(new Error("DurationRequired", "A duration is required."));
 
         if (description is null)
-            return Result<TimeEntryAudit>.Failure(new Error("DescriptionRequired", "A description is required."));
+            return Result<TimeEntryAudit>.Failure(new Error("DescriptionRequired", "A description value is required."));
 
         if (!Enum.IsDefined(status))
             return Result<TimeEntryAudit>.Failure(new Error("InvalidTimeEntryStatus", "The time entry status is invalid."));
@@ -75,7 +75,7 @@ public sealed class TimeEntryAudit
 
         return Result<TimeEntryAudit>.Success(new TimeEntryAudit
         {
-            Id = TimeEntryAuditId.New(),
+            Id = TimeEntryAuditId.Create(Guid.NewGuid()).Value,
             TimeEntryId = timeEntryId,
             ActorId = actorId,
             ClosedBy = closedBy,

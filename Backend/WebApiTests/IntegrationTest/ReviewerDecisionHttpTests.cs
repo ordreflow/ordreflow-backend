@@ -68,7 +68,7 @@ public sealed class ReviewerDecisionHttpTests : IClassFixture<ReviewerDecisionHt
         Assert.Equal(HttpStatusCode.NoContent, approved.StatusCode);
         var approveCommand = Assert.IsType<ApproveTimeEntryCommand>(_factory.Dispatcher.LastCommand);
         Assert.Equal(approvedId, approveCommand.TimeEntryId);
-        Assert.Equal(reviewer.Id, approveCommand.ReviewerId);
+        Assert.Equal(reviewer.Id.Value, approveCommand.ReviewerId);
 
         using var rejected = await SendAsync(reviewer, $"/api/time_entries/{rejectedId}/reject",
             new RejectTimeEntryRequest("Incorrect hours"));
@@ -161,11 +161,11 @@ public sealed class ReviewerDecisionHttpTests : IClassFixture<ReviewerDecisionHt
 
     public sealed class FakeEmployeeRepository : IEmployeeAccessRepository
     {
-        private readonly Dictionary<Guid, Employee> _employees = new();
+        private readonly Dictionary<EmployeeId, Employee> _employees = new();
 
         public void Add(Employee employee) => _employees.Add(employee.Id, employee);
 
-        public Task<Employee?> GetWithAccessesAsync(Guid employeeId, CancellationToken cancellationToken = default) =>
+        public Task<Employee?> GetWithAccessesAsync(EmployeeId employeeId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_employees.GetValueOrDefault(employeeId));
     }
 

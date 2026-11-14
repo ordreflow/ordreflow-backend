@@ -9,10 +9,13 @@ public sealed class TimeEntry
 {
     private readonly List<TimeEntryAudit> _audits = new();
     private readonly List<TimeEntryReview> _reviews = new();
-
     public TimeEntryId Id { get; private set; } = null!;
     public long Revision { get; private set; }
+    
+    // Who belongs the timeentry to
     public EmployeeId EmployeeId { get; private set; } = null!;
+    
+    // Same list as first, just only in readmode
     public IReadOnlyCollection<TimeEntryAudit> Audits => _audits.AsReadOnly();
     public IReadOnlyCollection<TimeEntryReview> Reviews => _reviews.AsReadOnly();
 
@@ -31,27 +34,13 @@ public sealed class TimeEntry
     [NotMapped]
     public WorkDuration? CurrentDuration => CurrentAudit?.Duration;
 
-    [NotMapped]
-    public WorkDescription? CurrentDescription => CurrentAudit?.Description;
-
-    [NotMapped]
-    public RejectionReason? CurrentRejectionReason =>
-        CurrentStatus == TimeEntryStatus.Rejected
-            ? _reviews
-                .Where(review => review.Status == ReviewStatus.Rejected)
-                .OrderByDescending(review => review.ReviewedAtUtc)
-                .Select(review => review.RejectionReason)
-                .FirstOrDefault()
-            : null;
-
-    private TimeEntry() { }
-
     public static Result<TimeEntry> Create(EmployeeId employeeId, TimeEntryAudit initialAudit)
     {
         if (employeeId is null)
             return Result<TimeEntry>.Failure(new Error("EmployeeRequired", "An employee is required."));
         if (initialAudit is null)
             return Result<TimeEntry>.Failure(new Error("AuditRequired", "An initial audit is required."));
+
         if (initialAudit.TimeEntryId is null)
             return Result<TimeEntry>.Failure(new Error("TimeEntryIdRequired", "The audit must identify its time entry."));
 
@@ -199,22 +188,14 @@ public sealed class TimeEntry
 
     public TimeEntryAudit? GetCurrentAudit() => _audits.MaxBy(audit => audit.AuditTime);
 
-    public Result Approve(EmployeeId reviewerId, DateTime reviewedAtUtc, TimeEntryReviewPolicy policy) =>
-        Decide(reviewerId, ReviewStatus.Approved, null, reviewedAtUtc, policy);
+    public Result Approve(EmployeeId reviewerId, DateTime reviewedAtUtc, bool allowSelfReview) =>
+        Decide(reviewerId, ReviewStatus.Approved, null, reviewedAtUtc, allowSelfReview);
 
-    public Result Reject(
-        EmployeeId reviewerId,
-        RejectionReason reason,
-        DateTime reviewedAtUtc,
-        TimeEntryReviewPolicy policy) =>
-        Decide(reviewerId, ReviewStatus.Rejected, reason, reviewedAtUtc, policy);
+    public Result Reject(EmployeeId reviewerId, string? reason, DateTime reviewedAtUtc, bool allowSelfReview) =>
+        Decide(reviewerId, ReviewStatus.Rejected, reason, reviewedAtUtc, allowSelfReview);
 
     private Result Decide(
-        EmployeeId reviewerId,
-        ReviewStatus decision,
-        RejectionReason? reason,
-        DateTime reviewedAtUtc,
-        TimeEntryReviewPolicy policy)
+        EmployeeId reviewerId, ReviewStatus decision, string? reason, DateTime reviewedAtUtc, bool allowSelfReview)
     {
         if (reviewerId is null)
             return Result.Failure(new Error("ReviewerRequired", "A reviewer is required."));

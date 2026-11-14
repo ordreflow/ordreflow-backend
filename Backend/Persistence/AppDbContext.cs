@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Domain.Aggregate;
 using Domain.Entities;
 using Domain.ValueObjects;
+using Persistence.Configurations;
 using Persistence.Identity;
 using Task = Domain.Entities.Task;
 
@@ -37,21 +38,27 @@ public class AppDbContext : IdentityUserContext<ApplicationUser, Guid>
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
-        base.ConfigureConventions(configurationBuilder);
-
-        configurationBuilder.Properties<EmployeeId>().HaveConversion<EmployeeIdValueConverter>();
-        configurationBuilder.Properties<DepartmentId>().HaveConversion<DepartmentIdValueConverter>();
-        configurationBuilder.Properties<CatagoryId>().HaveConversion<CatagoryIdValueConverter>();
-        configurationBuilder.Properties<TaskId>().HaveConversion<TaskIdValueConverter>();
-        configurationBuilder.Properties<TimeEntryId>().HaveConversion<TimeEntryIdValueConverter>();
-        configurationBuilder.Properties<TimeEntryAuditId>().HaveConversion<TimeEntryAuditIdValueConverter>();
-        configurationBuilder.Properties<TimeEntryReviewId>().HaveConversion<TimeEntryReviewIdValueConverter>();
-        configurationBuilder.Properties<RegistrationPeriodModeId>().HaveConversion<RegistrationPeriodModeIdValueConverter>();
-        configurationBuilder.Properties<AccessPrivilegeId>().HaveConversion<AccessPrivilegeIdValueConverter>();
-        configurationBuilder.Properties<ExportId>().HaveConversion<ExportIdValueConverter>();
-        configurationBuilder.Properties<WorkDate>().HaveConversion<WorkDateValueConverter>();
-        configurationBuilder.Properties<WorkDuration>().HaveConversion<WorkDurationValueConverter>();
-        configurationBuilder.Properties<WorkDescription>().HaveConversion<WorkDescriptionValueConverter>();
+        configurationBuilder.Properties<EmployeeId>().HaveConversion<EmployeeIdConverter>();
+        configurationBuilder.Properties<DepartmentId>().HaveConversion<DepartmentIdConverter>();
+        configurationBuilder.Properties<CatagoryId>().HaveConversion<CatagoryIdConverter>();
+        configurationBuilder.Properties<TaskId>().HaveConversion<TaskIdConverter>();
+        configurationBuilder.Properties<TimeEntryId>().HaveConversion<TimeEntryIdConverter>();
+        configurationBuilder.Properties<TimeEntryAuditId>().HaveConversion<TimeEntryAuditIdConverter>();
+        configurationBuilder.Properties<TimeEntryReviewId>().HaveConversion<TimeEntryReviewIdConverter>();
+        configurationBuilder.Properties<ExportId>().HaveConversion<ExportIdConverter>();
+        configurationBuilder.Properties<AccessPrivilegeId>().HaveConversion<AccessPrivilegeIdConverter>();
+        configurationBuilder.Properties<RegistrationPeriodModeId>().HaveConversion<RegistrationPeriodModeIdConverter>();
+        configurationBuilder.Properties<PersonName>().HaveConversion<PersonNameConverter>();
+        configurationBuilder.Properties<EmailAddress>().HaveConversion<EmailAddressConverter>();
+        configurationBuilder.Properties<CatagoryName>().HaveConversion<CatagoryNameConverter>();
+        configurationBuilder.Properties<TaskName>().HaveConversion<TaskNameConverter>();
+        configurationBuilder.Properties<DepartmentName>().HaveConversion<DepartmentNameConverter>();
+        configurationBuilder.Properties<TimeEntryDescription>().HaveConversion<TimeEntryDescriptionConverter>();
+        configurationBuilder.Properties<RejectionReason>().HaveConversion<RejectionReasonConverter>();
+        configurationBuilder.Properties<WorkDate>().HaveConversion<WorkDateConverter>();
+        configurationBuilder.Properties<TargetCompletionDate>().HaveConversion<TargetCompletionDateConverter>();
+        configurationBuilder.Properties<PlannedDuration>().HaveConversion<PlannedDurationConverter>();
+        configurationBuilder.Properties<CutoffDay>().HaveConversion<CutoffDayConverter>();
     }
 
     protected override void OnModelCreating(

@@ -13,11 +13,11 @@ public sealed class AccessPrivilege
 {
     private readonly List<AccessTask> _tasks = new();
     
-    public AccessPrivilegeId Id { get; private set; } = null!;
+    public AccessPrivilegeId Id { get; set; } = null!;
     //Who gave the access
-    public EmployeeId IssuedBy { get; private set; } = null!;
+    public EmployeeId IssuedBy { get; set; } = null!;
     //who got access
-    public EmployeeId IssuedTo { get; private set; } = null!;
+    public EmployeeId IssuedTo { get; set; } = null!;
     //When was the access issued
     public DateTime IssuedAtUtc { get; set; }
     

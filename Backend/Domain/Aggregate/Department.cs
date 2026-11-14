@@ -12,9 +12,9 @@ namespace Domain.Aggregate;
 public sealed class Department
 {
     private readonly List<Catagory> _catagories = new();
-
-    public DepartmentId Id { get; private set; } = null!;
-    public string Name { get; private set; } = null!;
+    
+    public DepartmentId Id { get; set; } = null!;
+    public DepartmentName Name { get; set; } = null!;
     public IReadOnlyCollection<Catagory> Catagories => _catagories.AsReadOnly();
 }
 

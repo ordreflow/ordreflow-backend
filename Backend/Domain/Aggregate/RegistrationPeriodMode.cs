@@ -20,7 +20,7 @@ public sealed class RegistrationPeriodMode
     
     // If DayInMonth is selected in Interval, which day is it. it can be a day between 1st and 28th in a month.
     // If for example the day was 18, then an Interval would the from 18th to 17th next month
-    public int? DayInMonth { get; private set; }
+    public CutoffDay? DayInMonth { get; private set; }
     
     // When was the configuration made
     public DateTime CreatedDate { get; private set; }
@@ -40,15 +40,21 @@ public sealed class RegistrationPeriodMode
         if (!Enum.IsDefined(interval))
             return Result<RegistrationPeriodMode>.Failure(new Error("InvalidInterval", "The registration interval is invalid."));
 
-        if (dayInMonth.HasValue && (dayInMonth.Value < 1 || dayInMonth.Value > 28))
-            return Result<RegistrationPeriodMode>.Failure(new Error("InvalidDayInMonth", "Day in month must be between 1 and 28."));
+        CutoffDay? cutoffDay = null;
+        if (dayInMonth.HasValue)
+        {
+            var parsedDay = CutoffDay.Create(dayInMonth.Value);
+            if (parsedDay.IsFailure)
+                return Result<RegistrationPeriodMode>.Failure(parsedDay.Errors.ToArray());
+            cutoffDay = parsedDay.Value;
+        }
 
         return Result<RegistrationPeriodMode>.Success(new RegistrationPeriodMode
         {
-            Id = RegistrationPeriodModeId.New(),
+            Id = RegistrationPeriodModeId.Create(Guid.NewGuid()).Value,
             AdminId = adminId,
             Interval = interval,
-            DayInMonth = dayInMonth,
+            DayInMonth = cutoffDay,
             CreatedDate = DateTime.UtcNow
         });
     }

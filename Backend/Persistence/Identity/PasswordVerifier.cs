@@ -19,6 +19,6 @@ public class PasswordVerifier(UserManager<ApplicationUser> userManager) : IPassw
         }
 
         await userManager.ResetAccessFailedCountAsync(account);
-        return account.EmployeeId.Value;
+        return account.EmployeeId?.Value;
     }
 }

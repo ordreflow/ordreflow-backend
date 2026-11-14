@@ -10,9 +10,9 @@ public sealed class Export
 {
     private readonly List<TimeEntryExport> _timeEntries = new();
     
-    public ExportId Id { get; private set; } = null!;
+    public ExportId Id { get; set; } = null!;
     // Who exported
-    public EmployeeId ExportedBy { get; private set; } = null!;
+    public EmployeeId ExportedBy { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
     //TimeEntries from date
     public DateOnly DateFrom { get; private set; }

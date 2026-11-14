@@ -22,7 +22,7 @@ public sealed class GetReviewerTimeEntriesHandler(
             return Result<IReadOnlyList<TimeEntryDto>>.Failure(
                 reviewerId.Errors.ToArray());
 
-        var reviewer = await employeeAccessRepository.GetWithAccessesAsync(reviewerId.Value);
+        var reviewer = await employeeAccessRepository.GetWithAccessesAsync(EmployeeId.Create(query.ReviewerId).Value);
         if (reviewer is null || !reviewer.CanReviewTimeEntries())
             return Result<IReadOnlyList<TimeEntryDto>>.Failure(
                 new Error("ReviewForbidden", "An active category reviewer permission is required."));
@@ -69,9 +69,8 @@ public sealed class GetReviewerTimeEntriesHandler(
         entry.Id.Value,
         audit.TaskId.Value,
         audit.WorkDate.Value.ToDateTime(TimeOnly.MinValue),
-        (decimal)audit.Duration.Value,
+        audit.Duration.Value,
         audit.Description.Value,
         entry.EmployeeId.Value,
-        audit.Status.ToString(),
-        entry.CurrentRejectionReason?.Value);
+        audit.Status.ToString());
 }

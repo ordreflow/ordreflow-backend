@@ -1,7 +1,7 @@
 using Application.Commands;
 using Application.Handlers;
 using Domain.Aggregate;
-using Domain.Entities;
+using TimeEntryAudit = Domain.Entities.TimeEntryAudit;
 using Domain.Interfaces;
 using Domain.ValueObjects;
 
@@ -16,12 +16,12 @@ public sealed class ReviewDecisionHandlerTests
     public async Task Missing_reviewer_permission_stops_before_reading_entry_or_scope()
     {
         var reviewer = Employee.Create("Reviewer", "reviewer@test.invalid", DateTime.UtcNow).Value;
-        var entry = NewEntry(Guid.NewGuid(), Guid.NewGuid());
+        var entry = NewEntry(NewEmployeeId(), NewTaskId());
         var repository = new FakeDecisionRepository(entry, entry.GetCurrentAudit()!.TaskId);
         var coordinator = Coordinator(reviewer, repository);
 
         var result = await new ApproveTimeEntryHandler(coordinator).HandleAsync(
-            new ApproveTimeEntryCommand(entry.Id, reviewer.Id));
+            new ApproveTimeEntryCommand(entry.Id.Value, reviewer.Id.Value));
 
         Assert.Equal("ReviewForbidden", Assert.Single(result.Errors).Code);
         Assert.Equal(0, repository.EntryLookups);
@@ -33,16 +33,17 @@ public sealed class ReviewDecisionHandlerTests
     public async Task Entry_moved_to_unassigned_task_cannot_be_reviewed()
     {
         var reviewer = Reviewer();
-        var assignedTask = Guid.NewGuid();
-        var otherTask = Guid.NewGuid();
-        var entry = NewEntry(Guid.NewGuid(), assignedTask);
+        var assignedTask = NewTaskId();
+        var otherTask = NewTaskId();
+        var entry = NewEntry(NewEmployeeId(), assignedTask);
         Assert.True(entry.AddAudit(TimeEntryAudit.Create(entry.Id, entry.EmployeeId, otherTask,
-            new DateOnly(2026, 10, 1), 2, "Work", TimeEntryStatus.ReadyForApproval,
+            WorkDate.Create(new DateOnly(2026, 10, 1)).Value, Duration.Create(2m).Value,
+            TimeEntryDescription.Create("Work").Value, TimeEntryStatus.ReadyForApproval,
             FirstAuditTime.AddMinutes(1)).Value).IsSuccess);
         var repository = new FakeDecisionRepository(entry, assignedTask);
 
         var result = await new ApproveTimeEntryHandler(Coordinator(reviewer, repository)).HandleAsync(
-            new ApproveTimeEntryCommand(entry.Id, reviewer.Id));
+            new ApproveTimeEntryCommand(entry.Id.Value, reviewer.Id.Value));
 
         Assert.Equal("ReviewScopeForbidden", Assert.Single(result.Errors).Code);
         Assert.Equal(otherTask, repository.LastCheckedTaskId);
@@ -54,22 +55,22 @@ public sealed class ReviewDecisionHandlerTests
     public async Task Approve_and_reject_use_the_current_task_and_record_utc_decisions()
     {
         var reviewer = Reviewer();
-        var taskId = Guid.NewGuid();
-        var first = NewEntry(Guid.NewGuid(), taskId);
-        var second = NewEntry(Guid.NewGuid(), taskId);
+        var taskId = NewTaskId();
+        var first = NewEntry(NewEmployeeId(), taskId);
+        var second = NewEntry(NewEmployeeId(), taskId);
 
         var approved = await new ApproveTimeEntryHandler(
             Coordinator(reviewer, new FakeDecisionRepository(first, taskId)))
-            .HandleAsync(new ApproveTimeEntryCommand(first.Id, reviewer.Id));
+            .HandleAsync(new ApproveTimeEntryCommand(first.Id.Value, reviewer.Id.Value));
         var rejected = await new RejectTimeEntryHandler(
             Coordinator(reviewer, new FakeDecisionRepository(second, taskId)))
-            .HandleAsync(new RejectTimeEntryCommand(second.Id, reviewer.Id, " Fix hours "));
+            .HandleAsync(new RejectTimeEntryCommand(second.Id.Value, reviewer.Id.Value, " Fix hours "));
 
         Assert.True(approved.IsSuccess);
         Assert.True(rejected.IsSuccess);
         Assert.Equal(TimeEntryStatus.Approved, first.GetCurrentAudit()!.Status);
         Assert.Equal(TimeEntryStatus.Rejected, second.GetCurrentAudit()!.Status);
-        Assert.Equal("Fix hours", Assert.Single(second.Reviews).Description);
+        Assert.Equal("Fix hours", Assert.Single(second.Reviews).Description!.Value);
         Assert.Equal(ReviewTime, Assert.Single(first.Reviews).ReviewedAtUtc);
         Assert.Equal(ReviewTime, Assert.Single(second.Reviews).ReviewedAtUtc);
         Assert.Equal(reviewer.Id, first.GetCurrentAudit()!.ActorId);
@@ -79,16 +80,16 @@ public sealed class ReviewDecisionHandlerTests
     public async Task Shared_self_review_setting_applies_to_both_decisions()
     {
         var reviewer = Reviewer();
-        var taskId = Guid.NewGuid();
+        var taskId = NewTaskId();
         var first = NewEntry(reviewer.Id, taskId);
         var second = NewEntry(reviewer.Id, taskId);
 
         var denied = await new ApproveTimeEntryHandler(
             Coordinator(reviewer, new FakeDecisionRepository(first, taskId), allowSelfReview: false))
-            .HandleAsync(new ApproveTimeEntryCommand(first.Id, reviewer.Id));
+            .HandleAsync(new ApproveTimeEntryCommand(first.Id.Value, reviewer.Id.Value));
         var allowed = await new RejectTimeEntryHandler(
             Coordinator(reviewer, new FakeDecisionRepository(second, taskId), allowSelfReview: true))
-            .HandleAsync(new RejectTimeEntryCommand(second.Id, reviewer.Id, "Reason"));
+            .HandleAsync(new RejectTimeEntryCommand(second.Id.Value, reviewer.Id.Value, "Reason"));
 
         Assert.Equal("SelfReviewForbidden", Assert.Single(denied.Errors).Code);
         Assert.Empty(first.Reviews);
@@ -108,34 +109,39 @@ public sealed class ReviewDecisionHandlerTests
         return reviewer;
     }
 
-    private static TimeEntry NewEntry(Guid employeeId, Guid taskId)
+    private static EmployeeId NewEmployeeId() => EmployeeId.Create(Guid.NewGuid()).Value;
+    private static TaskId NewTaskId() => TaskId.Create(Guid.NewGuid()).Value;
+
+    private static TimeEntry NewEntry(EmployeeId employeeId, TaskId taskId)
     {
-        var id = Guid.NewGuid();
-        var audit = TimeEntryAudit.Create(id, employeeId, taskId, new DateOnly(2026, 10, 1),
-            2, "Work", TimeEntryStatus.ReadyForApproval, FirstAuditTime).Value;
+        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
+        var audit = TimeEntryAudit.Create(id, employeeId, taskId,
+            WorkDate.Create(new DateOnly(2026, 10, 1)).Value,
+            Duration.Create(2m).Value, TimeEntryDescription.Create("Work").Value,
+            TimeEntryStatus.ReadyForApproval, FirstAuditTime).Value;
         return TimeEntry.Create(employeeId, audit).Value;
     }
 
     private sealed class FakeEmployeeRepository(Employee reviewer) : IEmployeeAccessRepository
     {
-        public Task<Employee?> GetWithAccessesAsync(Guid employeeId, CancellationToken cancellationToken = default) =>
+        public Task<Employee?> GetWithAccessesAsync(EmployeeId employeeId, CancellationToken cancellationToken = default) =>
             Task.FromResult<Employee?>(reviewer.Id == employeeId ? reviewer : null);
     }
 
-    private sealed class FakeDecisionRepository(TimeEntry entry, params Guid[] allowedTasks) : IReviewDecisionRepository
+    private sealed class FakeDecisionRepository(TimeEntry entry, params TaskId[] allowedTasks) : IReviewDecisionRepository
     {
         public int EntryLookups { get; private set; }
         public int ScopeLookups { get; private set; }
-        public Guid LastCheckedTaskId { get; private set; }
+        public TaskId LastCheckedTaskId { get; private set; } = null!;
 
-        public Task<TimeEntry?> GetForDecisionAsync(Guid entryId, CancellationToken cancellationToken = default)
+        public Task<TimeEntry?> GetForDecisionAsync(TimeEntryId entryId, CancellationToken cancellationToken = default)
         {
             EntryLookups++;
             return Task.FromResult<TimeEntry?>(entryId == entry.Id ? entry : null);
         }
 
         public Task<bool> HasReviewerTaskAccessAsync(
-            Guid reviewerId, Guid taskId, CancellationToken cancellationToken = default)
+            EmployeeId reviewerId, TaskId taskId, CancellationToken cancellationToken = default)
         {
             ScopeLookups++;
             LastCheckedTaskId = taskId;

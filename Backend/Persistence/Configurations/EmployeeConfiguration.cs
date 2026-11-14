@@ -12,8 +12,8 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         entity.HasKey(x => x.Id);
 
         entity.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-        entity.Property(x => x.Name).HasColumnName("name").IsRequired();
-        entity.Property(x => x.Email).HasColumnName("email").IsRequired();
+        entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+        entity.Property(x => x.Email).HasColumnName("email").HasMaxLength(320).IsRequired();
         entity.Property(x => x.Status).HasColumnName("status").HasConversion<string>().IsRequired();
         entity.Property(x => x.Title).HasColumnName("title");
         entity.Property(x => x.CreatedAt).HasColumnName("created_at")

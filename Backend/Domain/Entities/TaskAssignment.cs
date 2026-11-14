@@ -12,6 +12,6 @@ public sealed class TaskAssignment
     
     //which employee is it assigned to
     public EmployeeId AssignedTo { get; set; } = null!;
-    public double ExpectedDuration { get; set; }
-    public DateTime ExpectedDeadline { get; set; }
+    public PlannedDuration ExpectedDuration { get; set; } = null!;
+    public TargetCompletionDate ExpectedDeadline { get; set; } = null!;
 }

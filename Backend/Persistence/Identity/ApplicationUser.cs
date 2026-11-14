@@ -1,5 +1,6 @@
 namespace Persistence.Identity;
 
+using Domain.ValueObjects;
 using Microsoft.AspNetCore.Identity;
 using Domain.ValueObjects;
 

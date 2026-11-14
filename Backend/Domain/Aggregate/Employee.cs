@@ -11,9 +11,9 @@ public sealed class Employee
 {
     private readonly List<EmployeeSystemAccess> _accesses = new();
     
-    public EmployeeId Id { get; private set; } = null!;
-    public string Name { get; set; } = null!;
-    public string Email { get; set; } = null!;
+    public EmployeeId Id { get; set; } = null!;
+    public PersonName Name { get; set; } = null!;
+    public EmailAddress Email { get; set; } = null!;
     
     // Status for employee, if its active or deactivated.
     public EmployeeStatus Status { get; set; }
@@ -25,18 +25,20 @@ public sealed class Employee
 
     public static Result<Employee> Create(string name, string email, DateTime createdAtUtc)
     {
-        if (string.IsNullOrWhiteSpace(name))
-            return Result<Employee>.Failure(new Error("EmployeeNameRequired", "An employee name is required."));
-        if (string.IsNullOrWhiteSpace(email))
-            return Result<Employee>.Failure(new Error("EmployeeEmailRequired", "An employee email is required."));
+        var personName = PersonName.Create(name);
+        if (personName.IsFailure)
+            return Result<Employee>.Failure(personName.Errors.ToArray());
+        var emailAddress = EmailAddress.Create(email);
+        if (emailAddress.IsFailure)
+            return Result<Employee>.Failure(emailAddress.Errors.ToArray());
         if (createdAtUtc.Kind != DateTimeKind.Utc)
             return Result<Employee>.Failure(new Error("CreatedAtUtcRequired", "The creation time must be UTC."));
 
         var employee = new Employee
         {
-            Id = EmployeeId.New(),
-            Name = name.Trim(),
-            Email = email.Trim(),
+            Id = EmployeeId.Create(Guid.NewGuid()).Value,
+            Name = personName.Value,
+            Email = emailAddress.Value,
             Status = EmployeeStatus.Active,
             CreatedAt = createdAtUtc
         };

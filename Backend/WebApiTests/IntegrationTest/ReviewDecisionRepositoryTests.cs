@@ -1,5 +1,6 @@
 using Domain.Aggregate;
-using Domain.Entities;
+using CatagoryReviewer = Domain.Entities.CatagoryReviewer;
+using TimeEntryAudit = Domain.Entities.TimeEntryAudit;
 using Domain.Interfaces.IUnitOfWork;
 using Domain.ValueObjects;
 using Microsoft.Data.Sqlite;
@@ -21,31 +22,36 @@ public sealed class ReviewDecisionRepositoryTests
         var reviewer = Employee.Create("Reviewer", "reviewer@test.invalid", DateTime.UtcNow).Value;
         var worker = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
         Assert.True(reviewer.GrantPermission(SystemPermission.CatagoryReviewer).IsSuccess);
-        var department = new Department { Id = Guid.NewGuid(), Name = "Work department" };
+        var department = new Department
+        {
+            Id = DepartmentId.Create(Guid.NewGuid()).Value,
+            Name = DepartmentName.Create("Work department").Value
+        };
         var allowed = new Catagory
         {
-            Id = Guid.NewGuid(), DepartmentId = department.Id, CreatedBy = worker.Id,
-            Name = "Assigned", Status = CatagoryStatus.Active, CreatedAt = DateTime.UtcNow
+            Id = CatagoryId.Create(Guid.NewGuid()).Value, DepartmentId = department.Id, CreatedBy = worker.Id,
+            Name = CatagoryName.Create("Assigned").Value, Status = CatagoryStatus.Active, CreatedAt = DateTime.UtcNow
         };
         var other = new Catagory
         {
-            Id = Guid.NewGuid(), DepartmentId = department.Id, CreatedBy = worker.Id,
-            Name = "Other", Status = CatagoryStatus.Active, CreatedAt = DateTime.UtcNow
+            Id = CatagoryId.Create(Guid.NewGuid()).Value, DepartmentId = department.Id, CreatedBy = worker.Id,
+            Name = CatagoryName.Create("Other").Value, Status = CatagoryStatus.Active, CreatedAt = DateTime.UtcNow
         };
         var allowedTask = new Domain.Entities.Task
         {
-            Id = Guid.NewGuid(), CatagoryId = allowed.Id, Name = "Allowed",
+            Id = TaskId.Create(Guid.NewGuid()).Value, CatagoryId = allowed.Id, Name = TaskName.Create("Allowed").Value,
             Status = TaskStatus.Active, CreatedAt = DateTime.UtcNow
         };
         var otherTask = new Domain.Entities.Task
         {
-            Id = Guid.NewGuid(), CatagoryId = other.Id, Name = "Other",
+            Id = TaskId.Create(Guid.NewGuid()).Value, CatagoryId = other.Id, Name = TaskName.Create("Other").Value,
             Status = TaskStatus.Active, CreatedAt = DateTime.UtcNow
         };
         var initialTime = new DateTime(2026, 10, 1, 10, 0, 0, DateTimeKind.Utc);
-        var id = Guid.NewGuid();
+        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
         var entry = TimeEntry.Create(worker.Id, TimeEntryAudit.Create(id, worker.Id, allowedTask.Id,
-            new DateOnly(2026, 10, 1), 2, "Work", TimeEntryStatus.ReadyForApproval, initialTime).Value).Value;
+            WorkDate.Create(new DateOnly(2026, 10, 1)).Value, Duration.Create(2m).Value,
+            TimeEntryDescription.Create("Work").Value, TimeEntryStatus.ReadyForApproval, initialTime).Value).Value;
 
         await using (var seed = new AppDbContext(options))
         {

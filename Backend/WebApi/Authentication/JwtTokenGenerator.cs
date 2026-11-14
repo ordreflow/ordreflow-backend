@@ -20,7 +20,7 @@ public sealed class JwtTokenGenerator(JwtOptions options) : IAccessTokenGenerato
             Subject = new ClaimsIdentity(new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, employee.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, employee.Email),
+                new Claim(JwtRegisteredClaimNames.Email, employee.Email.Value),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             }),
             SigningCredentials = new SigningCredentials(options.SigningKey, SecurityAlgorithms.HmacSha256)

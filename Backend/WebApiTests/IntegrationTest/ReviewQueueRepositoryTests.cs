@@ -1,5 +1,8 @@
 using Domain.Aggregate;
-using Domain.Entities;
+using EmployeeSystemAccess = Domain.Entities.EmployeeSystemAccess;
+using DepartmentEmployee = Domain.Entities.DepartmentEmployee;
+using CatagoryReviewer = Domain.Entities.CatagoryReviewer;
+using TimeEntryAudit = Domain.Entities.TimeEntryAudit;
 using Domain.ValueObjects;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -75,8 +78,16 @@ public sealed class ReviewQueueRepositoryTests
         var reviewer = Employee("Reviewer");
         var manager = Employee("Manager");
         manager.Title = "Manager";
-        var reviewerDepartment = new Department { Id = Guid.NewGuid(), Name = "Reviewer's department" };
-        var otherDepartment = new Department { Id = Guid.NewGuid(), Name = "Other department" };
+        var reviewerDepartment = new Department
+        {
+            Id = DepartmentId.Create(Guid.NewGuid()).Value,
+            Name = DepartmentName.Create("Reviewer's department").Value
+        };
+        var otherDepartment = new Department
+        {
+            Id = DepartmentId.Create(Guid.NewGuid()).Value,
+            Name = DepartmentName.Create("Other department").Value
+        };
         var assigned = Category(reviewer.Id, otherDepartment.Id);
         var unrelated = Category(manager.Id, reviewerDepartment.Id);
         var assignedTask = WorkItem(assigned.Id);
@@ -103,7 +114,7 @@ public sealed class ReviewQueueRepositoryTests
         Assert.Equal(assigned.Id, Assert.Single(categoryIds));
         Assert.Equal(assignedTask.Id, Assert.Single(await queue.GetTaskIdsAsync(categoryIds)));
         Assert.Empty(await queue.GetAssignedCatagoryIdsAsync(manager.Id));
-        Assert.Empty(await queue.GetTaskIdsAsync(Array.Empty<Guid>()));
+        Assert.Empty(await queue.GetTaskIdsAsync(Array.Empty<CatagoryId>()));
     }
 
     [Fact]
@@ -114,7 +125,11 @@ public sealed class ReviewQueueRepositoryTests
 
         var reviewer = Employee("Reviewer");
         var worker = Employee("Worker");
-        var otherDepartment = new Department { Id = Guid.NewGuid(), Name = "Worker's department" };
+        var otherDepartment = new Department
+        {
+            Id = DepartmentId.Create(Guid.NewGuid()).Value,
+            Name = DepartmentName.Create("Worker's department").Value
+        };
         var assigned = Category(reviewer.Id, otherDepartment.Id);
         var unrelated = Category(reviewer.Id, otherDepartment.Id);
         var allowedTask = WorkItem(assigned.Id);
@@ -131,9 +146,9 @@ public sealed class ReviewQueueRepositoryTests
         });
 
         var firstAuditTime = new DateTime(2026, 11, 14, 10, 0, 0, DateTimeKind.Utc);
-        TimeEntry CreateEntry(Guid taskId, int minute)
+        TimeEntry CreateEntry(TaskId taskId, int minute)
         {
-            var id = Guid.NewGuid();
+            var id = TimeEntryId.Create(Guid.NewGuid()).Value;
             var initial = Audit(id, worker.Id, taskId, firstAuditTime.AddMinutes(minute));
             return TimeEntry.Create(worker.Id, initial).Value;
         }
@@ -157,10 +172,10 @@ public sealed class ReviewQueueRepositoryTests
         Assert.Equal(2, candidates.Single(entry => entry.Id == movedOut.Id).Audits.Count);
         Assert.Equal(2, candidates.Single(entry => entry.Id == movedIn.Id).Audits.Count);
         Assert.Equal(
-            new[] { movedIn.Id, staying.Id }.Order(),
+            new[] { movedIn.Id.Value, staying.Id.Value }.Order(),
             candidates.Where(entry => tasks.Contains(entry.GetCurrentAudit()!.TaskId))
-                .Select(entry => entry.Id).Order());
-        Assert.Empty(await queue.GetCandidatesWithAuditsAsync(Array.Empty<Guid>()));
+                .Select(entry => entry.Id.Value).Order());
+        Assert.Empty(await queue.GetCandidatesWithAuditsAsync(Array.Empty<TaskId>()));
     }
 
     private static async Task<AppDbContext> CreateContextAsync(SqliteConnection connection)
@@ -175,26 +190,28 @@ public sealed class ReviewQueueRepositoryTests
     private static Employee Employee(string name) =>
         Domain.Aggregate.Employee.Create(name, $"{Guid.NewGuid():N}@test.invalid", DateTime.UtcNow).Value;
 
-    private static Catagory Category(Guid creatorId, Guid departmentId) => new()
+    private static Catagory Category(EmployeeId creatorId, DepartmentId departmentId) => new()
     {
-        Id = Guid.NewGuid(),
+        Id = CatagoryId.Create(Guid.NewGuid()).Value,
         CreatedBy = creatorId,
         DepartmentId = departmentId,
-        Name = "Test category",
+        Name = CatagoryName.Create("Test category").Value,
         Status = CatagoryStatus.Active,
         CreatedAt = DateTime.UtcNow
     };
 
-    private static Domain.Entities.Task WorkItem(Guid catagoryId) => new()
+    private static Domain.Entities.Task WorkItem(CatagoryId catagoryId) => new()
     {
-        Id = Guid.NewGuid(),
+        Id = TaskId.Create(Guid.NewGuid()).Value,
         CatagoryId = catagoryId,
-        Name = "Test task",
+        Name = TaskName.Create("Test task").Value,
         Status = TaskStatus.Active,
         CreatedAt = DateTime.UtcNow
     };
 
-    private static TimeEntryAudit Audit(Guid entryId, Guid actorId, Guid taskId, DateTime at) =>
-        TimeEntryAudit.Create(entryId, actorId, taskId, new DateOnly(2026, 11, 14), 2, "Work",
+    private static TimeEntryAudit Audit(TimeEntryId entryId, EmployeeId actorId, TaskId taskId, DateTime at) =>
+        TimeEntryAudit.Create(entryId, actorId, taskId,
+            WorkDate.Create(new DateOnly(2026, 11, 14)).Value, Duration.Create(2m).Value,
+            TimeEntryDescription.Create("Work").Value,
             TimeEntryStatus.ReadyForApproval, at).Value;
 }

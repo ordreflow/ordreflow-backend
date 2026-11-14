@@ -33,8 +33,9 @@ public static class IdentitySeeder
 
         await using var transaction = await context.Database.BeginTransactionAsync();
 
+        var emailAddress = EmailAddress.Create(email).Value;
         var employee = await context.Employees.Include(value => value.Accesses)
-            .SingleOrDefaultAsync(value => value.Email == email);
+            .SingleOrDefaultAsync(value => value.Email == emailAddress);
         if (employee is null)
         {
             var created = Employee.Create(name, email, DateTime.UtcNow);

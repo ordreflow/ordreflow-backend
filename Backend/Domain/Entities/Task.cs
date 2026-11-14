@@ -12,7 +12,7 @@ public sealed class Task
     public TaskId Id { get; set; } = null!;
     public CatagoryId CatagoryId { get; set; } = null!;
     public TaskStatus Status { get; set; }
-    public string Name { get; set; } = null!;
+    public TaskName Name { get; set; } = null!;
     public string? Description { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ClosedAt { get; set; }

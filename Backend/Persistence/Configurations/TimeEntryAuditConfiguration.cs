@@ -1,5 +1,6 @@
 using Domain.Aggregate;
 using Domain.Entities;
+using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Task = Domain.Entities.Task;
@@ -19,8 +20,12 @@ public sealed class TimeEntryAuditConfiguration : IEntityTypeConfiguration<TimeE
         entity.Property(x => x.ClosedBy).HasColumnName("closed_by");
         entity.Property(x => x.TaskId).HasColumnName("task_id").IsRequired();
         entity.Property(x => x.WorkDate).HasColumnName("work_date").HasColumnType("date");
-        entity.Property(x => x.Duration).HasColumnName("duration").HasColumnType("double precision");
-        entity.Property(x => x.Description).HasColumnName("description").IsRequired();
+        entity.Property(x => x.Duration)
+            .HasColumnName("duration")
+            .HasConversion(value => value.Value, value => Duration.Create(value).Value)
+            .HasPrecision(5, 2)
+            .IsRequired();
+        entity.Property(x => x.Description).HasColumnName("description").HasMaxLength(1000).IsRequired();
         entity.Property(x => x.Status).HasColumnName("status").HasConversion<string>().IsRequired();
         entity.Property(x => x.AuditTime).HasColumnName("audit_time")
             .HasColumnType("timestamp with time zone").IsRequired();

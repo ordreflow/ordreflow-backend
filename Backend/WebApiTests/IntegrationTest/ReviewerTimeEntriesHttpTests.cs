@@ -78,7 +78,9 @@ public sealed class ReviewerTimeEntriesHttpTests : IClassFixture<ReviewerTimeEnt
     {
         var employee = new Employee
         {
-            Id = Guid.NewGuid(), Name = "Reviewer", Email = "reviewer@test.invalid",
+            Id = EmployeeId.Create(Guid.NewGuid()).Value,
+            Name = PersonName.Create("Reviewer").Value,
+            Email = EmailAddress.Create("reviewer@test.invalid").Value,
             Status = EmployeeStatus.Active, CreatedAt = DateTime.UtcNow
         };
         Assert.True(employee.GrantPermission(SystemPermission.CatagoryReviewer).IsSuccess);
@@ -113,7 +115,7 @@ public sealed class ReviewerTimeEntriesHttpTests : IClassFixture<ReviewerTimeEnt
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("ReviewForbidden", body.RootElement[0].GetProperty("code").GetString());
-        Assert.Equal(reviewerId, _factory.Dispatcher.LastQuery?.ReviewerId);
+        Assert.Equal(reviewerId.Value, _factory.Dispatcher.LastQuery?.ReviewerId);
     }
 
     [Fact]
@@ -138,13 +140,13 @@ public sealed class ReviewerTimeEntriesHttpTests : IClassFixture<ReviewerTimeEnt
         Assert.Equal(2.25m, item.Hours);
         Assert.Equal("Completed work", item.Comment);
         Assert.Equal("ReadyForApproval", item.Status);
-        Assert.Equal(reviewerId, _factory.Dispatcher.LastQuery?.ReviewerId);
+        Assert.Equal(reviewerId.Value, _factory.Dispatcher.LastQuery?.ReviewerId);
         Assert.Equal(new DateTime(2026, 11, 14), _factory.Dispatcher.LastQuery?.FromDate);
         Assert.Equal(new DateTime(2026, 11, 17), _factory.Dispatcher.LastQuery?.ToDateExclusive);
         Assert.Null(_factory.Dispatcher.LastQuery?.Status);
     }
 
-    private async Task<HttpResponseMessage> GetAsEmployeeAsync(Guid reviewerId, string path = Path)
+    private async Task<HttpResponseMessage> GetAsEmployeeAsync(EmployeeId reviewerId, string path = Path)
     {
         var token = _factory.Services.GetRequiredService<IAccessTokenGenerator>()
             .Generate(_factory.Access.Get(reviewerId)).Value;
@@ -193,13 +195,13 @@ public sealed class ReviewerTimeEntriesHttpTests : IClassFixture<ReviewerTimeEnt
 
     public sealed class FakeEmployeeAccessRepository : IEmployeeAccessRepository
     {
-        private readonly Dictionary<Guid, Employee> _employees = new();
+        private readonly Dictionary<EmployeeId, Employee> _employees = new();
 
         public void Add(Employee employee) => _employees.Add(employee.Id, employee);
 
-        public Employee Get(Guid employeeId) => _employees[employeeId];
+        public Employee Get(EmployeeId employeeId) => _employees[employeeId];
 
-        public Task<Employee?> GetWithAccessesAsync(Guid employeeId, CancellationToken cancellationToken = default) =>
+        public Task<Employee?> GetWithAccessesAsync(EmployeeId employeeId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_employees.GetValueOrDefault(employeeId));
     }
 

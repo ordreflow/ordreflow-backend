@@ -23,6 +23,7 @@ public class TaskConfiguration : IEntityTypeConfiguration<Task>
 
         entity.Property(x => x.Name)
             .HasColumnName("name")
+            .HasMaxLength(200)
             .IsRequired();
 
         entity.Property(x => x.Description)
