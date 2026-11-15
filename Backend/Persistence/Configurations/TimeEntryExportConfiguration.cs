@@ -14,6 +14,10 @@ public sealed class TimeEntryExportConfiguration : IEntityTypeConfiguration<Time
 
         entity.Property(x => x.ExportId).HasColumnName("export_id");
         entity.Property(x => x.TimeEntryId).HasColumnName("time_entry_id");
+        entity.Property(x => x.TimeEntryAuditId).HasColumnName("time_entry_audit_id").IsRequired();
+
+        entity.HasOne<TimeEntryAudit>().WithMany().HasForeignKey(x => x.TimeEntryAuditId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         entity.HasOne<TimeEntry>().WithMany().HasForeignKey(x => x.TimeEntryId)
             .OnDelete(DeleteBehavior.Restrict);

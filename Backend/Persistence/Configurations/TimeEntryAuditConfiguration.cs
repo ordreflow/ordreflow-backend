@@ -32,6 +32,7 @@ public sealed class TimeEntryAuditConfiguration : IEntityTypeConfiguration<TimeE
 
         entity.HasIndex(x => new { x.TimeEntryId, x.AuditTime }).IsUnique();
         entity.HasIndex(x => new { x.TaskId, x.TimeEntryId });
+        entity.HasIndex(x => new { x.Status, x.WorkDate });
 
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActorId)
             .OnDelete(DeleteBehavior.Restrict);

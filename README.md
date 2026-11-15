@@ -338,6 +338,14 @@ no separate resubmission is needed after editing. The previous rejection reason
 remains in review history, but is no longer the current rejection reason.
 The explicit resubmit endpoint supports resubmitting a rejected entry unchanged.
 
+## UC-07 payroll exports
+
+Payroll and administrators can create saved CSV batches for an inclusive date
+range and all employees or one selected employee. Only Approved entries are
+included. Creating/downloading a batch never closes entries; the frontend calls
+the separate **Close time entries** action on a previous batch. Overlapping
+batches and repeat closure are supported. See [the API and business rules](docs/UC-07-payroll-exports.md).
+
 ## Local PostgreSQL with Flox
 
 The Flox manifest includes PostgreSQL as a local-only service. Its data

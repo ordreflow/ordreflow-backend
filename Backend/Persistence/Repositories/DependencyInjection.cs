@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IReviewQueueRepository, ReviewQueueRepository>();
         services.AddScoped<IReviewDecisionRepository, ReviewDecisionRepository>();
         services.AddScoped<ITimeRegistrationRepository, TimeRegistrationRepository>();
+        services.AddScoped<IExportRepository, ExportRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPasswordVerifier, PasswordVerifier>();

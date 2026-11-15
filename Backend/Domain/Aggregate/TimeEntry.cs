@@ -194,6 +194,34 @@ public sealed class TimeEntry
 
     public TimeEntryAudit? GetCurrentAudit() => _audits.MaxBy(audit => audit.AuditTime);
 
+    public Result CanCloseForExport(TimeEntryAuditId approvedAuditId, DateTime closedAtUtc)
+    {
+        var ordered = _audits.OrderBy(audit => audit.AuditTime).ToArray();
+        var current = ordered.LastOrDefault();
+        // A different overlapping batch may already have closed this exact approved version.
+        if (current?.Status == TimeEntryStatus.Closed && ordered.Length >= 2 &&
+            ordered[^2].Id == approvedAuditId && ordered[^2].Status == TimeEntryStatus.Approved)
+            return Result.Success();
+        if (current?.Status != TimeEntryStatus.Approved || current.Id != approvedAuditId)
+            return Result.Failure(new Error("ExportSelectionConflict", "An exported entry no longer matches its approved version."));
+        if (closedAtUtc.Kind != DateTimeKind.Utc || closedAtUtc <= current.AuditTime)
+            return Result.Failure(new Error("ExportClosureConflict", "The closing time must be UTC and later than the approved version."));
+        return Result.Success();
+    }
+
+    public Result CloseForExport(TimeEntryAuditId approvedAuditId, EmployeeId actor, DateTime closedAtUtc)
+    {
+        if (actor is null)
+            return Result.Failure(new Error("ActorRequired", "A closing actor is required."));
+        var valid = CanCloseForExport(approvedAuditId, closedAtUtc);
+        if (valid.IsFailure || CurrentStatus == TimeEntryStatus.Closed)
+            return valid;
+        var current = GetCurrentAudit()!;
+        var audit = TimeEntryAudit.Create(Id, actor, current.TaskId, current.WorkDate, current.Duration,
+            current.Description, TimeEntryStatus.Closed, closedAtUtc, closedBy: actor);
+        return audit.IsFailure ? Result.Failure(audit.Errors.ToArray()) : AddAudit(audit.Value);
+    }
+
     public Result Approve(EmployeeId reviewerId, DateTime reviewedAtUtc, bool allowSelfReview) =>
         Decide(reviewerId, ReviewStatus.Approved, null, reviewedAtUtc, allowSelfReview);
 

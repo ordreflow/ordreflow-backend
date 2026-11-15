@@ -3,6 +3,7 @@
 using System.Reflection;
 using Domain.Interfaces.IUnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
+using Application.Exports;
 
 namespace Application.Extenstions;
 
@@ -17,6 +18,7 @@ public static class DependencyInjection
     services.AddScoped<QueryDispatcher>();
     services.AddScoped<IQueryDispatcher, QueryDispatcher>();
     services.AddScoped<TimeEntryReviewCoordinator>();
+    services.AddScoped<PayrollExportService>();
 
     services.AddScoped<ICommandDispatcher>(provider =>
     {

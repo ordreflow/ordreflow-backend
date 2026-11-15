@@ -18,7 +18,8 @@ public sealed class SystemPermissionAuthorizationHandler(IEmployeeAccessReposito
 
         var employee = await employees.GetWithAccessesAsync(EmployeeId.Create(employeeId).Value);
         if (employee is not null && employee.HasPermission(SystemPermission.Employee) &&
-            employee.HasPermission(requirement.Permission))
+            (employee.HasPermission(requirement.Permission) ||
+             requirement.AlternativePermission is { } alternative && employee.HasPermission(alternative)))
             context.Succeed(requirement);
     }
 }
