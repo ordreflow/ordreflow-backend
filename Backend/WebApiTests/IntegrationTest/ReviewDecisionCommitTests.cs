@@ -21,6 +21,7 @@ public sealed class ReviewDecisionCommitTests
 
     private sealed class SuccessfulDispatcher : ICommandDispatcher
     {
+        public Task<Result<T>> DispatchAsync<TCommand, T>(TCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Result> DispatchAsync<TCommand>(TCommand command) => Task.FromResult(Result.Success());
     }
 

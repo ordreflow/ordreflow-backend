@@ -36,7 +36,7 @@ public sealed class ReviewDecisionHandlerTests
         var assignedTask = NewTaskId();
         var otherTask = NewTaskId();
         var entry = NewEntry(NewEmployeeId(), assignedTask);
-        Assert.True(entry.AddAudit(TimeEntryAudit.Create(entry.Id, entry.EmployeeId, otherTask,
+        Assert.True(PersistedTimeEntry.Append(entry, TimeEntryAudit.Create(entry.Id, entry.EmployeeId, otherTask,
             WorkDate.Create(new DateOnly(2026, 10, 1)).Value, Duration.Create(2m).Value,
             TimeEntryDescription.Create("Work").Value, TimeEntryStatus.ReadyForApproval,
             FirstAuditTime.AddMinutes(1)).Value).IsSuccess);
@@ -100,7 +100,7 @@ public sealed class ReviewDecisionHandlerTests
     private static TimeEntryReviewCoordinator Coordinator(
         Employee reviewer, FakeDecisionRepository entries, bool allowSelfReview = true) =>
         new(new FakeEmployeeRepository(reviewer), entries,
-            new TimeEntryReviewPolicy(allowSelfReview), new FixedTimeProvider());
+            new TimeEntryReviewPolicy(allowSelfReview), new FixedTimeProvider(), new Domain.Services.TimeEntryReviewDomainService());
 
     private static Employee Reviewer()
     {
@@ -114,12 +114,9 @@ public sealed class ReviewDecisionHandlerTests
 
     private static TimeEntry NewEntry(EmployeeId employeeId, TaskId taskId)
     {
-        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
-        var audit = TimeEntryAudit.Create(id, employeeId, taskId,
-            WorkDate.Create(new DateOnly(2026, 10, 1)).Value,
-            Duration.Create(2m).Value, TimeEntryDescription.Create("Work").Value,
-            TimeEntryStatus.ReadyForApproval, FirstAuditTime).Value;
-        return TimeEntry.Create(employeeId, audit).Value;
+        var date = WorkDate.Create(new DateOnly(2026, 10, 1)).Value;
+        return TimeEntry.Record(employeeId, taskId, date, Duration.Create(2m).Value,
+            TimeEntryDescription.Create("Work").Value, WorkDatePeriod.Create(date, date).Value, FirstAuditTime).Value;
     }
 
     private sealed class FakeEmployeeRepository(Employee reviewer) : IEmployeeAccessRepository

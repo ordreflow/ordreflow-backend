@@ -28,7 +28,7 @@ public sealed class LoginPermissionTests
     public async Task Inactive_employee_cannot_receive_a_token()
     {
         var employee = Employee.Create("Employee", "employee@test.invalid", DateTime.UtcNow).Value;
-        employee.Status = EmployeeStatus.Deactivated;
+        employee.Deactivate();
         var tokens = new FakeTokenGenerator();
         var handler = new LoginHandler(new FakePasswordVerifier(employee.Id.Value),
             new FakeEmployeeRepository(employee), tokens);
@@ -43,13 +43,8 @@ public sealed class LoginPermissionTests
     [Fact]
     public async Task Removing_baseline_permission_prevents_login()
     {
-        var employee = new Employee
-        {
-            Id = EmployeeId.Create(Guid.NewGuid()).Value,
-            Name = PersonName.Create("Employee").Value,
-            Email = EmailAddress.Create("employee@test.invalid").Value,
-            Status = EmployeeStatus.Active, CreatedAt = DateTime.UtcNow
-        };
+        var employee = Employee.Create("Employee", "employee@test.invalid", DateTime.UtcNow).Value;
+        Assert.True(employee.RevokePermission(SystemPermission.Employee).IsSuccess);
         var tokens = new FakeTokenGenerator();
         var handler = new LoginHandler(new FakePasswordVerifier(employee.Id.Value),
             new FakeEmployeeRepository(employee), tokens);

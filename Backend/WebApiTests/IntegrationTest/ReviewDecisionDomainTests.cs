@@ -139,11 +139,8 @@ public sealed class ReviewDecisionDomainTests
 
     private static TimeEntry NewEntry(EmployeeId employeeId, TaskId taskId)
     {
-        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
-        var initial = TimeEntryAudit.Create(id, employeeId, taskId,
-            WorkDate.Create(new DateOnly(2026, 10, 1)).Value,
-            Duration.Create(2.5m).Value, TimeEntryDescription.Create("Work").Value,
-            TimeEntryStatus.ReadyForApproval, Created).Value;
-        return TimeEntry.Create(employeeId, initial).Value;
+        var date = WorkDate.Create(new DateOnly(2026, 10, 1)).Value;
+        return TimeEntry.Record(employeeId, taskId, date, Duration.Create(2.5m).Value,
+            TimeEntryDescription.Create("Work").Value, WorkDatePeriod.Create(date, date).Value, Created).Value;
     }
 }

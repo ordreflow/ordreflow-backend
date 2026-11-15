@@ -22,7 +22,7 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         entity.HasMany(x => x.Accesses)
             .WithOne()
             .HasForeignKey(x => x.EmployeeId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
 
         entity.Navigation(x => x.Accesses)
             .UsePropertyAccessMode(PropertyAccessMode.Field);

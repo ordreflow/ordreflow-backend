@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using Application.Exports;
+using Application;
+using Domain.Interfaces.IUnitOfWork;
 using Application.Interfaces;
 using Core.Tools.OperationResult;
 using Domain.Aggregate;
@@ -41,7 +43,7 @@ public sealed class PayrollExportsHttpTests : IClassFixture<PayrollExportsHttpTe
         using var created = await SendAsync(HttpMethod.Post, "/api/exports", _factory.Payroll, Request(id));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         Assert.Equal($"/api/exports/{id}", created.Headers.Location?.ToString());
-        var details = await created.Content.ReadFromJsonAsync<ExportDetailsDto>();
+        var details = await created.Content.ReadFromJsonAsync<ExportDetailsResponse>();
         Assert.Equal(id, details!.Export.Id);
         Assert.Null(details.Export.TimeEntriesClosedAtUtc);
         Assert.Equal(TimeEntryStatus.Approved, _factory.Repository.Entry.CurrentStatus);
@@ -115,6 +117,10 @@ public sealed class PayrollExportsHttpTests : IClassFixture<PayrollExportsHttpTe
             services.AddSingleton<IExportRepository>(Repository);
             services.RemoveAll<IEmployeeAccessRepository>();
             services.AddSingleton<IEmployeeAccessRepository>(new Employees(Payroll, Employee));
+            services.RemoveAll<ICommandTransaction>();
+            services.AddSingleton<ICommandTransaction>(new InMemoryBoundary());
+            services.RemoveAll<IUnitOfWork>();
+            services.AddSingleton<IUnitOfWork>(new NoopWork());
         });
     }
 
@@ -131,11 +137,10 @@ public sealed class PayrollExportsHttpTests : IClassFixture<PayrollExportsHttpTe
         public void Reset()
         {
             Batches.Clear();
-            var id = TimeEntryId.Create(Guid.NewGuid()).Value;
             var created = new DateTime(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
-            Entry = TimeEntry.Create(owner, TimeEntryAudit.Create(id, owner, TaskId.Create(Guid.NewGuid()).Value,
-                WorkDate.Create(new DateOnly(2026, 11, 5)).Value, Duration.Create(7.5m).Value,
-                TimeEntryDescription.Create("Work").Value, TimeEntryStatus.ReadyForApproval, created).Value).Value;
+            var date = WorkDate.Create(new DateOnly(2026, 11, 5)).Value;
+            Entry = TimeEntry.Record(owner, TaskId.Create(Guid.NewGuid()).Value, date, Duration.Create(7.5m).Value,
+                TimeEntryDescription.Create("Work").Value, WorkDatePeriod.Create(date, date).Value, created).Value;
             Assert.True(Entry.Approve(reviewer, created.AddMinutes(1), true).IsSuccess);
         }
         public Task<bool> EmployeeExistsAsync(EmployeeId id, CancellationToken ct) => Task.FromResult(id == owner);
@@ -144,17 +149,27 @@ public sealed class PayrollExportsHttpTests : IClassFixture<PayrollExportsHttpTe
                 Entry.CurrentWorkDate!.Value >= from && Entry.CurrentWorkDate.Value <= to && (employee is null || employee == owner)
                     ? [new ExportCandidate(Entry, "Worker", "Task", "Category", "Department")] : []);
         public Task<Export?> GetAsync(ExportId id, CancellationToken ct) => Task.FromResult(Batches.GetValueOrDefault(id));
-        public Task<Result<Export>> SaveNewAsync(Export batch, CancellationToken ct)
+        public Task AddAsync(Export batch, CancellationToken ct)
         {
             Batches.Add(batch.Id, batch);
-            return Task.FromResult(Result<Export>.Success(batch));
+            return Task.CompletedTask;
         }
-        public Task<Result> CloseTimeEntriesAsync(ExportId id, EmployeeId actor, DateTime utc, CancellationToken ct) =>
-            Task.FromResult(Batches.TryGetValue(id, out var batch) ? batch.CloseTimeEntries([Entry], actor, utc)
-                : Result.Failure(new Error("ExportNotFound", "Not found.")));
+        public Task<Export?> GetForClosureAsync(ExportId id, CancellationToken ct) => GetAsync(id, ct);
+        public Task<IReadOnlyList<TimeEntry>> GetEntriesForClosureAsync(IReadOnlyCollection<TimeEntryId> ids, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<TimeEntry>>(ids.Contains(Entry.Id) ? [Entry] : []);
         public Task<IReadOnlyList<ExportSummaryDto>> ListAsync(int page, int size, CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<ExportSummaryDto>>(Batches.Values.Select(PayrollExportService.Summary).ToArray());
+            Task.FromResult<IReadOnlyList<ExportSummaryDto>>(Batches.Values.Select(ExportProjection.Summary).ToArray());
         public Task<IReadOnlyList<ExportEmployeeDto>> EmployeesAsync(string? search, int page, int size, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ExportEmployeeDto>>([new ExportEmployeeDto(owner.Value, "Worker", "Active")]);
+    }
+
+    public sealed class NoopWork : IUnitOfWork
+    {
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    public sealed class InMemoryBoundary : ICommandTransaction
+    {
+        public Task<Result<T>> ExecuteAsync<T>(Func<CancellationToken, Task<Result<T>>> operation, string conflictCode,
+            CancellationToken cancellationToken = default) => operation(cancellationToken);
     }
 }

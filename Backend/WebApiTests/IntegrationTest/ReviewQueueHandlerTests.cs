@@ -205,7 +205,7 @@ public sealed class ReviewQueueHandlerTests
         var employee = Employee.Create("Reviewer", $"{Guid.NewGuid():N}@test.invalid", DateTime.UtcNow).Value;
         if (grantPermission)
             Assert.True(employee.GrantPermission(SystemPermission.CatagoryReviewer).IsSuccess);
-        employee.Status = status;
+        if (status == EmployeeStatus.Deactivated) employee.Deactivate();
         context.Employees.Add(employee);
         await context.SaveChangesAsync();
         return employee.Id.Value;
@@ -218,14 +218,14 @@ public sealed class ReviewQueueHandlerTests
     private static TimeEntry Entry(EmployeeId employeeId, TaskId taskId, DateOnly workDate, TimeEntryStatus status)
     {
         var id = TimeEntryId.Create(Guid.NewGuid()).Value;
-        return TimeEntry.Create(employeeId,
+        return PersistedTimeEntry.Create(employeeId,
             TimeEntryAudit.Create(id, employeeId, taskId, WorkDate.Create(workDate).Value,
                 Duration.Create(1.5m).Value, TimeEntryDescription.Create("Initial version").Value,
                 status, FirstAuditTime).Value).Value;
     }
 
     private static void AddAudit(TimeEntry entry, TaskId taskId, DateOnly workDate, TimeEntryStatus status) =>
-        Assert.True(entry.AddAudit(TimeEntryAudit.Create(entry.Id, entry.EmployeeId, taskId,
+        Assert.True(PersistedTimeEntry.Append(entry, TimeEntryAudit.Create(entry.Id, entry.EmployeeId, taskId,
             WorkDate.Create(workDate).Value, Duration.Create(2.25m).Value,
             TimeEntryDescription.Create("Latest version").Value, status, FirstAuditTime.AddMinutes(1)).Value).IsSuccess);
 

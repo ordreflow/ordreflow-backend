@@ -1,5 +1,4 @@
 using Application.Exports;
-using Core.Tools.OperationResult;
 using Domain.Aggregate;
 using Domain.ValueObjects;
 
@@ -12,7 +11,7 @@ public interface IExportRepository
     Task<Export?> GetAsync(ExportId id, CancellationToken ct);
     Task<IReadOnlyList<ExportSummaryDto>> ListAsync(int page, int pageSize, CancellationToken ct);
     Task<IReadOnlyList<ExportEmployeeDto>> EmployeesAsync(string? search, int page, int pageSize, CancellationToken ct);
-    // These writes own their transactions; the legacy command dispatcher cannot return a created batch.
-    Task<Result<Export>> SaveNewAsync(Export batch, CancellationToken ct);
-    Task<Result> CloseTimeEntriesAsync(ExportId id, EmployeeId actor, DateTime closedAtUtc, CancellationToken ct);
+    Task AddAsync(Export batch, CancellationToken ct);
+    Task<Export?> GetForClosureAsync(ExportId id, CancellationToken ct);
+    Task<IReadOnlyList<TimeEntry>> GetEntriesForClosureAsync(IReadOnlyCollection<TimeEntryId> ids, CancellationToken ct);
 }

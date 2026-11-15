@@ -7,6 +7,7 @@ namespace Domain.Aggregate;
 
 public sealed class TimeEntry
 {
+    private TimeEntry() { }
     private readonly List<TimeEntryAudit> _audits = new();
     private readonly List<TimeEntryReview> _reviews = new();
     public TimeEntryId Id { get; private set; } = null!;
@@ -39,7 +40,7 @@ public sealed class TimeEntry
         ? _reviews.MaxBy(review => review.ReviewedAtUtc)?.Description
         : null;
 
-    public static Result<TimeEntry> Create(EmployeeId employeeId, TimeEntryAudit initialAudit)
+    private static Result<TimeEntry> Create(EmployeeId employeeId, TimeEntryAudit initialAudit)
     {
         if (employeeId is null)
             return Result<TimeEntry>.Failure(new Error("EmployeeRequired", "An employee is required."));
@@ -174,7 +175,7 @@ public sealed class TimeEntry
         return AppendVersion(current, employeeId, TimeEntryStatus.ReadyForApproval, submittedAtUtc);
     }
 
-    public Result AddAudit(TimeEntryAudit audit)
+    private Result AddAudit(TimeEntryAudit audit)
     {
         if (audit is null)
             return Result.Failure(new Error("AuditRequired", "An audit is required."));

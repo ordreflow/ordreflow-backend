@@ -10,6 +10,10 @@ namespace Domain.Entities;
 
 public sealed class EmployeeSystemAccess
 {
-    public EmployeeId EmployeeId { get; set; } = null!;
-    public SystemPermission Permission { get; set; }
+    public EmployeeId EmployeeId { get; private set; } = null!;
+    public SystemPermission Permission { get; private set; }
+
+    private EmployeeSystemAccess() { }
+    internal static EmployeeSystemAccess Create(EmployeeId employeeId, SystemPermission permission) =>
+        new() { EmployeeId = employeeId, Permission = permission };
 }

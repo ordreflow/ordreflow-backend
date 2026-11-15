@@ -21,7 +21,7 @@ public sealed class WeeklyTimeEntriesHandlerTests
         Assert.True(rejected.Reject(EmployeeId.Create(Guid.NewGuid()).Value, "Please correct",
             AuditTime.AddMinutes(1), allowSelfReview: false).IsSuccess);
         var movedOutside = Entry(employeeId, taskId, Monday);
-        Assert.True(movedOutside.AddAudit(TimeEntryAudit.Create(movedOutside.Id, employeeId, taskId,
+        Assert.True(PersistedTimeEntry.Append(movedOutside, TimeEntryAudit.Create(movedOutside.Id, employeeId, taskId,
             WorkDate.Create(DateOnly.FromDateTime(Monday.AddDays(7))).Value,
             Duration.Create(3m).Value, TimeEntryDescription.Create("Moved").Value,
             TimeEntryStatus.ReadyForApproval, AuditTime.AddMinutes(1)).Value).IsSuccess);
@@ -68,7 +68,7 @@ public sealed class WeeklyTimeEntriesHandlerTests
         var audit = TimeEntryAudit.Create(entryId, employeeId, taskId,
             WorkDate.Create(DateOnly.FromDateTime(date)).Value, Duration.Create(2.5m).Value,
             TimeEntryDescription.Create("Work").Value, status, AuditTime).Value;
-        return TimeEntry.Create(employeeId, audit).Value;
+        return PersistedTimeEntry.Create(employeeId, audit).Value;
     }
 
     private sealed class EmployeeEntriesRepository(IReadOnlyList<TimeEntry> entries) : ITimeEntryRepository

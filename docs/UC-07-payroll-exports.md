@@ -129,6 +129,13 @@ including when downloaded after closure.
 
 ## Persistence and verification
 
+Creation and closure use result-returning command handlers through
+`UnitOfWorkCommandDispatcherDecorator` and `ICommandTransaction`. Repositories
+load/stage aggregates; `ExportClosureDomainService` coordinates the cross-aggregate
+rule. `CommandTransaction` owns the one serializable commit and bounded retries,
+reloading state by rerunning the handler after a conflict. Read query handlers
+perform no writes. Download URLs are constructed in WebApi, not Domain/Application.
+
 EF mappings include stored CSV bytes, filter metadata, totals, batch revision,
 closure actor/time, and a restricted foreign key from each export link to its
 approved audit. Membership is unique **within** a batch, not globally by entry.

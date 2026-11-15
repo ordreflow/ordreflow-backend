@@ -17,7 +17,6 @@ public static class DependencyInjection
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
         services.AddScoped<IRegistrationPeriodModeRepository, RegistrationPeriodModeRepository>();
-        services.AddScoped<IWorkItemEligibilityQuery, WorkItemEligibilityQuery>();
         services.AddScoped<ITopOrdersRepository, TopOrdersRepository>();
         services.AddScoped<IEmployeeAccessRepository, EmployeeAccessRepository>();
         services.AddScoped<IReviewQueueRepository, ReviewQueueRepository>();
@@ -26,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<IExportRepository, ExportRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<ICommandTransaction, CommandTransaction>();
         services.AddScoped<IPasswordVerifier, PasswordVerifier>();
         services.AddScoped<IEmployeeAccountProvisioner, IdentityUserAccountProvisioner>();
 

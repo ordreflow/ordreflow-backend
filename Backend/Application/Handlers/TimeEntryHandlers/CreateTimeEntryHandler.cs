@@ -2,6 +2,7 @@
 using Core.Tools.OperationResult;
 using Domain.Aggregate;
 using Domain.Interfaces;
+using Domain.Services;
 using Domain.ValueObjects;
 
 namespace Application.Handlers;
@@ -11,7 +12,8 @@ public sealed class CreateTimeEntryHandler(
     ITimeRegistrationRepository registration,
     IRegistrationPeriodModeRepository periods,
     TimeProvider clock,
-    TimeZoneInfo companyTimeZone) : ICommandHandler<CreateTimeEntryCommand>
+    TimeZoneInfo companyTimeZone,
+    TimeRegistrationDomainService registrationService) : ICommandHandler<CreateTimeEntryCommand>
 {
     public async Task<Result> HandleAsync(CreateTimeEntryCommand command)
     {
@@ -19,8 +21,10 @@ public sealed class CreateTimeEntryHandler(
             return Result.Failure(new Error("EmployeeRequired", "An employee is required."));
 
         var employee = await employees.GetWithAccessesAsync(EmployeeId.Create(command.EmployeeId).Value);
-        if (employee is null || !employee.HasPermission(SystemPermission.Employee))
-            return Result.Failure(new Error("EmployeeAccessForbidden", "Active employee permission is required."));
+        var employeeAccess = registrationService.ValidateEmployee(employee);
+        if (employeeAccess.IsFailure)
+            return employeeAccess;
+        var activeEmployee = employee!;
 
         if (command.TaskId == Guid.Empty)
             return Result.Failure(new Error("TaskRequired", "A task is required."));
@@ -36,21 +40,18 @@ public sealed class CreateTimeEntryHandler(
         if (description.IsFailure)
             return Result.Failure(description.Errors.ToArray());
 
-        var task = await registration.GetTaskAsync(TaskId.Create(command.TaskId).Value);
-        if (task is null)
+        var taskId = TaskId.Create(command.TaskId).Value;
+        var department = await registration.GetDepartmentForTaskAsync(taskId);
+        if (department is null)
             return Result.Failure(new Error("TaskNotFound", "The task was not found."));
 
-        var catagory = await registration.GetCatagoryAsync(task.CatagoryId);
+        var catagory = department.FindCatagoryForTask(taskId);
         if (catagory is null)
-            return Result.Failure(new Error("CatagoryNotFound", "The task's category was not found."));
+            return Result.Failure(new Error("TaskNotFound", "The task was not found in its department."));
 
         var isDepartmentMember = !catagory.InternalOnly ||
-            await registration.IsDepartmentMemberAsync(employee.Id, catagory.DepartmentId);
-        var assignment = await registration.GetAssignmentAccessAsync(task.Id, employee.Id);
-        var access = catagory.CanRegisterTime(
-            task, employee, isDepartmentMember, assignment.HasAssignments, assignment.IsAssigned);
-        if (access.IsFailure)
-            return access;
+            await registration.IsDepartmentMemberAsync(activeEmployee.Id, department.Id);
+        var assignment = await registration.GetAssignmentAccessAsync(taskId, activeEmployee.Id);
 
         var now = clock.GetUtcNow();
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, companyTimeZone).DateTime);
@@ -58,9 +59,10 @@ public sealed class CreateTimeEntryHandler(
         if (permittedDates.IsFailure)
             return Result.Failure(permittedDates.Errors.ToArray());
 
-        var entry = TimeEntry.Record(
-            employee.Id, task.Id, workDate.Value, duration.Value,
-            description.Value, permittedDates.Value, now.UtcDateTime);
+        var entry = registrationService.Register(
+            activeEmployee, department, taskId, workDate.Value, duration.Value, description.Value,
+            new TimeRegistrationAccess(isDepartmentMember, assignment.HasAssignments, assignment.IsAssigned),
+            permittedDates.Value, now.UtcDateTime);
         if (entry.IsFailure)
             return Result.Failure(entry.Errors.ToArray());
 

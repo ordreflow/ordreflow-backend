@@ -49,13 +49,8 @@ public sealed class TimeRegistrationHttpTests : IClassFixture<TimeRegistrationHt
     [Fact]
     public async Task Missing_employee_permission_is_forbidden_before_dispatch()
     {
-        var employee = new Employee
-        {
-            Id = EmployeeId.Create(Guid.NewGuid()).Value,
-            Name = PersonName.Create("Worker").Value,
-            Email = EmailAddress.Create("worker@test.invalid").Value,
-            Status = EmployeeStatus.Active, CreatedAt = DateTime.UtcNow
-        };
+        var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
+        Assert.True(employee.RevokePermission(SystemPermission.Employee).IsSuccess);
         _factory.Employees.Add(employee);
 
         using var response = await PostAsEmployeeAsync(employee, Request());
@@ -150,6 +145,7 @@ public sealed class TimeRegistrationHttpTests : IClassFixture<TimeRegistrationHt
 
     public sealed class FakeDispatcher : ICommandDispatcher
     {
+        public Task<Result<T>> DispatchAsync<TCommand, T>(TCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public object? LastCommand { get; private set; }
         public Result NextResult { get; set; } = Result.Success();
 

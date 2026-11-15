@@ -72,6 +72,8 @@ public sealed class TimeEntryAudit
 
         if (auditTime == default)
             return Result<TimeEntryAudit>.Failure(new Error("AuditTimeRequired", "The audit time is required."));
+        if (auditTime.Kind != DateTimeKind.Utc)
+            return Result<TimeEntryAudit>.Failure(new Error("AuditTimeUtcRequired", "The audit time must be UTC."));
 
         return Result<TimeEntryAudit>.Success(new TimeEntryAudit
         {

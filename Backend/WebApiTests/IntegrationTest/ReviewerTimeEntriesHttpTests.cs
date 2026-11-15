@@ -65,7 +65,7 @@ public sealed class ReviewerTimeEntriesHttpTests : IClassFixture<ReviewerTimeEnt
     public async Task Deactivated_reviewer_is_forbidden_even_with_an_existing_token()
     {
         var employee = AddEmployee(reviewer: true);
-        employee.Status = EmployeeStatus.Deactivated;
+        employee.Deactivate();
 
         using var response = await GetAsEmployeeAsync(employee.Id);
 
@@ -76,13 +76,8 @@ public sealed class ReviewerTimeEntriesHttpTests : IClassFixture<ReviewerTimeEnt
     [Fact]
     public async Task Reviewer_without_baseline_employee_access_is_forbidden()
     {
-        var employee = new Employee
-        {
-            Id = EmployeeId.Create(Guid.NewGuid()).Value,
-            Name = PersonName.Create("Reviewer").Value,
-            Email = EmailAddress.Create("reviewer@test.invalid").Value,
-            Status = EmployeeStatus.Active, CreatedAt = DateTime.UtcNow
-        };
+        var employee = Employee.Create("Reviewer", "reviewer@test.invalid", DateTime.UtcNow).Value;
+        Assert.True(employee.RevokePermission(SystemPermission.Employee).IsSuccess);
         Assert.True(employee.GrantPermission(SystemPermission.CatagoryReviewer).IsSuccess);
         _factory.Access.Add(employee);
 

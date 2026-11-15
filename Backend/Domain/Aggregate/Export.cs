@@ -64,31 +64,19 @@ public sealed class Export
     public bool MatchesRequest(EmployeeId actor, DateOnly from, DateOnly to, EmployeeId? employee) =>
         ExportedBy == actor && DateFrom == from && DateTo == to && SelectedEmployeeId == employee;
 
-    public Result CloseTimeEntries(IReadOnlyCollection<TimeEntry> entries, EmployeeId actor, DateTime closedAtUtc)
+    public Result CanRecordClosure(EmployeeId actor, DateTime closedAtUtc)
     {
         if (TimeEntriesClosedAtUtc is not null)
             return Result.Success();
         if (actor is null || closedAtUtc.Kind != DateTimeKind.Utc || closedAtUtc < CreatedAt)
             return Result.Failure(new Error("ExportClosureInvalid", "A closing actor and a valid UTC timestamp are required."));
-        if (entries is null || entries.Count != _timeEntries.Count || entries.Select(entry => entry.Id).Distinct().Count() != entries.Count)
-            return Result.Failure(new Error("ExportSelectionConflict", "The saved export selection is incomplete or duplicated."));
-        var byId = entries.ToDictionary(entry => entry.Id);
-        if (_timeEntries.Count != byId.Count || _timeEntries.Any(item => !byId.ContainsKey(item.TimeEntryId)))
-            return Result.Failure(new Error("ExportSelectionConflict", "The saved export selection is incomplete."));
+        return Result.Success();
+    }
 
-        // Validate the entire fixed selection before mutating any aggregate.
-        foreach (var item in _timeEntries)
-        {
-            var valid = byId[item.TimeEntryId].CanCloseForExport(item.TimeEntryAuditId, closedAtUtc);
-            if (valid.IsFailure)
-                return valid;
-        }
-        foreach (var item in _timeEntries)
-        {
-            var result = byId[item.TimeEntryId].CloseForExport(item.TimeEntryAuditId, actor, closedAtUtc);
-            if (result.IsFailure)
-                return result;
-        }
+    internal Result RecordTimeEntriesClosed(EmployeeId actor, DateTime closedAtUtc)
+    {
+        var valid = CanRecordClosure(actor, closedAtUtc);
+        if (valid.IsFailure || TimeEntriesClosedAtUtc is not null) return valid;
         TimeEntriesClosedBy = actor;
         TimeEntriesClosedAtUtc = closedAtUtc;
         Revision++;

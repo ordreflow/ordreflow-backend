@@ -1,6 +1,7 @@
 using Application.Exports;
 using Application.Commands;
 using Domain.Aggregate;
+using Catagory = Domain.Entities.Catagory;
 using Domain.ValueObjects;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -30,10 +31,10 @@ public sealed class PayrollExportRepositoryTests
         context.ChangeTracker.Clear();
         var repository = new ExportRepository(context);
         var clock = new ExportClock();
-        var service = new PayrollExportService(new EmployeeAccessRepository(context), repository, clock);
+        var service = new ExportTestHarness(new EmployeeAccessRepository(context), repository, clock, new CommandTransaction(context));
         var firstId = Guid.NewGuid();
         var first = await service.CreateAsync(world.Payroll.Id.Value,
-            new CreateExportCommand(firstId, From, To, world.Worker.Id.Value));
+            new CreateExportCommand(world.Payroll.Id.Value, firstId, From, To, world.Worker.Id.Value));
         Assert.True(first.IsSuccess);
         Assert.Equal(2, first.Value.Entries.Count);
         var saved = (await service.GetAsync(world.Payroll.Id.Value, firstId)).Value;
@@ -45,12 +46,12 @@ public sealed class PayrollExportRepositoryTests
         var later = Entry(world.Worker.Id, world.Task.Id, world.Payroll.Id, From.AddDays(1));
         context.TimeEntries.Add(later);
         var worker = await context.Employees.SingleAsync(item => item.Id == world.Worker.Id);
-        worker.Name = PersonName.Create("Renamed worker").Value;
+        Assert.True(worker.ChangeProfile(PersonName.Create("Renamed worker").Value, worker.Email).IsSuccess);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
         var secondId = Guid.NewGuid();
         var second = await service.CreateAsync(world.Payroll.Id.Value,
-            new CreateExportCommand(secondId, From, To, world.Worker.Id.Value));
+            new CreateExportCommand(world.Payroll.Id.Value, secondId, From, To, world.Worker.Id.Value));
         Assert.Equal(3, second.Value.Entries.Count);
         var firstAgain = await service.GetAsync(world.Payroll.Id.Value, firstId);
         Assert.Equal(originalFile, firstAgain.Value.CsvContent);
@@ -81,19 +82,53 @@ public sealed class PayrollExportRepositoryTests
     }
 
     [Fact]
+    public async Task Failed_closure_commit_rolls_back_batch_metadata_and_every_entry()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options);
+        var world = await SeedAsync(context);
+        var entry = Entry(world.Worker.Id, world.Task.Id, world.Payroll.Id, From);
+        context.TimeEntries.Add(entry);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var repository = new ExportRepository(context);
+        var harness = new ExportTestHarness(new EmployeeAccessRepository(context), repository,
+            new ExportClock(), new CommandTransaction(context));
+        var id = Guid.NewGuid();
+        Assert.True((await harness.CreateAsync(world.Payroll.Id.Value,
+            new CreateExportCommand(world.Payroll.Id.Value, id, From, To))).IsSuccess);
+        context.ChangeTracker.Clear();
+        // An actual database write failure, after domain validation succeeded.
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER reject_closed_audit BEFORE INSERT ON time_entry_audits
+            WHEN NEW.status = 'Closed'
+            BEGIN SELECT RAISE(ABORT, 'test closure failure'); END;
+            """);
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => harness.CloseTimeEntriesAsync(world.Payroll.Id.Value, id));
+
+        context.ChangeTracker.Clear();
+        var saved = await context.TimeEntries.AsNoTracking().Include(item => item.Audits).SingleAsync();
+        Assert.Equal(TimeEntryStatus.Approved, saved.CurrentStatus);
+        Assert.Equal(2, saved.Audits.Count);
+        Assert.Null((await repository.GetAsync(ExportId.Create(id).Value, default))!.TimeEntriesClosedAtUtc);
+    }
+
+    [Fact]
     public async Task Selection_uses_current_audit_inclusive_dates_and_employee_filter_including_inactive_owners()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         await using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options);
         var world = await SeedAsync(context);
-        world.Worker.Status = EmployeeStatus.Deactivated;
+        world.Worker.Deactivate();
         var first = Entry(world.Worker.Id, world.Task.Id, world.Payroll.Id, From);
         var last = Entry(world.Worker.Id, world.Task.Id, world.Payroll.Id, To);
         var other = Entry(world.Payroll.Id, world.Task.Id, world.Payroll.Id, From);
         var noLongerApproved = Entry(world.Worker.Id, world.Task.Id, world.Payroll.Id, From);
         var current = noLongerApproved.CurrentAudit!;
-        Assert.True(noLongerApproved.AddAudit(TimeEntryAudit.Create(noLongerApproved.Id, world.Worker.Id,
+        Assert.True(PersistedTimeEntry.Append(noLongerApproved, TimeEntryAudit.Create(noLongerApproved.Id, world.Worker.Id,
             world.Task.Id, current.WorkDate, current.Duration, current.Description, TimeEntryStatus.Rejected,
             Created.AddMinutes(2)).Value).IsSuccess);
         context.TimeEntries.AddRange(first, last, other, noLongerApproved,
@@ -114,10 +149,9 @@ public sealed class PayrollExportRepositoryTests
 
     private static TimeEntry Entry(EmployeeId owner, TaskId task, EmployeeId reviewer, DateOnly date)
     {
-        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
-        var entry = TimeEntry.Create(owner, TimeEntryAudit.Create(id, owner, task, WorkDate.Create(date).Value,
-            Duration.Create(7.5m).Value, TimeEntryDescription.Create("Work").Value,
-            TimeEntryStatus.ReadyForApproval, Created).Value).Value;
+        var workDate = WorkDate.Create(date).Value;
+        var entry = TimeEntry.Record(owner, task, workDate, Duration.Create(7.5m).Value,
+            TimeEntryDescription.Create("Work").Value, WorkDatePeriod.Create(workDate, workDate).Value, Created).Value;
         Assert.True(entry.Approve(reviewer, Created.AddMinutes(1), true).IsSuccess);
         return entry;
     }
@@ -128,11 +162,9 @@ public sealed class PayrollExportRepositoryTests
         var payroll = Employee.Create("Payroll", "payroll@test.invalid", Created).Value;
         Assert.True(payroll.GrantPermission(SystemPermission.Payroll).IsSuccess);
         var worker = Employee.Create("Worker", "worker@test.invalid", Created).Value;
-        var department = new Department { Id = DepartmentId.Create(Guid.NewGuid()).Value, Name = DepartmentName.Create("Department").Value };
-        var category = new Catagory { Id = CatagoryId.Create(Guid.NewGuid()).Value, DepartmentId = department.Id,
-            CreatedBy = payroll.Id, Name = CatagoryName.Create("Category").Value, Status = CatagoryStatus.Active, CreatedAt = Created };
-        var task = new Domain.Entities.Task { Id = TaskId.Create(Guid.NewGuid()).Value, CatagoryId = category.Id,
-            Name = TaskName.Create("Task").Value, Status = Domain.ValueObjects.TaskStatus.Active, CreatedAt = Created };
+        var department = Department.Create(DepartmentName.Create("Department").Value).Value;
+        var category = department.AddCatagory(payroll.Id, CatagoryName.Create("Category").Value, false, Created).Value;
+        var task = department.AddTask(category.Id, TaskName.Create("Task").Value, Created).Value;
         context.Employees.AddRange(payroll, worker);
         context.Departments.Add(department);
         context.Catagories.Add(category);

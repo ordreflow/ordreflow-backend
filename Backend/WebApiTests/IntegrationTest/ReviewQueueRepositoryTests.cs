@@ -1,4 +1,5 @@
 using Domain.Aggregate;
+using Catagory = Domain.Entities.Catagory;
 using EmployeeSystemAccess = Domain.Entities.EmployeeSystemAccess;
 using DepartmentEmployee = Domain.Entities.DepartmentEmployee;
 using CatagoryReviewer = Domain.Entities.CatagoryReviewer;
@@ -40,31 +41,21 @@ public sealed class ReviewQueueRepositoryTests
 
         var reviewer = Employee("Reviewer");
         var titledManager = Employee("Manager");
-        titledManager.Title = "Manager";
+        Assert.True(titledManager.ChangeProfile(titledManager.Name, titledManager.Email, "Manager").IsSuccess);
         context.Employees.AddRange(reviewer, titledManager);
-        context.EmployeeSystemAccesses.Add(new EmployeeSystemAccess
-        {
-            EmployeeId = reviewer.Id,
-            Permission = SystemPermission.CatagoryReviewer
-        });
+        Assert.True(reviewer.GrantPermission(SystemPermission.CatagoryReviewer).IsSuccess);
         await context.SaveChangesAsync();
 
         var access = new EmployeeAccessRepository(context);
         Assert.True((await access.GetWithAccessesAsync(reviewer.Id))!.CanReviewTimeEntries());
         Assert.False((await access.GetWithAccessesAsync(titledManager.Id))!.CanReviewTimeEntries());
 
-        var grant = await context.EmployeeSystemAccesses.SingleAsync(
-            access => access.Permission == SystemPermission.CatagoryReviewer);
-        context.EmployeeSystemAccesses.Remove(grant);
+        Assert.True(reviewer.RevokePermission(SystemPermission.CatagoryReviewer).IsSuccess);
         await context.SaveChangesAsync();
         Assert.False((await access.GetWithAccessesAsync(reviewer.Id))!.CanReviewTimeEntries());
 
-        context.EmployeeSystemAccesses.Add(new EmployeeSystemAccess
-        {
-            EmployeeId = reviewer.Id,
-            Permission = SystemPermission.CatagoryReviewer
-        });
-        reviewer.Status = EmployeeStatus.Deactivated;
+        Assert.True(reviewer.GrantPermission(SystemPermission.CatagoryReviewer).IsSuccess);
+        reviewer.Deactivate();
         await context.SaveChangesAsync();
         Assert.False((await access.GetWithAccessesAsync(reviewer.Id))!.CanReviewTimeEntries());
     }
@@ -77,21 +68,13 @@ public sealed class ReviewQueueRepositoryTests
 
         var reviewer = Employee("Reviewer");
         var manager = Employee("Manager");
-        manager.Title = "Manager";
-        var reviewerDepartment = new Department
-        {
-            Id = DepartmentId.Create(Guid.NewGuid()).Value,
-            Name = DepartmentName.Create("Reviewer's department").Value
-        };
-        var otherDepartment = new Department
-        {
-            Id = DepartmentId.Create(Guid.NewGuid()).Value,
-            Name = DepartmentName.Create("Other department").Value
-        };
-        var assigned = Category(reviewer.Id, otherDepartment.Id);
-        var unrelated = Category(manager.Id, reviewerDepartment.Id);
-        var assignedTask = WorkItem(assigned.Id);
-        var unrelatedTask = WorkItem(unrelated.Id);
+        Assert.True(manager.ChangeProfile(manager.Name, manager.Email, "Manager").IsSuccess);
+        var reviewerDepartment = Department.Create(DepartmentName.Create("Reviewer's department").Value).Value;
+        var otherDepartment = Department.Create(DepartmentName.Create("Other department").Value).Value;
+        var assigned = Category(reviewer.Id, otherDepartment);
+        var unrelated = Category(manager.Id, reviewerDepartment);
+        var assignedTask = WorkItem(otherDepartment, assigned.Id);
+        var unrelatedTask = WorkItem(reviewerDepartment, unrelated.Id);
 
         context.Employees.AddRange(reviewer, manager);
         context.Departments.AddRange(reviewerDepartment, otherDepartment);
@@ -125,15 +108,11 @@ public sealed class ReviewQueueRepositoryTests
 
         var reviewer = Employee("Reviewer");
         var worker = Employee("Worker");
-        var otherDepartment = new Department
-        {
-            Id = DepartmentId.Create(Guid.NewGuid()).Value,
-            Name = DepartmentName.Create("Worker's department").Value
-        };
-        var assigned = Category(reviewer.Id, otherDepartment.Id);
-        var unrelated = Category(reviewer.Id, otherDepartment.Id);
-        var allowedTask = WorkItem(assigned.Id);
-        var otherTask = WorkItem(unrelated.Id);
+        var otherDepartment = Department.Create(DepartmentName.Create("Worker's department").Value).Value;
+        var assigned = Category(reviewer.Id, otherDepartment);
+        var unrelated = Category(reviewer.Id, otherDepartment);
+        var allowedTask = WorkItem(otherDepartment, assigned.Id);
+        var otherTask = WorkItem(otherDepartment, unrelated.Id);
 
         context.Employees.AddRange(reviewer, worker);
         context.Departments.Add(otherDepartment);
@@ -150,15 +129,15 @@ public sealed class ReviewQueueRepositoryTests
         {
             var id = TimeEntryId.Create(Guid.NewGuid()).Value;
             var initial = Audit(id, worker.Id, taskId, firstAuditTime.AddMinutes(minute));
-            return TimeEntry.Create(worker.Id, initial).Value;
+            return PersistedTimeEntry.Create(worker.Id, initial).Value;
         }
 
         var movedOut = CreateEntry(allowedTask.Id, 0);
         var movedIn = CreateEntry(otherTask.Id, 2);
         var staying = CreateEntry(allowedTask.Id, 4);
         var unrelatedEntry = CreateEntry(otherTask.Id, 6);
-        Assert.True(movedOut.AddAudit(Audit(movedOut.Id, worker.Id, otherTask.Id, firstAuditTime.AddMinutes(1))).IsSuccess);
-        Assert.True(movedIn.AddAudit(Audit(movedIn.Id, worker.Id, allowedTask.Id, firstAuditTime.AddMinutes(3))).IsSuccess);
+        Assert.True(PersistedTimeEntry.Append(movedOut, Audit(movedOut.Id, worker.Id, otherTask.Id, firstAuditTime.AddMinutes(1))).IsSuccess);
+        Assert.True(PersistedTimeEntry.Append(movedIn, Audit(movedIn.Id, worker.Id, allowedTask.Id, firstAuditTime.AddMinutes(3))).IsSuccess);
 
         context.TimeEntries.AddRange(movedOut, movedIn, staying, unrelatedEntry);
         await context.SaveChangesAsync();
@@ -190,24 +169,11 @@ public sealed class ReviewQueueRepositoryTests
     private static Employee Employee(string name) =>
         Domain.Aggregate.Employee.Create(name, $"{Guid.NewGuid():N}@test.invalid", DateTime.UtcNow).Value;
 
-    private static Catagory Category(EmployeeId creatorId, DepartmentId departmentId) => new()
-    {
-        Id = CatagoryId.Create(Guid.NewGuid()).Value,
-        CreatedBy = creatorId,
-        DepartmentId = departmentId,
-        Name = CatagoryName.Create("Test category").Value,
-        Status = CatagoryStatus.Active,
-        CreatedAt = DateTime.UtcNow
-    };
+    private static Catagory Category(EmployeeId creator, Department department) =>
+        department.AddCatagory(creator, CatagoryName.Create("Test category").Value, false, DateTime.UtcNow).Value;
 
-    private static Domain.Entities.Task WorkItem(CatagoryId catagoryId) => new()
-    {
-        Id = TaskId.Create(Guid.NewGuid()).Value,
-        CatagoryId = catagoryId,
-        Name = TaskName.Create("Test task").Value,
-        Status = TaskStatus.Active,
-        CreatedAt = DateTime.UtcNow
-    };
+    private static Domain.Entities.Task WorkItem(Department department, CatagoryId category) =>
+        department.AddTask(category, TaskName.Create("Test task").Value, DateTime.UtcNow).Value;
 
     private static TimeEntryAudit Audit(TimeEntryId entryId, EmployeeId actorId, TaskId taskId, DateTime at) =>
         TimeEntryAudit.Create(entryId, actorId, taskId,

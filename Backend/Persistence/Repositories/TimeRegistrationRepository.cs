@@ -2,17 +2,18 @@ using Domain.Aggregate;
 using Domain.Interfaces;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
-using WorkTask = Domain.Entities.Task;
 
 namespace Persistence.Repositories;
 
 public sealed class TimeRegistrationRepository(AppDbContext context) : ITimeRegistrationRepository
 {
-    public Task<WorkTask?> GetTaskAsync(TaskId taskId, CancellationToken cancellationToken = default) =>
-        context.Tasks.AsNoTracking().SingleOrDefaultAsync(task => task.Id == taskId, cancellationToken);
-
-    public Task<Catagory?> GetCatagoryAsync(CatagoryId catagoryId, CancellationToken cancellationToken = default) =>
-        context.Catagories.AsNoTracking().SingleOrDefaultAsync(catagory => catagory.Id == catagoryId, cancellationToken);
+    public Task<Department?> GetDepartmentForTaskAsync(TaskId taskId, CancellationToken cancellationToken = default) =>
+        context.Departments.AsNoTracking()
+            .Include(department => department.Catagories)
+            .ThenInclude(catagory => catagory.Tasks)
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(department => department.Catagories.Any(catagory =>
+                catagory.Tasks.Any(task => task.Id == taskId)), cancellationToken);
 
     public Task<bool> IsDepartmentMemberAsync(
         EmployeeId employeeId, DepartmentId departmentId, CancellationToken cancellationToken = default) =>

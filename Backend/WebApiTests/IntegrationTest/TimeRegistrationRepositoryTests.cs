@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Persistence;
 using Persistence.Repositories;
 using TaskStatus = Domain.ValueObjects.TaskStatus;
+using Domain.Services;
+using Catagory = Domain.Entities.Catagory;
 
 namespace WebApiTests.IntegrationTest;
 
@@ -23,17 +25,20 @@ public sealed class TimeRegistrationRepositoryTests
         var first = Employee.Create("First", "first@test.invalid", DateTime.UtcNow).Value;
         var second = Employee.Create("Second", "second@test.invalid", DateTime.UtcNow).Value;
         var outsider = Employee.Create("Outsider", "outsider@test.invalid", DateTime.UtcNow).Value;
-        var department = new Department
-        {
-            Id = DepartmentId.Create(Guid.NewGuid()).Value, Name = DepartmentName.Create("Internal").Value
-        };
-        var catagory = Category(department.Id, first.Id, internalOnly: true);
-        var assignedTask = WorkItem(catagory.Id);
-        var generalTask = WorkItem(catagory.Id);
+        var department = Department.Create(DepartmentName.Create("Internal").Value).Value;
+        var catagory = Category(department, first.Id, internalOnly: true);
+        var assignedTask = WorkItem(department, catagory.Id);
+        var generalTask = WorkItem(department, catagory.Id);
+        var otherDepartment = Department.Create(DepartmentName.Create("Other").Value).Value;
+        var otherCategory = Category(otherDepartment, first.Id, internalOnly: false);
+        var otherTask = WorkItem(otherDepartment, otherCategory.Id);
         context.Employees.AddRange(first, second, outsider);
         context.Departments.Add(department);
         context.Catagories.Add(catagory);
         context.Tasks.AddRange(assignedTask, generalTask);
+        context.Departments.Add(otherDepartment);
+        context.Catagories.Add(otherCategory);
+        context.Tasks.Add(otherTask);
         context.DepartmentEmployees.Add(new DepartmentEmployee
         {
             EmployeeId = first.Id, DepartmentId = department.Id
@@ -41,8 +46,19 @@ public sealed class TimeRegistrationRepositoryTests
         context.TaskAssinments.AddRange(
             Assignment(assignedTask.Id, first.Id), Assignment(assignedTask.Id, second.Id));
         await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
 
         var repository = new TimeRegistrationRepository(context);
+        var loaded = await repository.GetDepartmentForTaskAsync(assignedTask.Id);
+        Assert.NotNull(loaded);
+        Assert.Equal(department.Id, loaded.Id);
+        Assert.Equal(2, Assert.Single(loaded.Catagories).Tasks.Count);
+        Assert.True(loaded.CanRegisterTime(assignedTask.Id).IsSuccess);
+        Assert.True(loaded.CanRegisterTime(generalTask.Id).IsSuccess);
+        Assert.Equal("TaskNotFound", Assert.Single(loaded.CanRegisterTime(otherTask.Id).Errors).Code);
+        Assert.Equal(otherDepartment.Id, (await repository.GetDepartmentForTaskAsync(otherTask.Id))!.Id);
+        Assert.Empty(context.ChangeTracker.Entries<Department>());
+        Assert.Null(await repository.GetDepartmentForTaskAsync(TaskId.Create(Guid.NewGuid()).Value));
         Assert.True(await repository.IsDepartmentMemberAsync(first.Id, department.Id));
         Assert.False(await repository.IsDepartmentMemberAsync(second.Id, department.Id));
         Assert.False(await repository.IsDepartmentMemberAsync(outsider.Id, department.Id));
@@ -58,12 +74,9 @@ public sealed class TimeRegistrationRepositoryTests
         using var connection = new SqliteConnection("Data Source=:memory:");
         await using var context = await CreateContextAsync(connection);
         var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
-        var department = new Department
-        {
-            Id = DepartmentId.Create(Guid.NewGuid()).Value, Name = DepartmentName.Create("Work").Value
-        };
-        var catagory = Category(department.Id, employee.Id, internalOnly: false);
-        var task = WorkItem(catagory.Id);
+        var department = Department.Create(DepartmentName.Create("Work").Value).Value;
+        var catagory = Category(department, employee.Id, internalOnly: false);
+        var task = WorkItem(department, catagory.Id);
         context.Employees.Add(employee);
         context.Departments.Add(department);
         context.Catagories.Add(catagory);
@@ -74,7 +87,7 @@ public sealed class TimeRegistrationRepositoryTests
 
         var handler = new CreateTimeEntryHandler(new EmployeeAccessRepository(context),
             new TimeRegistrationRepository(context), new RegistrationPeriodModeRepository(context),
-            new RegistrationClock(), TimeZoneInfo.Utc);
+            new RegistrationClock(), TimeZoneInfo.Utc, new TimeRegistrationDomainService());
         var result = await handler.HandleAsync(new CreateTimeEntryCommand(
             employee.Id.Value, task.Id.Value, new DateTime(2026, 11, 14), 3.5m, null));
         Assert.True(result.IsSuccess);
@@ -107,19 +120,11 @@ public sealed class TimeRegistrationRepositoryTests
         return context;
     }
 
-    private static Catagory Category(DepartmentId departmentId, EmployeeId creatorId, bool internalOnly) => new()
-    {
-        Id = CatagoryId.Create(Guid.NewGuid()).Value, CreatedBy = creatorId, DepartmentId = departmentId,
-        Name = CatagoryName.Create("Work").Value, Status = CatagoryStatus.Active, InternalOnly = internalOnly,
-        CreatedAt = DateTime.UtcNow
-    };
+    private static Catagory Category(Department department, EmployeeId creatorId, bool internalOnly) =>
+        department.AddCatagory(creatorId, CatagoryName.Create("Work").Value, internalOnly, DateTime.UtcNow).Value;
 
-    private static Domain.Entities.Task WorkItem(CatagoryId catagoryId) => new()
-    {
-        Id = TaskId.Create(Guid.NewGuid()).Value, CatagoryId = catagoryId,
-        Name = TaskName.Create("Task").Value,
-        Status = TaskStatus.Active, CreatedAt = DateTime.UtcNow
-    };
+    private static Domain.Entities.Task WorkItem(Department department, CatagoryId category) =>
+        department.AddTask(category, TaskName.Create("Task").Value, DateTime.UtcNow).Value;
 
     private static TaskAssignment Assignment(TaskId taskId, EmployeeId employeeId) => new()
     {

@@ -3,6 +3,8 @@ using Application.Handlers;
 using Domain.Aggregate;
 using Domain.Interfaces;
 using Domain.ValueObjects;
+using Domain.Services;
+using Catagory = Domain.Entities.Catagory;
 using WorkTask = Domain.Entities.Task;
 using TaskStatus = Domain.ValueObjects.TaskStatus;
 
@@ -13,20 +15,29 @@ public sealed class CreateTimeEntryHandlerTests
     [Fact]
     public async Task Missing_employee_permission_stops_before_work_lookups()
     {
-        var employee = new Employee
-        {
-            Id = EmployeeId.Create(Guid.NewGuid()).Value,
-            Name = PersonName.Create("Worker").Value,
-            Email = EmailAddress.Create("worker@test.invalid").Value,
-            Status = EmployeeStatus.Active, CreatedAt = DateTime.UtcNow
-        };
+        var employee = Domain.Aggregate.Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
+        Assert.True(employee.RevokePermission(SystemPermission.Employee).IsSuccess);
         var work = Work();
         var handler = Handler(employee, work);
 
         var result = await handler.HandleAsync(Command(employee.Id, work.WorkItem.Id));
 
         Assert.Equal("EmployeeAccessForbidden", Assert.Single(result.Errors).Code);
-        Assert.Equal(0, work.TaskLookups);
+        Assert.Equal(0, work.DepartmentLookups);
+        Assert.Null(work.Added);
+    }
+
+    [Fact]
+    public async Task Unknown_task_is_not_registered_in_an_unrelated_department()
+    {
+        var employee = Employee();
+        var work = Work();
+
+        var result = await Handler(employee, work).HandleAsync(
+            Command(employee.Id, TaskId.Create(Guid.NewGuid()).Value));
+
+        Assert.Equal("TaskNotFound", Assert.Single(result.Errors).Code);
+        Assert.Equal(1, work.DepartmentLookups);
         Assert.Null(work.Added);
     }
 
@@ -98,9 +109,9 @@ public sealed class CreateTimeEntryHandlerTests
         var employee = Employee();
         var work = Work();
         if (closeCategory)
-            work.Catagory.Status = CatagoryStatus.Closed;
+            Assert.True(work.Department.CloseCatagory(work.Catagory.Id, DateTime.UtcNow.AddMinutes(1)).IsSuccess);
         else
-            work.WorkItem.Status = TaskStatus.Closed;
+            Assert.True(work.Department.CloseTask(work.Catagory.Id, work.WorkItem.Id, DateTime.UtcNow.AddMinutes(1)).IsSuccess);
 
         var result = await Handler(employee, work).HandleAsync(Command(employee.Id, work.WorkItem.Id));
 
@@ -117,7 +128,7 @@ public sealed class CreateTimeEntryHandlerTests
         var result = await Handler(employee, work).HandleAsync(Command(employee.Id, work.WorkItem.Id) with { Hours = 25 });
 
         Assert.Equal("InvalidDuration", Assert.Single(result.Errors).Code);
-        Assert.Equal(0, work.TaskLookups);
+        Assert.Equal(0, work.DepartmentLookups);
     }
 
     [Fact]
@@ -130,7 +141,7 @@ public sealed class CreateTimeEntryHandlerTests
             Command(employee.Id, work.WorkItem.Id) with { Hours = 7.41m });
 
         Assert.Equal("InvalidDurationIncrement", Assert.Single(result.Errors).Code);
-        Assert.Equal(0, work.TaskLookups);
+        Assert.Equal(0, work.DepartmentLookups);
         Assert.Null(work.Added);
     }
 
@@ -169,7 +180,7 @@ public sealed class CreateTimeEntryHandlerTests
         var employee = Employee();
         var work = Work();
         var handler = new CreateTimeEntryHandler(new FakeEmployeeRepository(employee), work,
-            new FakePeriodRepository(null), new FixedTimeProvider(), TimeZoneInfo.Utc);
+            new FakePeriodRepository(null), new FixedTimeProvider(), TimeZoneInfo.Utc, new TimeRegistrationDomainService());
 
         var result = await handler.HandleAsync(Command(employee.Id, work.WorkItem.Id));
 
@@ -186,7 +197,7 @@ public sealed class CreateTimeEntryHandlerTests
         var zone = TimeZoneInfo.CreateCustomTimeZone("TestCompany", TimeSpan.FromHours(2), "TestCompany", "TestCompany");
         var instant = new DateTimeOffset(2026, 11, 14, 23, 30, 0, TimeSpan.Zero);
         var handler = new CreateTimeEntryHandler(new FakeEmployeeRepository(employee), work,
-            new FakePeriodRepository(period), new FixedTimeProvider(instant), zone);
+            new FakePeriodRepository(period), new FixedTimeProvider(instant), zone, new TimeRegistrationDomainService());
 
         var result = await handler.HandleAsync(
             Command(employee.Id, work.WorkItem.Id) with { Date = new DateTime(2026, 11, 15) });
@@ -221,7 +232,7 @@ public sealed class CreateTimeEntryHandlerTests
     private static CreateTimeEntryHandler Handler(Employee employee, FakeRegistrationRepository work) =>
         new(new FakeEmployeeRepository(employee), work,
             new FakePeriodRepository(RegistrationPeriodMode.Create(employee.Id, RegistrationInterval.Weekly, null).Value),
-            new FixedTimeProvider(), TimeZoneInfo.Utc);
+            new FixedTimeProvider(), TimeZoneInfo.Utc, new TimeRegistrationDomainService());
 
     private static CreateTimeEntryCommand Command(EmployeeId employeeId, TaskId taskId) =>
         new(employeeId.Value, taskId.Value, new DateTime(2026, 11, 14), 2.5m, "Work");
@@ -231,18 +242,11 @@ public sealed class CreateTimeEntryHandlerTests
 
     private static FakeRegistrationRepository Work(bool internalOnly = false)
     {
-        var category = new Catagory
-        {
-            Id = CatagoryId.Create(Guid.NewGuid()).Value,
-            DepartmentId = DepartmentId.Create(Guid.NewGuid()).Value,
-            Name = CatagoryName.Create("Category").Value,
-            Status = CatagoryStatus.Active, InternalOnly = internalOnly
-        };
-        return new FakeRegistrationRepository(new WorkTask
-        {
-            Id = TaskId.Create(Guid.NewGuid()).Value,
-            CatagoryId = category.Id, Name = TaskName.Create("Task").Value, Status = TaskStatus.Active
-        }, category);
+        var department = Department.Create(DepartmentName.Create("Department").Value).Value;
+        var category = department.AddCatagory(EmployeeId.Create(Guid.NewGuid()).Value,
+            CatagoryName.Create("Category").Value, internalOnly, DateTime.UtcNow).Value;
+        var task = department.AddTask(category.Id, TaskName.Create("Task").Value, DateTime.UtcNow).Value;
+        return new FakeRegistrationRepository(department, task, category);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset? instant = null) : TimeProvider
@@ -263,24 +267,29 @@ public sealed class CreateTimeEntryHandlerTests
             Task.FromResult<Employee?>(employee.Id == employeeId ? employee : null);
     }
 
-    private sealed class FakeRegistrationRepository(WorkTask task, Catagory catagory) : ITimeRegistrationRepository
+    private sealed class FakeRegistrationRepository : ITimeRegistrationRepository
     {
-        public WorkTask WorkItem { get; } = task;
-        public Catagory Catagory { get; } = catagory;
+        public WorkTask WorkItem { get; }
+        public Catagory Catagory { get; }
+        public Department Department { get; }
+
+        public FakeRegistrationRepository(Department department, WorkTask task, Catagory catagory)
+        {
+            WorkItem = task;
+            Catagory = catagory;
+            Department = department;
+        }
         public TaskAssignmentAccess Assignment { get; set; }
         public bool IsDepartmentMember { get; set; }
-        public int TaskLookups { get; private set; }
+        public int DepartmentLookups { get; private set; }
         public int MembershipLookups { get; private set; }
         public TimeEntry? Added { get; private set; }
 
-        public Task<WorkTask?> GetTaskAsync(TaskId taskId, CancellationToken cancellationToken = default)
+        public Task<Department?> GetDepartmentForTaskAsync(TaskId taskId, CancellationToken cancellationToken = default)
         {
-            TaskLookups++;
-            return Task.FromResult<WorkTask?>(taskId == WorkItem.Id ? WorkItem : null);
+            DepartmentLookups++;
+            return Task.FromResult<Department?>(taskId == WorkItem.Id ? Department : null);
         }
-
-        public Task<Catagory?> GetCatagoryAsync(CatagoryId catagoryId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Catagory?>(catagoryId == Catagory.Id ? Catagory : null);
 
         public Task<bool> IsDepartmentMemberAsync(
             EmployeeId employeeId, DepartmentId departmentId, CancellationToken cancellationToken = default)

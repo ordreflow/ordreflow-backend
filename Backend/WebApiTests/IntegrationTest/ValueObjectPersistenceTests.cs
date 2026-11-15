@@ -1,4 +1,5 @@
 using Domain.Aggregate;
+using Catagory = Domain.Entities.Catagory;
 using Domain.ValueObjects;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -19,24 +20,9 @@ public sealed class ValueObjectPersistenceTests
         await context.Database.EnsureCreatedAsync();
 
         var employee = Employee.Create(" Jane Doe ", " Jane@Example.com ", DateTime.UtcNow).Value;
-        var department = new Department
-        {
-            Id = DepartmentId.Create(Guid.NewGuid()).Value,
-            Name = DepartmentName.Create(" Operations ").Value
-        };
-        var category = new Catagory
-        {
-            Id = CatagoryId.Create(Guid.NewGuid()).Value,
-            DepartmentId = department.Id, CreatedBy = employee.Id,
-            Name = CatagoryName.Create(" Internal work ").Value,
-            Status = CatagoryStatus.Active, CreatedAt = DateTime.UtcNow
-        };
-        var task = new Domain.Entities.Task
-        {
-            Id = TaskId.Create(Guid.NewGuid()).Value, CatagoryId = category.Id,
-            Name = TaskName.Create(" Planning ").Value,
-            Status = Domain.ValueObjects.TaskStatus.Active, CreatedAt = DateTime.UtcNow
-        };
+        var department = Department.Create(DepartmentName.Create(" Operations ").Value).Value;
+        var category = department.AddCatagory(employee.Id, CatagoryName.Create(" Internal work ").Value, false, DateTime.UtcNow).Value;
+        var task = department.AddTask(category.Id, TaskName.Create(" Planning ").Value, DateTime.UtcNow).Value;
         var deadline = new DateOnly(2026, 12, 1);
         context.Employees.Add(employee);
         context.Departments.Add(department);

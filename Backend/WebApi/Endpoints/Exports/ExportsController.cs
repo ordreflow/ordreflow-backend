@@ -1,5 +1,8 @@
-using Application.Exports;
+using Application;
 using Application.Commands;
+using Application.Exports;
+using Application.Queries;
+using Core.Tools.OperationResult;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Authentication;
@@ -9,59 +12,55 @@ using WebAPI.Contracts.Exports;
 namespace WebAPI.Endpoints.Exports;
 
 [Authorize(Policy = AuthorizationPolicies.Export)]
-public sealed class ExportsController(PayrollExportService exports) : EndpointBase
+public sealed class ExportsController(ICommandDispatcher commands, IQueryDispatcher queries) : EndpointBase
 {
     [HttpPost("exports")]
-    [ProducesResponseType(typeof(ExportDetailsDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ExportDetailsResponse), StatusCodes.Status201Created)]
     public async Task<IResult> Create([FromBody] CreateExportRequest request, CancellationToken ct)
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
-        var result = await exports.CreateAsync(actor,
-            new CreateExportCommand(request.ExportId, request.FromDate, request.ToDate, request.EmployeeId), ct);
+        var result = await commands.DispatchAsync<CreateExportCommand, ExportDetailsDto>(
+            new CreateExportCommand(actor, request.ExportId, request.FromDate, request.ToDate, request.EmployeeId), ct);
         return result.IsFailure ? result.Errors.ToErrorResult()
-            : TypedResults.Created($"/api/exports/{result.Value.Export.Id}", result.Value);
+            : TypedResults.Created($"/api/exports/{result.Value.Export.Id}", ToResponse(result.Value));
     }
 
     [HttpGet("exports")]
     [ProducesResponseType(typeof(ExportPage<ExportSummaryDto>), StatusCodes.Status200OK)]
-    public async Task<IResult> List(CancellationToken ct, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+    public async Task<IResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
-        var result = await exports.ListAsync(actor, page, pageSize, ct);
-        return result.IsFailure ? result.Errors.ToErrorResult()
-            : TypedResults.Ok(new ExportPage<ExportSummaryDto>(result.Value, page, pageSize));
+        var result = await queries.DispatchAsync<ListExportsQuery, Result<IReadOnlyList<ExportSummaryDto>>>(new(actor, page, pageSize));
+        return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.Ok(new ExportPage<ExportSummaryDto>(result.Value, page, pageSize));
     }
 
     [HttpGet("exports/employees")]
     [ProducesResponseType(typeof(ExportPage<ExportEmployeeDto>), StatusCodes.Status200OK)]
-    public async Task<IResult> Employees(CancellationToken ct, [FromQuery] string? search = null,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+    public async Task<IResult> Employees([FromQuery] string? search = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
-        var result = await exports.EmployeesAsync(actor, search, page, pageSize, ct);
-        return result.IsFailure ? result.Errors.ToErrorResult()
-            : TypedResults.Ok(new ExportPage<ExportEmployeeDto>(result.Value, page, pageSize));
+        var result = await queries.DispatchAsync<ExportEmployeesQuery, Result<IReadOnlyList<ExportEmployeeDto>>>(new(actor, search, page, pageSize));
+        return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.Ok(new ExportPage<ExportEmployeeDto>(result.Value, page, pageSize));
     }
 
     [HttpGet("exports/{id:guid}")]
-    [ProducesResponseType(typeof(ExportDetailsDto), StatusCodes.Status200OK)]
-    public async Task<IResult> Details([FromRoute] Guid id, CancellationToken ct)
+    [ProducesResponseType(typeof(ExportDetailsResponse), StatusCodes.Status200OK)]
+    public async Task<IResult> Details([FromRoute] Guid id)
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
-        var result = await exports.GetAsync(actor, id, ct);
-        return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.Ok(PayrollExportService.Details(result.Value));
+        var result = await queries.DispatchAsync<GetExportQuery, Result<ExportDetailsDto>>(new(actor, id));
+        return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.Ok(ToResponse(result.Value));
     }
 
     [HttpGet("exports/{id:guid}/download")]
     [Produces("text/csv")]
-    public async Task<IResult> Download([FromRoute] Guid id, CancellationToken ct)
+    public async Task<IResult> Download([FromRoute] Guid id)
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
-        var result = await exports.GetAsync(actor, id, ct);
+        var result = await queries.DispatchAsync<DownloadExportQuery, Result<ExportDownloadDto>>(new(actor, id));
         if (result.IsFailure) return result.Errors.ToErrorResult();
-        var batch = result.Value;
-        return TypedResults.File(batch.CsvContent, "text/csv; charset=utf-8",
-            $"time-entries-{batch.DateFrom:yyyyMMdd}-{batch.DateTo:yyyyMMdd}-{batch.Id.Value}.csv");
+        var file = result.Value;
+        return TypedResults.File(file.Content, "text/csv; charset=utf-8", $"time-entries-{file.FromDate:yyyyMMdd}-{file.ToDate:yyyyMMdd}-{file.Id}.csv");
     }
 
     [HttpPost("exports/{id:guid}/close-time-entries")]
@@ -69,7 +68,10 @@ public sealed class ExportsController(PayrollExportService exports) : EndpointBa
     public async Task<IResult> CloseTimeEntries([FromRoute] Guid id, CancellationToken ct)
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
-        var result = await exports.CloseTimeEntriesAsync(actor, id, ct);
+        var result = await commands.DispatchAsync<CloseExportTimeEntriesCommand, bool>(new(actor, id), ct);
         return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.NoContent();
     }
+
+    private static ExportDetailsResponse ToResponse(ExportDetailsDto details) =>
+        new(details.Export, details.Entries, $"/api/exports/{details.Export.Id}/download");
 }

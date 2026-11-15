@@ -1,100 +1,102 @@
+using Core.Tools.OperationResult;
 using Domain.Aggregate;
 using Domain.Entities;
+using Domain.Services;
 using Domain.ValueObjects;
-using TaskStatus = Domain.ValueObjects.TaskStatus;
 
 namespace WebApiTests.IntegrationTest;
 
 public sealed class TimeRegistrationAccessDomainTests
 {
     [Fact]
-    public void Public_task_without_assignments_is_available_to_active_employees()
+    public void General_work_does_not_require_assignment_or_reviewer_permission()
     {
         var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
-        var category = Category(internalOnly: false);
-        var task = WorkTask(category.Id);
-
-        Assert.True(category.CanRegisterTime(task, employee, false, false, false).IsSuccess);
+        var (department, category, task) = Work(false);
+        Assert.False(employee.HasPermission(SystemPermission.CatagoryReviewer));
+        Assert.True(Register(employee, department, task.Id, false, false, false).IsSuccess);
     }
 
     [Fact]
-    public void Assigned_task_requires_the_employee_to_be_one_of_its_assignees()
+    public void Assigned_work_requires_assignment_and_internal_work_also_requires_membership()
     {
         var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
-        var category = Category(internalOnly: false);
-        var task = WorkTask(category.Id);
-
-        var denied = category.CanRegisterTime(task, employee, false, hasAssignments: true, isAssigned: false);
-
-        Assert.Equal("TaskAssignmentForbidden", Assert.Single(denied.Errors).Code);
-        Assert.True(category.CanRegisterTime(task, employee, false, true, true).IsSuccess);
+        var (department, category, task) = Work(true);
+        Assert.Equal("CatagoryAccessForbidden", Assert.Single(Register(employee, department, task.Id, false, true, true).Errors).Code);
+        Assert.Equal("TaskAssignmentForbidden", Assert.Single(Register(employee, department, task.Id, true, true, false).Errors).Code);
+        Assert.True(Register(employee, department, task.Id, true, true, true).IsSuccess);
+        Assert.True(Register(employee, department, task.Id, true, false, false).IsSuccess);
     }
 
     [Fact]
-    public void Internal_category_requires_department_membership_even_for_an_assignee()
+    public void Inactive_employee_closed_category_and_closed_task_are_rejected()
     {
         var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
-        var category = Category(internalOnly: true);
-        var task = WorkTask(category.Id);
-
-        var denied = category.CanRegisterTime(task, employee, false, hasAssignments: true, isAssigned: true);
-
-        Assert.Equal("CatagoryAccessForbidden", Assert.Single(denied.Errors).Code);
-        Assert.True(category.CanRegisterTime(task, employee, true, true, true).IsSuccess);
-        Assert.True(category.CanRegisterTime(task, employee, true, false, false).IsSuccess);
+        var (department, category, task) = Work(false);
+        employee.Deactivate();
+        Assert.Equal("EmployeeAccessForbidden", Assert.Single(Register(employee, department, task.Id, true, false, false).Errors).Code);
+        employee.Activate();
+        Assert.True(department.CloseCatagory(category.Id, DateTime.UtcNow.AddMinutes(1)).IsSuccess);
+        Assert.Equal("CatagoryClosed", Assert.Single(Register(employee, department, task.Id, true, false, false).Errors).Code);
+        Assert.True(department.ReopenCatagory(category.Id).IsSuccess);
+        Assert.True(department.CloseTask(category.Id, task.Id, DateTime.UtcNow.AddMinutes(1)).IsSuccess);
+        Assert.Equal("TaskClosed", Assert.Single(Register(employee, department, task.Id, true, false, false).Errors).Code);
     }
 
     [Fact]
-    public void Inactive_employees_and_closed_work_cannot_receive_time()
+    public void Root_creates_child_identities_and_does_not_accept_foreign_category_ids()
     {
-        var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
-        var category = Category(internalOnly: false);
-        var task = WorkTask(category.Id);
-        employee.Status = EmployeeStatus.Deactivated;
-        Assert.Equal("EmployeeAccessForbidden", Assert.Single(
-            category.CanRegisterTime(task, employee, true, false, false).Errors).Code);
-
-        employee.Status = EmployeeStatus.Active;
-        category.Status = CatagoryStatus.Closed;
-        Assert.Equal("CatagoryClosed", Assert.Single(
-            category.CanRegisterTime(task, employee, true, false, false).Errors).Code);
-
-        category.Status = CatagoryStatus.Active;
-        task.Status = TaskStatus.Closed;
-        Assert.Equal("TaskClosed", Assert.Single(
-            category.CanRegisterTime(task, employee, true, false, false).Errors).Code);
+        var (department, category, task) = Work(false);
+        var other = Department.Create(DepartmentName.Create("Other").Value).Value;
+        Assert.Equal(department.Id, category.DepartmentId);
+        Assert.Equal(category.Id, task.CatagoryId);
+        Assert.Equal("CatagoryNotFound", Assert.Single(other.AddTask(category.Id,
+            TaskName.Create("Foreign").Value, DateTime.UtcNow).Errors).Code);
+        Assert.Equal("TaskNotFound", Assert.Single(other.CanRegisterTime(task.Id).Errors).Code);
     }
 
     [Fact]
-    public void Initial_audit_allows_optional_comment_but_requires_a_duration()
+    public void Domain_service_enforces_the_date_period()
     {
-        var entryId = TimeEntryId.Create(Guid.NewGuid()).Value;
-        var employeeId = EmployeeId.Create(Guid.NewGuid()).Value;
-        var taskId = TaskId.Create(Guid.NewGuid()).Value;
-        var workDate = WorkDate.Create(new DateOnly(2026, 11, 14)).Value;
-
-        var withoutComment = TimeEntryAudit.Create(entryId, employeeId, taskId,
-            workDate, Duration.Create(2.5m).Value, TimeEntryDescription.Create(null).Value, TimeEntryStatus.Draft, DateTime.UtcNow);
-        var invalidDuration = TimeEntryAudit.Create(entryId, employeeId, taskId,
-            workDate, null!, TimeEntryDescription.Create("Work").Value, TimeEntryStatus.Draft, DateTime.UtcNow);
-
-        Assert.True(withoutComment.IsSuccess);
-        Assert.Equal(string.Empty, withoutComment.Value.Description.Value);
-        Assert.Equal("DurationRequired", Assert.Single(invalidDuration.Errors).Code);
+        var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
+        var (department, category, task) = Work(false);
+        var date = WorkDate.Create(new DateOnly(2026, 11, 14)).Value;
+        var next = WorkDate.Create(date.Value.AddDays(1)).Value;
+        var result = new TimeRegistrationDomainService().Register(employee, department, task.Id, date,
+            Duration.Create(2.5m).Value, TimeEntryDescription.Create(null).Value,
+            new TimeRegistrationAccess(false, false, false), WorkDatePeriod.Create(next, next).Value, DateTime.UtcNow);
+        Assert.Equal("WorkDateNotPermitted", Assert.Single(result.Errors).Code);
     }
 
-    private static Catagory Category(bool internalOnly) => new()
+    [Fact]
+    public void Initial_audit_allows_optional_comment_but_requires_duration()
     {
-        Id = CatagoryId.Create(Guid.NewGuid()).Value,
-        DepartmentId = DepartmentId.Create(Guid.NewGuid()).Value,
-        Name = CatagoryName.Create("Category").Value,
-        Status = CatagoryStatus.Active,
-        InternalOnly = internalOnly
-    };
+        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
+        var employee = EmployeeId.Create(Guid.NewGuid()).Value;
+        var task = TaskId.Create(Guid.NewGuid()).Value;
+        var date = WorkDate.Create(new DateOnly(2026, 11, 14)).Value;
+        var valid = TimeEntryAudit.Create(id, employee, task, date, Duration.Create(2.5m).Value,
+            TimeEntryDescription.Create(null).Value, TimeEntryStatus.ReadyForApproval, DateTime.UtcNow);
+        var invalid = TimeEntryAudit.Create(id, employee, task, date, null!,
+            TimeEntryDescription.Create(null).Value, TimeEntryStatus.ReadyForApproval, DateTime.UtcNow);
+        Assert.Equal(string.Empty, valid.Value.Description.Value);
+        Assert.Equal("DurationRequired", Assert.Single(invalid.Errors).Code);
+    }
 
-    private static Domain.Entities.Task WorkTask(CatagoryId categoryId) => new()
+    private static (Department Department, Catagory Category, Domain.Entities.Task Task) Work(bool internalOnly)
     {
-        Id = TaskId.Create(Guid.NewGuid()).Value, CatagoryId = categoryId,
-        Name = TaskName.Create("Work").Value, Status = TaskStatus.Active
-    };
+        var department = Department.Create(DepartmentName.Create("Department").Value).Value;
+        var category = department.AddCatagory(EmployeeId.Create(Guid.NewGuid()).Value,
+            CatagoryName.Create("Category").Value, internalOnly, DateTime.UtcNow).Value;
+        return (department, category, department.AddTask(category.Id, TaskName.Create("Work").Value, DateTime.UtcNow).Value);
+    }
+
+    private static Result<TimeEntry> Register(Employee employee, Department department, TaskId task,
+        bool member, bool assignedWork, bool assignee)
+    {
+        var date = WorkDate.Create(new DateOnly(2026, 11, 14)).Value;
+        return new TimeRegistrationDomainService().Register(employee, department, task, date,
+            Duration.Create(2.5m).Value, TimeEntryDescription.Create(null).Value,
+            new TimeRegistrationAccess(member, assignedWork, assignee), WorkDatePeriod.Create(date, date).Value, DateTime.UtcNow);
+    }
 }

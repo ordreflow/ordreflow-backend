@@ -1,4 +1,5 @@
 using Domain.Aggregate;
+using Catagory = Domain.Entities.Catagory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

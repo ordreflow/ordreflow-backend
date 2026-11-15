@@ -6,6 +6,7 @@ using Core.Tools.OperationResult;
 using Domain.Aggregate;
 using Domain.Interfaces;
 using Domain.ValueObjects;
+using Domain.Services;
 using TimeEntryAudit = Domain.Entities.TimeEntryAudit;
 
 namespace WebApiTests.IntegrationTest;
@@ -96,7 +97,7 @@ public sealed class PayrollExportTests
     public async Task Every_operation_requires_active_payroll_or_administrator_access(SystemPermission permission, EmployeeStatus status)
     {
         var actor = Actor(permission);
-        actor.Status = status;
+        if (status == EmployeeStatus.Deactivated) actor.Deactivate();
         var repository = new MemoryExports([]);
         var service = Service(actor, repository);
         var id = Guid.NewGuid();
@@ -161,9 +162,10 @@ public sealed class PayrollExportTests
         var secondCloser = EmployeeId.Create(Guid.NewGuid()).Value;
 
         Assert.Equal(TimeEntryStatus.Approved, entry.CurrentStatus);
-        Assert.True(first.CloseTimeEntries([entry], firstCloser, ExportedAt.AddMinutes(1)).IsSuccess);
-        Assert.True(second.CloseTimeEntries([entry], secondCloser, ExportedAt.AddMinutes(2)).IsSuccess);
-        Assert.True(first.CloseTimeEntries([entry], firstCloser, ExportedAt.AddMinutes(3)).IsSuccess);
+        var closure = new ExportClosureDomainService();
+        Assert.True(closure.Close(first, [entry], firstCloser, ExportedAt.AddMinutes(1)).IsSuccess);
+        Assert.True(closure.Close(second, [entry], secondCloser, ExportedAt.AddMinutes(2)).IsSuccess);
+        Assert.True(closure.Close(first, [entry], firstCloser, ExportedAt.AddMinutes(3)).IsSuccess);
 
         Assert.Equal(TimeEntryStatus.Closed, entry.CurrentStatus);
         Assert.Equal(3, entry.Revision);
@@ -184,10 +186,10 @@ public sealed class PayrollExportTests
         var second = Entry(actor.Id, From);
         var batch = Batch(actor.Id, first, second);
         var current = second.CurrentAudit!;
-        Assert.True(second.AddAudit(TimeEntryAudit.Create(second.Id, actor.Id, current.TaskId, current.WorkDate,
+        Assert.True(PersistedTimeEntry.Append(second, TimeEntryAudit.Create(second.Id, actor.Id, current.TaskId, current.WorkDate,
             current.Duration, current.Description, TimeEntryStatus.Rejected, Created.AddMinutes(2)).Value).IsSuccess);
 
-        var result = batch.CloseTimeEntries([first, second], actor.Id, ExportedAt.AddMinutes(1));
+        var result = new ExportClosureDomainService().Close(batch, [first, second], actor.Id, ExportedAt.AddMinutes(1));
 
         Assert.Equal("ExportSelectionConflict", Assert.Single(result.Errors).Code);
         Assert.Equal(TimeEntryStatus.Approved, first.CurrentStatus);
@@ -220,7 +222,7 @@ public sealed class PayrollExportTests
         var actor = Actor(SystemPermission.Payroll);
         var entry = Entry(actor.Id, From);
         var current = entry.CurrentAudit!;
-        Assert.True(entry.AddAudit(TimeEntryAudit.Create(entry.Id, actor.Id, current.TaskId, current.WorkDate,
+        Assert.True(PersistedTimeEntry.Append(entry, TimeEntryAudit.Create(entry.Id, actor.Id, current.TaskId, current.WorkDate,
             current.Duration, current.Description, status, Created.AddMinutes(2)).Value).IsSuccess);
 
         var result = Export.Create(ExportId.Create(Guid.NewGuid()).Value, actor.Id, From, To, null,
@@ -231,11 +233,9 @@ public sealed class PayrollExportTests
 
     internal static TimeEntry Entry(EmployeeId employee, DateOnly date, bool approved = true, string? comment = "Work")
     {
-        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
-        var audit = TimeEntryAudit.Create(id, employee, TaskId.Create(Guid.NewGuid()).Value,
-            WorkDate.Create(date).Value, Duration.Create(7.5m).Value, TimeEntryDescription.Create(comment).Value,
-            TimeEntryStatus.ReadyForApproval, Created).Value;
-        var entry = TimeEntry.Create(employee, audit).Value;
+        var workDate = WorkDate.Create(date).Value;
+        var entry = TimeEntry.Record(employee, TaskId.Create(Guid.NewGuid()).Value, workDate, Duration.Create(7.5m).Value,
+            TimeEntryDescription.Create(comment).Value, WorkDatePeriod.Create(workDate, workDate).Value, Created).Value;
         if (approved) Assert.True(entry.Approve(EmployeeId.Create(Guid.NewGuid()).Value, Created.AddMinutes(1), true).IsSuccess);
         return entry;
     }
@@ -246,12 +246,12 @@ public sealed class PayrollExportTests
         Assert.True(actor.GrantPermission(permission).IsSuccess);
         return actor;
     }
-    private static CreateExportCommand Request() => new(Guid.NewGuid(), From, To);
+    private static CreateExportCommand Request() => new(Guid.Empty, Guid.NewGuid(), From, To);
     private static ExportCandidate Candidate(TimeEntry entry) => new(entry, "Worker", "Task", "Category", "Department");
     private static Export Batch(EmployeeId actor, params TimeEntry[] entries) => Export.Create(
         ExportId.Create(Guid.NewGuid()).Value, actor, From, To, null, entries,
         ExportCsv.Create(entries.Select(Candidate)), ExportedAt).Value;
-    private static PayrollExportService Service(Employee actor, MemoryExports repository) => new(new ActorRepository(actor), repository, new FixedClock());
+    private static ExportTestHarness Service(Employee actor, MemoryExports repository) => new(new ActorRepository(actor), repository, new FixedClock());
     private sealed class FixedClock : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(ExportedAt);
@@ -275,12 +275,14 @@ public sealed class PayrollExportTests
                 item.Entry.CurrentWorkDate.Value <= to && (employee is null || item.Entry.EmployeeId == employee)).ToArray());
         }
         public Task<Export?> GetAsync(ExportId id, CancellationToken ct) => Task.FromResult(Batches.GetValueOrDefault(id));
-        public Task<Result<Export>> SaveNewAsync(Export batch, CancellationToken ct)
+        public Task AddAsync(Export batch, CancellationToken ct)
         {
             Batches.Add(batch.Id, batch);
-            return Task.FromResult(Result<Export>.Success(batch));
+            return Task.CompletedTask;
         }
-        public Task<Result> CloseTimeEntriesAsync(ExportId id, EmployeeId actor, DateTime utc, CancellationToken ct) => throw new NotSupportedException();
+        public Task<Export?> GetForClosureAsync(ExportId id, CancellationToken ct) => GetAsync(id, ct);
+        public Task<IReadOnlyList<TimeEntry>> GetEntriesForClosureAsync(IReadOnlyCollection<TimeEntryId> ids, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<TimeEntry>>(Candidates.Select(item => item.Entry).Where(item => ids.Contains(item.Id)).ToArray());
         public Task<IReadOnlyList<ExportSummaryDto>> ListAsync(int page, int size, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<ExportEmployeeDto>> EmployeesAsync(string? search, int page, int size, CancellationToken ct) => throw new NotSupportedException();
     }

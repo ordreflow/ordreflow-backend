@@ -1,11 +1,8 @@
-using System.Data;
 using Application.Exports;
 using Application.Interfaces;
-using Core.Tools.OperationResult;
 using Domain.Aggregate;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace Persistence.Repositories;
 
@@ -69,79 +66,12 @@ public sealed class ExportRepository(AppDbContext context) : IExportRepository
         return employees.Select(item => new ExportEmployeeDto(item.Id.Value, item.Name.Value, item.Status.ToString())).ToArray();
     }
 
-    public async Task<Result<Export>> SaveNewAsync(Export batch, CancellationToken ct)
-    {
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        try
-        {
-            var existing = await GetAsync(batch.Id, ct);
-            if (existing is not null) return MatchExisting(existing, batch);
-            var ids = batch.TimeEntries.Select(item => item.TimeEntryId).ToArray();
-            var entries = await context.TimeEntries.AsNoTracking().Where(item => ids.Contains(item.Id))
-                .Include(item => item.Audits).ToDictionaryAsync(item => item.Id, ct);
-            if (entries.Count != ids.Length || batch.TimeEntries.Any(item =>
-                !entries.TryGetValue(item.TimeEntryId, out var entry) ||
-                entry.GetCurrentAudit() is not { Status: TimeEntryStatus.Approved } audit || audit.Id != item.TimeEntryAuditId))
-                return Result<Export>.Failure(new Error("ExportSelectionConflict", "The approved selection changed; create the export again."));
-            context.Exports.Add(batch);
-            await context.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return Result<Export>.Success(batch);
-        }
-        catch (DbUpdateException error) when (error.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            // Dispose rolls back an active transaction and also handles PostgreSQL
-            // having already aborted it (for example, a serialization failure at commit).
-            await transaction.DisposeAsync();
-            context.ChangeTracker.Clear();
-            var existing = await GetAsync(batch.Id, ct);
-            if (existing is null) throw;
-            return MatchExisting(existing, batch);
-        }
-        catch (Exception error) when (IsConcurrencyConflict(error))
-        {
-            await transaction.DisposeAsync();
-            context.ChangeTracker.Clear();
-            return Result<Export>.Failure(new Error("ExportSelectionConflict", "The selection changed concurrently; retry with the same export ID."));
-        }
-    }
+    public async Task AddAsync(Export batch, CancellationToken ct) => await context.Exports.AddAsync(batch, ct);
 
-    public async Task<Result> CloseTimeEntriesAsync(ExportId id, EmployeeId actor, DateTime closedAtUtc, CancellationToken ct)
-    {
-        // Serializable isolation plus revision tokens protects both the batch and its entries.
-        // Retrying reloads Closed entries when another overlapping batch won the race.
-        for (var attempt = 0; attempt < 3; attempt++)
-        {
-            await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            try
-            {
-                var batch = await context.Exports.Include(item => item.TimeEntries).SingleOrDefaultAsync(item => item.Id == id, ct);
-                if (batch is null) return Result.Failure(new Error("ExportNotFound", "The export was not found."));
-                if (batch.TimeEntriesClosedAtUtc is not null) return Result.Success();
-                var ids = batch.TimeEntries.Select(item => item.TimeEntryId).ToArray();
-                var entries = await context.TimeEntries.Where(item => ids.Contains(item.Id)).OrderBy(item => item.Id)
-                    .Include(item => item.Audits).ToArrayAsync(ct);
-                var result = batch.CloseTimeEntries(entries, actor, closedAtUtc);
-                if (result.IsFailure) return result;
-                await context.SaveChangesAsync(ct);
-                await transaction.CommitAsync(ct);
-                return Result.Success();
-            }
-            catch (Exception error) when (IsConcurrencyConflict(error))
-            {
-                await transaction.DisposeAsync();
-                context.ChangeTracker.Clear();
-            }
-        }
-        return Result.Failure(new Error("ExportClosureConflict", "The entries changed concurrently; refresh and retry."));
-    }
+    public Task<Export?> GetForClosureAsync(ExportId id, CancellationToken ct) => context.Exports.AsTracking()
+        .Include(item => item.TimeEntries).SingleOrDefaultAsync(item => item.Id == id, ct);
 
-    private static Result<Export> MatchExisting(Export existing, Export requested) =>
-        existing.MatchesRequest(requested.ExportedBy, requested.DateFrom, requested.DateTo, requested.SelectedEmployeeId)
-            ? Result<Export>.Success(existing)
-            : Result<Export>.Failure(new Error("ExportRequestConflict", "This export ID was used for a different request."));
-
-    private static bool IsConcurrencyConflict(Exception error) => error is DbUpdateConcurrencyException ||
-        error is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected } ||
-        error is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected } };
+    public async Task<IReadOnlyList<TimeEntry>> GetEntriesForClosureAsync(IReadOnlyCollection<TimeEntryId> ids, CancellationToken ct) =>
+        await context.TimeEntries.AsTracking().Where(item => ids.Contains(item.Id)).OrderBy(item => item.Id)
+            .Include(item => item.Audits).ToArrayAsync(ct);
 }

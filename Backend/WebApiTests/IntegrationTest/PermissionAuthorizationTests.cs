@@ -21,7 +21,7 @@ public sealed class PermissionAuthorizationTests
 
         Assert.True((await authorization.AuthorizeAsync(principal, null, AuthorizationPolicies.CatagoryReviewer)).Succeeded);
 
-        employee.Status = EmployeeStatus.Deactivated;
+        employee.Deactivate();
         Assert.False((await authorization.AuthorizeAsync(principal, null, AuthorizationPolicies.CatagoryReviewer)).Succeeded);
     }
 

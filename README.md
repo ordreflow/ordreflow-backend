@@ -97,14 +97,16 @@ the repository. The committed Flox environment provides the exact .NET SDK
 version `8.0.406`. The root `global.json` keeps the .NET CLI on that exact
 version.
 
-The Application layer uses a command-based structure:
+The Application layer uses command and query dispatchers:
 
 1. A request is translated into a command.
 2. An `ICommandDispatcher` finds the matching `ICommandHandler<TCommand>`.
 3. The handler performs the application action using repositories and domain models.
 4. The result is returned to the API layer.
 
-This is CQRS-inspired because each state-changing action is represented by a command with a dedicated handler. The project does not currently have a separate query side, so it should not be described as full CQRS with separate read and write models.
+State-changing actions use dedicated command handlers. Read operations use
+`IQueryHandler<TQuery, TResult>` and `IQueryDispatcher`. Both use the same database;
+separate dispatch contracts do not imply separate read/write stores.
 
 ## Responsibilities of Each Project
 
@@ -132,7 +134,7 @@ WebApi should not decide domain rules. It should not create a `DbContext` direct
 - `ICommandHandler<TCommand>` and concrete handlers.
 - `ICommandDispatcher` and the concrete dispatcher.
 - Reflection-based handler registration in `DependencyInjection`.
-- The planned Unit of Work decorator.
+- The Unit of Work decorator and explicit transaction boundary for atomic commands.
 
 The dispatcher uses the command type to find the matching handler in the dependency injection container:
 
@@ -271,17 +273,31 @@ public interface IUnitOfWork
 
 This is useful because a handler can change multiple domain objects while the commit is performed once after the complete application action succeeds.
 
-In the current code, the decorator registration is commented out in `Application/Extenstions/DependencyInjection.cs`. The concrete repository also calls `SaveChangesAsync` itself. Therefore, the Unit of Work principle is not yet consistently active in the runtime configuration. If the decorator is enabled, `SaveChangesAsync` should normally be moved out of individual repositories so the Application flow controls the commit point.
+The decorator is registered by `AddApplication`. Commands may return a plain
+`Result` through `ICommandHandler<TCommand>`, or a value through
+`ICommandHandler<TCommand, TValue>` / `Result<TValue>`.
+
+Result-returning commands marked `ITransactionalCommand` choose a transaction
+boundary through `ICommandTransaction`. Persistence implements serializable
+isolation, a single commit, and bounded concurrency retries. Each retry reruns
+the handler after clearing tracked state, so it reloads and validates fresh
+aggregates. The decorator does not perform a second commit for these commands.
+Export creation and explicit closure use this path. Repositories stage writes;
+business orchestration stays in Application and domain services, not repositories.
 
 ## Current Implementation Status
 
 The architecture contains several clear building blocks, but they are not all complete or fully connected yet:
 
-- `UnitOfWorkCommandDispatcherDecorator` exists, but its dependency injection registration is commented out.
-- `IUnitOfWork` exists in Domain, but the current `DbContext` does not show an implementation of the interface.
-- The concrete repository currently saves changes through EF Core itself.
-- The existing feature tests test Domain directly and are not end-to-end HTTP tests.
-- A migration and PostgreSQL configuration exist, but the database connection comes from environment variables that must be available at runtime.
+- `UnitOfWork` wraps the scoped DbContext; command registration and commit handling
+  are active for the M3 write paths.
+- Legacy user/order/task/report handlers still require their M3 refactors before
+  the full API can compile and run.
+- Domain, handler, persistence, transaction, and HTTP regression tests are defined;
+  the current refactor pass compiles the M3 slice without executing tests.
+- The committed migration snapshot is still M2. The coordinated M3 migration must
+  include the new model and owned permission-row cascade/orphan deletion.
+- PostgreSQL configuration reads connection settings from the environment.
 
 This means the document describes the established architectural direction and existing components. It should not be read as a guarantee that every part of the complete request flow is fully implemented.
 
@@ -337,6 +353,40 @@ sets the entry to `ReadyForApproval`, including corrections of rejected entries;
 no separate resubmission is needed after editing. The previous rejection reason
 remains in review history, but is no longer the current rejection reason.
 The explicit resubmit endpoint supports resubmitting a rejected entry unchanged.
+
+### Registration responsibilities in M3
+
+`Department` is the aggregate root for `Domain.Entities.Catagory` and its Tasks.
+Registration loads the owning Department with its category/task collections.
+Department validates child ownership and delegates work-item availability to the
+category. Its `AddCatagory` and `AddTask` factories create child identities and
+parent links inside the root. Category/task setters and constructors are private;
+rename/close operations enter through Department. Employee profile, active status,
+and owned permission rows are also changed through Employee methods.
+
+`Domain.Services.TimeRegistrationDomainService` combines Employee eligibility,
+Department work-item rules, backend-resolved membership/assignment facts, and the
+permitted work-date period before creating a TimeEntry. It does not load or save
+data. `CreateTimeEntryHandler` loads those inputs, resolves company-local time,
+calls the service, and stages the result for the unit of work to save.
+Reviewer assignments are separate from registration eligibility; employees do
+not need to be category reviewers to register time.
+
+### Review and export responsibilities
+
+`TimeEntryReviewDomainService` combines reviewer eligibility and the current
+category assignment with TimeEntry's approve/reject behavior. The application
+coordinator loads facts and captures the UTC decision time. TimeEntry alone
+appends its audit versions; generic audit append and initial-audit construction
+are private implementation details. Read-side historical/corrupt-data fixtures
+simulate materialization in test-only helpers, rather than exposing a production
+backdoor for arbitrary state transitions.
+
+`ExportClosureDomainService` validates the entire fixed batch selection before
+calling each TimeEntry's guarded close operation and recording the action on the
+Export root. `CreateExportHandler` and `CloseExportTimeEntriesHandler` orchestrate
+these use cases within the command transaction pipeline. Export read handlers
+return application DTOs; WebApi builds HTTP URLs and download responses.
 
 ## UC-07 payroll exports
 

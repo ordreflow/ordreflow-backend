@@ -21,7 +21,7 @@ public sealed class PayrollExportAuthorizationTests
     {
         var employee = Employee.Create("User", "user@test.invalid", DateTime.UtcNow).Value;
         Assert.True(employee.GrantPermission(permission).IsSuccess);
-        employee.Status = status;
+        if (status == EmployeeStatus.Deactivated) employee.Deactivate();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddAuthorization(AuthorizationPolicies.Configure);

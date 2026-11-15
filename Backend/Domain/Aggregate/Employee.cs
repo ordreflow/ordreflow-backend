@@ -11,17 +11,19 @@ public sealed class Employee
 {
     private readonly List<EmployeeSystemAccess> _accesses = new();
     
-    public EmployeeId Id { get; set; } = null!;
-    public PersonName Name { get; set; } = null!;
-    public EmailAddress Email { get; set; } = null!;
+    public EmployeeId Id { get; private set; } = null!;
+    public PersonName Name { get; private set; } = null!;
+    public EmailAddress Email { get; private set; } = null!;
     
     // Status for employee, if its active or deactivated.
-    public EmployeeStatus Status { get; set; }
+    public EmployeeStatus Status { get; private set; }
     
     // Nothing functional, just an optional title that can be put in to see the role of the employee if needed
-    public string? Title { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public string? Title { get; private set; }
+    public DateTime CreatedAt { get; private set; }
     public IReadOnlyCollection<EmployeeSystemAccess> Accesses => _accesses.AsReadOnly();
+
+    private Employee() { }
 
     public static Result<Employee> Create(string name, string email, DateTime createdAtUtc)
     {
@@ -31,7 +33,7 @@ public sealed class Employee
         var emailAddress = EmailAddress.Create(email);
         if (emailAddress.IsFailure)
             return Result<Employee>.Failure(emailAddress.Errors.ToArray());
-        if (createdAtUtc.Kind != DateTimeKind.Utc)
+        if (createdAtUtc == default || createdAtUtc.Kind != DateTimeKind.Utc)
             return Result<Employee>.Failure(new Error("CreatedAtUtcRequired", "The creation time must be UTC."));
 
         var employee = new Employee
@@ -42,11 +44,7 @@ public sealed class Employee
             Status = EmployeeStatus.Active,
             CreatedAt = createdAtUtc
         };
-        employee._accesses.Add(new EmployeeSystemAccess
-        {
-            EmployeeId = employee.Id,
-            Permission = SystemPermission.Employee
-        });
+        employee._accesses.Add(EmployeeSystemAccess.Create(employee.Id, SystemPermission.Employee));
         return Result<Employee>.Success(employee);
     }
 
@@ -63,12 +61,36 @@ public sealed class Employee
         if (Status != EmployeeStatus.Active)
             return Result.Failure(new Error("EmployeeInactive", "An inactive employee cannot receive permissions."));
         if (_accesses.All(access => access.Permission != permission))
-            _accesses.Add(new EmployeeSystemAccess { EmployeeId = Id, Permission = permission });
+            _accesses.Add(EmployeeSystemAccess.Create(Id, permission));
         return Result.Success();
     }
 
     public bool CanReviewTimeEntries() =>
         HasPermission(SystemPermission.Employee) && HasPermission(SystemPermission.CatagoryReviewer);
+
+    public bool CanExportTimeEntries() => HasPermission(SystemPermission.Employee) &&
+        (HasPermission(SystemPermission.Payroll) || HasPermission(SystemPermission.Administrator));
+
+    public Result RevokePermission(SystemPermission permission)
+    {
+        if (!Enum.IsDefined(permission))
+            return Result.Failure(new Error("InvalidSystemPermission", "The permission is invalid."));
+        _accesses.RemoveAll(access => access.Permission == permission);
+        return Result.Success();
+    }
+
+    public Result ChangeProfile(PersonName name, EmailAddress email, string? title = null)
+    {
+        if (name is null || email is null)
+            return Result.Failure(new Error("EmployeeDetailsRequired", "A name and email address are required."));
+        Name = name;
+        Email = email;
+        Title = title?.Trim();
+        return Result.Success();
+    }
+
+    public void Deactivate() => Status = EmployeeStatus.Deactivated;
+    public void Activate() => Status = EmployeeStatus.Active;
 }
 
 // Create, Edit,

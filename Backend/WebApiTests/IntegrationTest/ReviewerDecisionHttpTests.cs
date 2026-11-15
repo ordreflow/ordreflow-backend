@@ -171,6 +171,7 @@ public sealed class ReviewerDecisionHttpTests : IClassFixture<ReviewerDecisionHt
 
     public sealed class FakeDecisionDispatcher : ICommandDispatcher
     {
+        public Task<Result<T>> DispatchAsync<TCommand, T>(TCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public object? LastCommand { get; private set; }
         public Result NextResult { get; set; } = Result.Success();
 

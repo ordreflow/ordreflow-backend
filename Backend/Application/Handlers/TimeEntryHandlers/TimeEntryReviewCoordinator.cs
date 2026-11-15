@@ -1,6 +1,7 @@
 using Core.Tools.OperationResult;
 using Domain.Interfaces;
 using Domain.ValueObjects;
+using Domain.Services;
 
 namespace Application.Handlers;
 
@@ -8,7 +9,8 @@ public sealed class TimeEntryReviewCoordinator(
     IEmployeeAccessRepository employees,
     IReviewDecisionRepository entries,
     TimeEntryReviewPolicy policy,
-    TimeProvider clock)
+    TimeProvider clock,
+    TimeEntryReviewDomainService reviewService)
 {
     public Task<Result> ApproveAsync(Guid entryId, Guid reviewerId) =>
         DecideAsync(entryId, reviewerId, null, approve: true);
@@ -36,12 +38,11 @@ public sealed class TimeEntryReviewCoordinator(
             return Result.Failure(new Error("TimeEntryNotFound", "The time entry was not found."));
 
         var current = entry.GetCurrentAudit();
-        if (current is null || !await entries.HasReviewerTaskAccessAsync(reviewerKey, current.TaskId))
-            return Result.Failure(new Error("ReviewScopeForbidden", "The reviewer is not assigned to this category."));
+        var assigned = current is not null && await entries.HasReviewerTaskAccessAsync(reviewerKey, current.TaskId);
 
         var reviewedAtUtc = clock.GetUtcNow().UtcDateTime;
         return approve
-            ? entry.Approve(reviewerKey, reviewedAtUtc, policy.AllowSelfReview)
-            : entry.Reject(reviewerKey, reason, reviewedAtUtc, policy.AllowSelfReview);
+            ? reviewService.Approve(entry, reviewer, assigned, policy, reviewedAtUtc)
+            : reviewService.Reject(entry, reviewer, assigned, policy, reviewedAtUtc, reason);
     }
 }

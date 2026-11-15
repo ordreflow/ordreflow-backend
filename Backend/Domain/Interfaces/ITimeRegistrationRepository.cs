@@ -1,6 +1,5 @@
 using Domain.Aggregate;
 using Domain.ValueObjects;
-using WorkTask = Domain.Entities.Task;
 
 namespace Domain.Interfaces;
 
@@ -8,8 +7,8 @@ public readonly record struct TaskAssignmentAccess(bool HasAssignments, bool IsA
 
 public interface ITimeRegistrationRepository
 {
-    Task<WorkTask?> GetTaskAsync(TaskId taskId, CancellationToken cancellationToken = default);
-    Task<Catagory?> GetCatagoryAsync(CatagoryId catagoryId, CancellationToken cancellationToken = default);
+    // Loads the owning root and its category/task children for registration rules.
+    Task<Department?> GetDepartmentForTaskAsync(TaskId taskId, CancellationToken cancellationToken = default);
     Task<bool> IsDepartmentMemberAsync(EmployeeId employeeId, DepartmentId departmentId, CancellationToken cancellationToken = default);
     Task<TaskAssignmentAccess> GetAssignmentAccessAsync(
         TaskId taskId, EmployeeId employeeId, CancellationToken cancellationToken = default);

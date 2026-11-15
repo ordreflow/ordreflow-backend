@@ -71,6 +71,8 @@ public sealed class TimeEntryCorrectionTests
     public void Locked_or_deleted_entries_cannot_be_changed(TimeEntryStatus status)
     {
         var entry = Entry(status);
+        var revision = entry.Revision;
+        var auditCount = entry.Audits.Count;
 
         var change = entry.Change(entry.EmployeeId, WorkDate, Duration.Create(4m).Value,
             TimeEntryDescription.Create("Correction").Value, Period(), Created.AddMinutes(2));
@@ -79,8 +81,8 @@ public sealed class TimeEntryCorrectionTests
         Assert.Equal("TimeEntryNotEditable", Assert.Single(change.Errors).Code);
         Assert.Equal("TimeEntryNotEditable", Assert.Single(delete.Errors).Code);
         Assert.Equal(status, entry.CurrentStatus);
-        Assert.Single(entry.Audits);
-        Assert.Equal(1, entry.Revision);
+        Assert.Equal(auditCount, entry.Audits.Count);
+        Assert.Equal(revision, entry.Revision);
     }
 
     [Fact]
@@ -192,14 +194,28 @@ public sealed class TimeEntryCorrectionTests
     private static TimeEntry Entry(TimeEntryStatus status, WorkDate? date = null)
     {
         var employee = EmployeeId.Create(Guid.NewGuid()).Value;
-        var id = TimeEntryId.Create(Guid.NewGuid()).Value;
-        var audit = TimeEntryAudit.Create(id, employee, TaskId.Create(Guid.NewGuid()).Value,
-            date ?? WorkDate, Duration.Create(2m).Value, TimeEntryDescription.Create("Original").Value,
-            status == TimeEntryStatus.Rejected ? TimeEntryStatus.ReadyForApproval : status, Created).Value;
-        var entry = TimeEntry.Create(employee, audit).Value;
+        var task = TaskId.Create(Guid.NewGuid()).Value;
+        var workDate = date ?? WorkDate;
+        var period = WorkDatePeriod.Create(workDate, workDate).Value;
+        if (status == TimeEntryStatus.Draft)
+        {
+            // Drafts may still exist in persisted history during the temporary Ready-only creation flow.
+            return PersistedTimeEntry.Create(employee, TimeEntryAudit.Create(TimeEntryId.Create(Guid.NewGuid()).Value,
+                employee, task, workDate, Duration.Create(2m).Value, TimeEntryDescription.Create("Original").Value,
+                TimeEntryStatus.Draft, Created).Value).Value;
+        }
+        var entry = TimeEntry.Record(employee, task, workDate, Duration.Create(2m).Value,
+            TimeEntryDescription.Create("Original").Value, period, Created).Value;
+        var reviewer = EmployeeId.Create(Guid.NewGuid()).Value;
         if (status == TimeEntryStatus.Rejected)
-            Assert.True(entry.Reject(EmployeeId.Create(Guid.NewGuid()).Value, "Wrong hours",
-                Created.AddMinutes(1), allowSelfReview: false).IsSuccess);
+            Assert.True(entry.Reject(reviewer, "Wrong hours",
+                 Created.AddMinutes(1), allowSelfReview: false).IsSuccess);
+        if (status is TimeEntryStatus.Approved or TimeEntryStatus.Closed)
+            Assert.True(entry.Approve(reviewer, Created.AddMinutes(1), false).IsSuccess);
+        if (status == TimeEntryStatus.Closed)
+            Assert.True(entry.CloseForExport(entry.CurrentAudit!.Id, reviewer, Created.AddMinutes(2)).IsSuccess);
+        if (status == TimeEntryStatus.Deleted)
+            Assert.True(entry.Delete(employee, period, Created.AddMinutes(1)).IsSuccess);
         return entry;
     }
 
