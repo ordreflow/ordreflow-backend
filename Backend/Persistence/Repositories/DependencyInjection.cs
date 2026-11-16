@@ -4,6 +4,7 @@ using Domain.Interfaces.IUnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
 using Persistence.Identity;
 using Persistence.Repositories;
+using Persistence.Queries;
 
 namespace Persistence;
 
@@ -17,7 +18,7 @@ public static class DependencyInjection
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
         services.AddScoped<IRegistrationPeriodModeRepository, RegistrationPeriodModeRepository>();
-        services.AddScoped<ITopOrdersRepository, TopOrdersRepository>();
+        services.AddScoped<ITopCategoriesQuery, TopCategoriesQuery>();
         services.AddScoped<IEmployeeAccessRepository, EmployeeAccessRepository>();
         services.AddScoped<IReviewQueueRepository, ReviewQueueRepository>();
         services.AddScoped<IReviewDecisionRepository, ReviewDecisionRepository>();

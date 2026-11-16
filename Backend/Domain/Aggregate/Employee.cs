@@ -71,6 +71,9 @@ public sealed class Employee
     public bool CanExportTimeEntries() => HasPermission(SystemPermission.Employee) &&
         (HasPermission(SystemPermission.Payroll) || HasPermission(SystemPermission.Administrator));
 
+    public bool CanViewTimeReports() => HasPermission(SystemPermission.Employee) &&
+        (HasPermission(SystemPermission.DepartmentManager) || HasPermission(SystemPermission.Administrator));
+
     public Result RevokePermission(SystemPermission permission)
     {
         if (!Enum.IsDefined(permission))

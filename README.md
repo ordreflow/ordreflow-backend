@@ -291,7 +291,7 @@ The architecture contains several clear building blocks, but they are not all co
 
 - `UnitOfWork` wraps the scoped DbContext; command registration and commit handling
   are active for the M3 write paths.
-- Legacy user/order/task/report handlers still require their M3 refactors before
+- Legacy user/order/task handlers still require their M3 refactors before
   the full API can compile and run.
 - Domain, handler, persistence, transaction, and HTTP regression tests are defined;
   the current refactor pass compiles the M3 slice without executing tests.
@@ -395,6 +395,14 @@ range and all employees or one selected employee. Only Approved entries are
 included. Creating/downloading a batch never closes entries; the frontend calls
 the separate **Close time entries** action on a previous batch. Overlapping
 batches and repeat closure are supported. See [the API and business rules](docs/UC-07-payroll-exports.md).
+
+## UC-11 top categories report
+
+Department managers and administrators can request the top ten categories for an
+inclusive work-date range, including each category's task totals. Managers see
+categories owned by departments they manage; administrators see the whole company.
+The latest version of every entry counts except Deleted, including Closed entries.
+See [the reporting API and scope rules](docs/UC-11-top-categories.md).
 
 ## Local PostgreSQL with Flox
 

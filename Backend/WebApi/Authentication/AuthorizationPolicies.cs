@@ -11,6 +11,7 @@ public static class AuthorizationPolicies
     public const string DepartmentManager = nameof(DepartmentManager);
     public const string CatagoryReviewer = nameof(CatagoryReviewer);
     public const string Export = nameof(Export);
+    public const string TimeReports = nameof(TimeReports);
 
     // Legacy M2 endpoints are unavailable until their M3 permission and scope rules are implemented.
     public const string UnavailableUntilRefactored = nameof(UnavailableUntilRefactored);
@@ -28,6 +29,8 @@ public static class AuthorizationPolicies
         AddPermissionPolicy(options, CatagoryReviewer, SystemPermission.CatagoryReviewer);
         options.AddPolicy(Export, policy => policy.RequireAuthenticatedUser()
             .AddRequirements(new SystemPermissionRequirement(SystemPermission.Payroll, SystemPermission.Administrator)));
+        options.AddPolicy(TimeReports, policy => policy.RequireAuthenticatedUser()
+            .AddRequirements(new SystemPermissionRequirement(SystemPermission.DepartmentManager, SystemPermission.Administrator)));
 
         options.AddPolicy(UnavailableUntilRefactored, policy => policy
             .RequireAuthenticatedUser()
