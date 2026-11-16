@@ -1,1003 +1,399 @@
 # Time Registration Domain Model
 
-Dette dokument beskriver den nuværende Domain-model og den forventede forretningsadfærd for OrdreFlow.
+Dette dokument beskriver den aktuelle M3-model i OrdreFlow: aggregate-grænser,
+adgangsregler, tidsregistreringens livscyklus og fordelingen af ansvar mellem
+Domain og de øvrige lag.
 
-Systemet er et single-company system. Der findes derfor ikke `Tenant`, `TenantId` eller virksomhedsskift i Domain.
+Hver virksomhed har sit eget miljø. Domain indeholder derfor ikke `Tenant`,
+`TenantId` eller virksomhedsskift. De tekniske navne `Catagory` og `Catagories`
+følger stavemåden i den nuværende kode.
 
-## Overordnet model
+## Aggregate-struktur
 
-Den centrale model består af tre Aggregate Roots:
-
-```text
-User
- │
- ├── ManagerId
- │
- ▼
-Order
- └── Task[]
-
-TimeEntry
- ├── EmployeeId
- ├── TaskId
- └── TimeEntryReview[]
-```
-
-Relationerne mellem objekterne er:
-
-```text
-User.ManagerId   -> User.UserId
-
-Order.ManagerId  -> User.UserId
-
-Task.OrderId     -> Order.Id
-
-TimeEntry.EmployeeId -> User.UserId
-TimeEntry.TaskId     -> Task.TaskId
-```
-
-`Order` ejer sine `Task`-objekter, og `TimeEntry` ejer sine `TimeEntryReview`-objekter.
-
-Der bruges ikke `TimeSheet`, månedlige timesheets eller faste lønperioder som en del af Domain-modellen.
-
----
-
-# Roller
-
-## Employee
-
-En medarbejder kan:
-
-* Se de Orders, som tilhører medarbejderens manager-scope.
-* Se Tasks på disse Orders.
-* Oprette en TimeEntry på en Task, som tilhører medarbejderens manager.
-* Se egne TimeEntries.
-* Se egne TimeEntries for en valgt uge.
-* Se den samlede tid for en valgt uge.
-* Redigere egne åbne eller returnerede TimeEntries.
-* Se årsagen, hvis en TimeEntry er returneret.
-* Sende en rettet TimeEntry ind igen.
-
-En medarbejder kan kun registrere tid på en Task, hvis den tilhørende Order har samme manager som medarbejderens `ManagerId`.
-
-Den centrale adgangsregel er:
-
-```text
-employee.ManagerId == order.ManagerId
-```
-
----
-
-## Manager
-
-En manager kan:
-
-* Oprette Orders.
-* Omdøbe og vedligeholde egne Orders.
-* Lukke og genåbne egne Orders.
-* Oprette Tasks på egne Orders.
-* Ændre Tasks på egne Orders.
-* Fjerne Tasks fra egne Orders.
-* Se TimeEntries for medarbejdere i managerens scope.
-* Acceptere TimeEntries.
-* Returnere TimeEntries med en forklaring.
-* Finalisere accepterede TimeEntries.
-
-En manager kan kun administrere Orders, hvor:
-
-```text
-order.ManagerId == manager.UserId
-```
-
-En manager kan kun reviewe en medarbejders TimeEntry, hvis medarbejderen har manageren som sin manager:
-
-```text
-employee.ManagerId == manager.UserId
-```
-
----
-
-## Administrator
-
-En administrator kan:
-
-* Oprette brugere.
-* Ændre brugerroller.
-* Tilknytte medarbejdere til managers.
-* Udføre managerfunktioner, hvis systemets adgangsregler tillader det.
-
-Administratorens rettigheder til andre brugere kontrolleres af Domain-regler og Application-laget.
-
----
-
-# Order
-
-`Order` er den overordnede ordre eller sag i systemet.
-
-En Order er et Aggregate Root og ejer sine Tasks.
-
-Eksempel:
-
-```text
-Order: Kunde ABC - Produktionsanlæg
-
-Tasks:
-- Fejlfinding
-- Udskift printkort
-- Test anlæg
-- Dokumentation
-```
-
-En Order indeholder blandt andet:
-
-```text
-OrderId
-ManagerId
-Name
-Status
-CreatedAt
-ClosedAt
-Tasks
-```
-
-En Order starter som:
-
-```text
-Open
-```
-
-og kan senere blive:
-
-```text
-Closed
-```
-
-En åben Order kan:
-
-* Få nye Tasks.
-* Få Tasks fjernet.
-* Blive omdøbt.
-* Modtage nye TimeEntries.
-
-En lukket Order:
-
-* Kan ikke få nye Tasks.
-* Kan ikke få Tasks fjernet.
-* Kan ikke omdøbes.
-* Accepterer ikke nye TimeEntries.
-
-Kun en aktiv manager kan administrere egne Orders.
-
-En aktiv administrator kan administrere Orders efter systemets adgangsregler.
-
----
-
-# Task
-
-`Task` repræsenterer det konkrete arbejde, der udføres på en Order.
-
-`Task` er en Entity inde i `Order`-aggregatet og har derfor ikke sit eget Aggregate Root.
-
-En Task indeholder blandt andet:
-
-```text
-TaskId
-OrderId
-Title
-Description
-```
-
-Relationen er:
-
-```text
-Order
- └── Task
-      └── OrderId
-```
-
-En Task tilhører præcis én Order.
-
-Eksempel:
-
-```text
-Order: Kunde ABC - Produktionsanlæg
-
-Task:
-  "Udskift printkort"
-```
-
-Tasken kan ikke eksistere som en del af flere Orders.
-
-Når en Task oprettes gennem:
-
-```text
-Order.AddWorkItem(...)
-```
-
-oprettes Tasken og tilknyttes Orderens `OrderId`.
-
-I Domain-koden bruges `Task` som navnet på entiteten. Selvom navnet kan kollidere med `System.Threading.Tasks.Task`, håndteres dette med namespace alias, hvor det er nødvendigt.
-
----
-
-# Manager-scope
-
-Der gemmes ikke individuelle medarbejdertildelinger på Task.
-
-I stedet bestemmes medarbejderens adgang gennem relationen:
-
-```text
-User.ManagerId
-        │
-        ▼
-Order.ManagerId
-```
-
-Eksempel:
-
-```text
-Manager Mads
-     │
-     ├── Peter
-     └── Anna
-
-Order 100
-ManagerId = Mads
-
-Task 42
-OrderId = Order 100
-```
-
-Både Peter og Anna kan arbejde på Tasks på Order 100, fordi deres `ManagerId` matcher Orderens `ManagerId`.
-
-Der findes derfor ikke:
-
-```text
-Task.AssignedEmployeeIds
-```
-
-eller tilsvarende individuelle tildelinger på Task.
-
----
-
-# TimeEntry
-
-`TimeEntry` er en Aggregate Root og repræsenterer selve tidsregistreringen.
-
-En TimeEntry tilhører en medarbejder og peger på den konkrete Task, som arbejdet blev udført på.
-
-En TimeEntry indeholder:
-
-```text
-TimeEntryId
-EmployeeId
-TaskId
-Date
-Hours
-Comment
-Status
-Reviews
-```
-
-Relationerne er:
-
-```text
-TimeEntry.EmployeeId -> User.UserId
-TimeEntry.TaskId     -> Task.TaskId
-Task.OrderId         -> Order.Id
-```
-
-TimeEntry behøver derfor ikke selv indeholde:
-
-```text
-OrderId
-```
-
-fordi Order kan findes gennem Task:
-
-```text
-TimeEntry
-    │
-    └── TaskId
-          │
-          ▼
-        Task
-          │
-          └── OrderId
-                │
-                ▼
-              Order
-```
-
-TimeEntry skal heller ikke indeholde:
-
-```text
-TimeSheetId
-Year
-Month
-PayrollPeriodId
-```
-
----
-
-# Oprettelse af TimeEntry
-
-`TimeEntry.Create()` er ansvarlig for at oprette selve TimeEntry-domainobjektet og validere de regler, der kun vedrører TimeEntry.
-
-Eksempel:
-
-```csharp
-var timeEntryResult = TimeEntry.Create(
-    employee.UserId,
-    task.TaskId,
-    command.Date,
-    command.Hours,
-    command.Comment);
-```
-
-`TimeEntry.Create()` kontrollerer blandt andet:
-
-* EmployeeId findes.
-* TaskId findes.
-* Datoen er gyldig.
-* Timerne er større end 0.
-* Timerne overstiger ikke 24 timer.
-* Kommentaren overholder maksimal længde.
-
-Hvis oprettelsen lykkes, returneres:
-
-```text
-Result<TimeEntry>
-```
-
-med en TimeEntry i status:
-
-```text
-Draft
-```
-
-`TimeEntry.Create()` gemmer ikke noget i databasen.
-
-Persistence sker først senere gennem Repository og Unit of Work.
-
----
-
-# Registrering af tid
-
-Registrering af tid involverer flere Aggregate Roots og koordineres derfor af `TimeRegistrationDomainService`.
-
-Processen er:
-
-```text
-1. Frontend sender TimeEntry-request.
-2. WebAPI mapper request til Command.
-3. Application sender Command gennem ICommandDispatcher.
-4. Handler finder den aktuelle User.
-5. Handler finder den relevante Order og Task.
-6. Handler kalder TimeEntry.Create().
-7. TimeEntry oprettes i memory med status Draft.
-8. TimeRegistrationDomainService validerer registreringen.
-9. Order.CanRegisterTime() kontrollerer Order-specifikke regler.
-10. Repository tilføjer TimeEntry.
-11. UnitOfWork gemmer ændringen i databasen.
-```
-
-Flowet kan illustreres således:
-
-```text
-WebAPI
-   │
-   ▼
-Command
-   │
-   ▼
-CreateTimeEntryHandler
-   │
-   ├── Hent User
-   │
-   ├── Hent Order/Task
-   │
-   ├── TimeEntry.Create()
-   │       │
-   │       ▼
-   │    TimeEntry
-   │    Status = Draft
-   │
-   ├── TimeRegistrationDomainService.Register()
-   │       │
-   │       ▼
-   │    Order.CanRegisterTime()
-   │
-   ├── TimeEntryRepository.AddAsync()
-   │
-   └── UnitOfWork.SaveChangesAsync()
-```
-
----
-
-# Order.CanRegisterTime()
-
-`Order.CanRegisterTime()` opretter ikke en TimeEntry.
-
-Metoden validerer, om en allerede oprettet TimeEntry må registreres på Orderen.
-
-Den kontrollerer blandt andet:
-
-* Order er åben.
-* Den valgte Task findes på Orderen.
-* Medarbejderen har adgang til Orderens manager-scope.
-
-Eksempel:
-
-```csharp
-var result = order.CanRegisterTime(
-    timeEntry.TaskId,
-    employee.UserId,
-    employee.ManagerId);
-```
-
-Metoden returnerer enten:
-
-```text
-Result.Success()
-```
-
-eller:
-
-```text
-Result.Failure(...)
-```
-
-Selve TimeEntry'en er allerede oprettet af:
-
-```text
-TimeEntry.Create()
-```
-
-Hvis `CanRegisterTime()` returnerer en fejl, stopper Application-flowet, og TimeEntry'en gemmes ikke.
-
----
-
-# Manager-scope-reglen
-
-Den vigtigste regel ved tidsregistrering er:
-
-```text
-employee.ManagerId == order.ManagerId
-```
-
-For at kunne kontrollere dette skal backend kende:
-
-```text
-User
-Order
-Task
-```
-
-Et `TaskId` fra en HTTP-request er derfor ikke nok alene.
-
-Application skal hente den relevante Order og kontrollere, at Tasken faktisk tilhører Orderen.
-
-Eksempel:
-
-```text
-Employee
-ManagerId = Mads
-
-Order
-ManagerId = Mads
-
-Task
-OrderId = Order 100
-```
-
-Registreringen er tilladt.
-
-Hvis:
-
-```text
-Employee
-ManagerId = Anders
-
-Order
-ManagerId = Mads
-```
-
-afvises registreringen.
-
----
-
-# Statusflow
-
-TimeEntry-status følger dette flow:
-
-```text
-Draft -- redigering --> Draft
-Draft -- returnering --> Returned -- redigering eller Resubmit() --> Draft
-Draft -- accept --> Accepted -- finalisering --> Finalized
-```
-
-Status betyder:
-
-### Draft
-
-TimeEntry er oprettet og kan behandles.
-
-### Returned
-
-En manager har returneret TimeEntry med en forklaring.
-
-Medarbejderen kan derefter redigere TimeEntry. En vellykket redigering ændrer automatisk status:
-
-```text
-Returned -> Draft
-```
-
-### Accepted
-
-Manager har accepteret TimeEntry til fakturering eller eksport.
-
-En Accepted TimeEntry kan ikke længere redigeres af medarbejderen.
-
-### Finalized
-
-TimeEntry er endeligt behandlet.
-
-En Finalized TimeEntry kan ikke ændres.
-
----
-
-# Redigering af TimeEntry
-
-En medarbejder kan kun redigere sin egen TimeEntry.
-
-TimeEntry kontrollerer:
-
-```text
-actorId == EmployeeId
-```
-
-Derudover skal status være:
-
-```text
-Draft
-```
-
-eller:
-
-```text
-Returned
-```
-
-Følgende egenskaber kan ændres:
-
 ```text
-Hours
-Date
-Comment
-```
+Department                         Employee
+  └── Catagories                     └── Accesses
+        └── Tasks                          └── EmployeeSystemAccess
 
-Efter en Return ændrer en vellykket redigering automatisk status:
+TimeEntry                          Export
+  ├── EmployeeId                     └── TimeEntries
+  ├── Audits                               └── TimeEntryExport
+  │     └── TimeEntryAudit                        ├── TimeEntryId
+  └── Reviews                                    └── TimeEntryAuditId
+        └── TimeEntryReview
 
-```text
-Returned -> Draft
+RegistrationPeriodMode             AccessPrivilege (under udbygning)
+                                     └── Tasks
+                                           └── AccessTask
 ```
-
-`Resubmit()` kan stadig bruges på en Returned TimeEntry uden redigering og ændrer også status:
 
-```text
-Returned -> Draft
-```
+`Department`, `Employee`, `TimeEntry`, `Export` og `RegistrationPeriodMode`
+ligger i `Domain.Aggregate`. `AccessPrivilege` ligger også her, men dens
+forretningsmetoder og integration i skriveoperationerne er endnu ikke færdige.
 
----
+`Catagory` og `Task` er child entities i **Department-aggregatet** og ligger i
+`Domain.Entities`. En kategori er ikke et selvstændigt aggregate root.
 
-# TimeEntryReview
+### Relationer på tværs af aggregates
 
-`TimeEntryReview` er en Entity inde i `TimeEntry`-aggregatet.
+Følgende link entities forbinder identiteter uden at gøre Employee til en del af
+Department-aggregatet:
 
-Den bruges til at gemme historikken over managerens behandling af en TimeEntry.
+| Link entity | Referencer og betydning |
+| --- | --- |
+| `DepartmentEmployee` | `DepartmentId` og `EmployeeId`: medlemskab af en afdeling |
+| `DepartmentManager` | `DepartmentId` og `ManagerId`: ledelsesansvar for en afdeling |
+| `CatagoryReviewer` | `CatagoryId` og `EmployeeId`: ansvar for review i en kategori |
+| `TaskAssignment` | `TaskId` og `AssignedTo`: tildeling af arbejde til en medarbejder |
 
-Eksempel:
+En medarbejder kan tilhøre flere afdelinger, lede flere afdelinger og reviewe flere
+kategorier. Disse relationer er uafhængige af hinanden.
 
-```text
-TimeEntry
- │
- ├── Review: Returned
- │       Reason: "Forkert antal timer"
- │
- ├── Review: Returned
- │       Reason: "Kommentar mangler"
- │
- └── Review: Accepted
-```
+`TaskAssignment` indeholder desuden `ExpectedDuration` og `ExpectedDeadline`
+for den enkelte medarbejders tildeling.
 
-En review indeholder:
+## Indkapsling og ansvar
 
-```text
-TimeEntryReviewId
-Decision
-Reason
-ReviewedAt
-```
+Aggregate roots beskytter deres egen tilstand og deres child entities:
 
-Review behøver ikke selv indeholde en `TimeEntryId` i Domain-modellen, når den er en child entity i TimeEntry-aggregatet. Relationens foreign key kan håndteres af Persistence/EF Core.
+- Department opretter og ændrer sine kategorier og tasks.
+- Employee ændrer profil, aktiv status og egne systemadgangsrækker gennem metoder.
+- TimeEntry styrer statusovergange, audit-versioner og review-historik.
+- Export beskytter sit faste udvalg, filindhold og oplysninger om eksplicit lukning.
 
-Mulige beslutninger er:
+Konstruktører og setters er private på disse roots og deres indkapslede children.
+En read-only collection er ikke tilstrækkelig alene; dens elementer skal også
+beskyttes mod direkte ændring.
 
-```text
-Returned
-Accepted
-Finalized
-```
+Referencer mellem aggregates gemmes som typed IDs. Det forhindrer ikke, at en
+domain service modtager flere indlæste aggregates som parametre for at evaluere
+en fælles forretningsregel.
 
-`Reason` er påkrævet ved:
+Metoder, der kan afvises efter validering eller forretningsregler, returnerer
+`Result` eller `Result<T>` med en fejlkode og besked. Domain vælger ikke HTTP-statuskoder.
 
-```text
-Returned
-```
+## Employee og systemadgang
 
----
+Employee indeholder identitet, navn, email, aktiv status, en valgfri vist titel og
+en collection af `EmployeeSystemAccess`.
 
-# Review af TimeEntry
+`Employee.Create` opretter en aktiv medarbejder med grundlæggende
+`SystemPermission.Employee`. Yderligere grants gives gennem `GrantPermission`
+og fjernes gennem `RevokePermission`. Adgangsrækkerne kan ikke ændres direkte.
+`ChangeProfile`, `Deactivate` og `Activate` håndterer de øvrige aktuelle ændringer.
 
-Når en manager reviewer en TimeEntry:
+`HasPermission` kræver både aktiv status og den konkrete grant. En vist titel
+som "Manager" giver ingen rettigheder.
 
-```text
-1. Manageren henter relevante TimeEntries.
-2. Manageren vælger en Draft-entry.
-3. Domain kontrollerer managerens rolle.
-4. Domain kontrollerer managerens status.
-5. Domain kontrollerer managerens adgang til medarbejderen.
-6. Manageren accepterer eller returnerer TimeEntry.
-7. TimeEntry-status ændres.
-8. En TimeEntryReview oprettes.
-```
+| Systemadgang | Betydning |
+| --- | --- |
+| `Employee` | Grundlæggende adgang til medarbejderfunktioner |
+| `DepartmentManager` | Systemadgang til ledelsesfunktioner; afdelingernes scope bestemmes af `DepartmentManager`-links |
+| `CatagoryReviewer` | Systemadgang til review; kategoriernes scope bestemmes af `CatagoryReviewer`-links |
+| `Payroll` | Adgang til eksport og eksplicit lukning af en eksportbatchs registreringer |
+| `Administrator` | Administrationsadgang samt adgang til eksport og virksomhedsdækkende rapportering |
 
-Ved accept:
+Review, eksport og rapportering kræver også den grundlæggende Employee-grant.
+Et ledelsesansvar giver ikke automatisk review-adgang, og Administrator-granten
+erstatter ikke reviewer-grant og kategoritildeling ved review.
 
-```text
-Draft -> Accepted
-```
+## Department, Catagory og Task
 
-Ved returnering:
+Department er den samlede grænse for kategorier og deres konkrete arbejde:
 
 ```text
-Draft -> Returned
+Department.Id
+    └── Catagory.DepartmentId
+          └── Task.CatagoryId
 ```
 
-Ved returnering skal en årsag angives.
+`Department.Create` opretter rootens identitet. `AddCatagory` og `AddTask`
+opretter child-identiteter og parent-referencer inde i aggregatet. Eksternt
+oprettede, mutable child-objekter tilføjes ikke direkte til collections.
 
-Medarbejderen kan derefter se årsagen og rette sin TimeEntry; en vellykket redigering ændrer status automatisk:
+De aktuelle styringsmetoder omfatter:
 
 ```text
-Returned -> Draft
+Department.AddCatagory(...)
+Department.AddTask(catagoryId, ...)
+Department.RenameCatagory(catagoryId, ...)
+Department.CloseCatagory(catagoryId, ...)
+Department.ReopenCatagory(catagoryId)
+Department.CloseTask(catagoryId, taskId, ...)
 ```
 
-En manager kan kun finalisere en accepteret TimeEntry:
+Department finder barnet og delegerer den lokale ændring til det. Catagory og
+Task har private parent-ID setters, så arbejdet ikke flyttes til en anden
+kategori eller omklassificeres til en anden afdeling gennem almindelige setters.
 
-```text
-Accepted -> Finalized
-```
+Kategorier og tasks bruger status `Active` og `Closed`. En lukket kategori kan
+ikke få nye tasks, og der kan ikke registreres ny tid på en lukket kategori eller
+task. Lukning af arbejde og behandling af tidsregistreringer er forskellige processer.
 
----
+### Adgang til at registrere tid
 
-# Ugevisning og totaler
+Den aktuelle adgangsregel kombinerer:
 
-Der findes ikke længere en `TimeSheet`-metode til ugevisning.
+1. Medarbejderen er aktiv og har Employee-granten.
+2. Tasken findes under den indlæste Departments kategori.
+3. Kategorien og tasken er aktive.
+4. En kategori med `InternalOnly` kræver medlemskab af dens afdeling.
+5. Hvis tasken har tildelinger, skal medarbejderen være blandt de tildelte.
+6. Arbejdsdatoen ligger i den tilladte registreringsperiode.
 
-Ugevisning implementeres som en query i Application/Persistence.
+En task uden tildelinger er generelt valgbar inden for kategoriens adgangsregler.
+Medarbejderen behøver ikke at være reviewer for at registrere tid.
 
-Queryen filtrerer på:
+`Department.CanRegisterTime(taskId)` kontrollerer sit work item og delegerer til
+kategoriens interne `CanRegisterTime(taskId)`. Regler om Employee, medlemskab og
+tildeling samles i `TimeRegistrationDomainService`.
 
-```text
-EmployeeId
-Date >= WeekStart
-Date < WeekEndExclusive
-```
+Metoder, der søger i child collections, kræver, at de relevante børn er indlæst.
+Registreringsrepositoryet indlæser den ejende Department med kategorier og tasks;
+en konfigureret database-relation indlæser ikke automatisk sin navigation.
 
-Den ugentlige total beregnes som:
+## Value objects, datoer og varighed
 
-```text
-SUM(TimeEntry.Hours)
-```
+IDs og validerede værdier er value objects, blandt andet:
 
-for de TimeEntries, der matcher medarbejderen og ugeintervallet.
+- `EmployeeId`, `DepartmentId`, `CatagoryId`, `TaskId` og `TimeEntryId`.
+- `TimeEntryAuditId`, `TimeEntryReviewId`, `ExportId` og `RegistrationPeriodModeId`.
+- `PersonName`, `EmailAddress`, `DepartmentName`, `CatagoryName` og `TaskName`.
+- `WorkDate`, `Duration`, `TimeEntryDescription`, `RejectionReason` og `WorkDatePeriod`.
+- `PlannedDuration`, `TargetCompletionDate` og `CutoffDay`.
 
-En uge kan derfor gå på tværs af to måneder uden at kræve et nyt Domain-objekt.
+`WorkDate` og deadlines er date-only værdier. `Duration` bruger **decimal timer**,
+skal være større end 0 og højst 24 pr. registrering og accepterer kvarterstimer
+samt de særlige værdier 7,4 og 3,7 timer. Dette er ikke en kontrol af medarbejderens
+samlede dagstotal.
 
-Eksempel:
+Beskrivelser kan være tomme og har højst 1.000 tegn. En afvisningsårsag skal være
+udfyldt og har højst 1.000 tegn. Audit- og review-tidspunkter skal være UTC.
 
-```text
-WeekStart:
-2026-09-28
-
-WeekEndExclusive:
-2026-10-05
-```
+## Registreringsperioder
 
-Der kan dermed være entries fra både september og oktober i samme uge.
+`RegistrationPeriodMode` beskriver virksomhedens tilladte arbejdsdatointerval.
+Application bestemmer den aktuelle dato i virksomhedens tidszone og sender den
+til `GetPermittedWorkDates(today)`.
+Uden en konfigureret periode afvises de aktuelle oprettelses-, redigerings-,
+slette- og genindsendelsesflows.
 
----
+| Interval i koden | Tilladte arbejdsdatoer |
+| --- | --- |
+| `Daily` | Den aktuelle lokale dato |
+| `Weekly` | Mandag til søndag i den aktuelle uge |
+| `Monthy` | Den aktuelle kalendermåned |
+| `DayInMonth` | Månedlig periode med valgt cutoff-dag fra 1 til 28 |
 
-# Eksport
+Ved cutoff den 18. løber perioden fra den 19. i den foregående måned til og med
+den 18. En ny periode begynder dagen efter cutoff. `CutoffDay` er påkrævet for
+`DayInMonth` og må ikke angives for de andre intervaller.
 
-Eksport er en query/reporting-funktion og er ikke en Domain-entitet.
+`Record`, `Change`, `Delete` og `Resubmit` kontrollerer det tilladte interval.
+Ved redigering skal både den eksisterende og den nye arbejdsdato være tilladt;
+en låst registrering kan ikke flyttes ind i en åben periode for at omgå kontrollen.
 
-En autoriseret bruger vælger:
+`AccessPrivilege` og `AccessTask` er et grundlag for administratorudstedte
+undtagelser med medarbejder, udløb og task-scope. Undtagelseskontrollen er endnu
+ikke koblet til de aktuelle skriveflows. Den må ikke låse Approved eller Closed op.
 
-```text
-FromDate
-ToDateExclusive
-```
+## TimeEntry og versionshistorik
 
-Application/Persistence henter TimeEntries med:
+TimeEntry er et selvstændigt aggregate root med:
 
 ```text
-TimeEntry.Date >= FromDate
-TimeEntry.Date < ToDateExclusive
+Id: TimeEntryId
+EmployeeId: EmployeeId
+Revision
+Audits: TimeEntryAudit[]
+Reviews: TimeEntryReview[]
 ```
-
-Eksporten kan filtrere på:
 
-* Dato
-* Medarbejder
-* Order
-* Task
-* Status
+Arbejdsdata og status ligger på audit-versionerne frem for som parallelle,
+mutable felter på rooten:
 
-Som udgangspunkt eksporteres:
-
 ```text
-Accepted
-Finalized
+TimeEntryAudit
+  Id
+  TimeEntryId
+  ActorId
+  ClosedBy?
+  TaskId
+  WorkDate
+  Duration
+  Description
+  Status
+  AuditTime
 ```
 
-fordi disse entries er godkendt til brug uden for systemet.
+`EmployeeId` angiver ejeren af registreringen; `ActorId` angiver, hvem der udførte
+den konkrete handling. Review og lukning ændrer ikke ejeren.
 
-En eksport-række kan indeholde:
-
-```text
-Employee
-Date
-Order
-Task
-Hours
-Comment
-Status
-```
+`GetCurrentAudit` vælger versionen med den største `AuditTime`. `CurrentStatus`,
+`CurrentTaskId`, `CurrentWorkDate` og `CurrentDuration` er afledte værdier.
+Kategori og omkostningsbærende afdeling findes gennem den aktuelle task.
 
-Hvis systemet senere understøtter start- og sluttidspunkt, kan disse også inkluderes i eksporten. De er ikke en del af den nuværende `TimeEntry`-model.
+Hver ny audit skal tilhøre registreringen og have et senere tidspunkt end den
+foregående version. `Revision` øges ved hver audit og bruges til optimistisk
+konkurrenskontrol i Persistence.
 
----
+`TimeEntry.Record` er den offentlige oprettelsesmetode. Den modtager validerede
+værdier og et tilladt arbejdsdatointerval og opretter den første audit.
+Den generiske initial-audit-factory og `AddAudit` er private: tilstandsovergange
+skal ske gennem forretningsmetoderne.
 
-# Domain-ansvar og lagdeling
+### Statusflow
 
-Domain indeholder forretningsreglerne, men ikke HTTP- eller databasekode.
+Den aktuelle oprettelsesvej går direkte til `ReadyForApproval`. `Draft` findes
+fortsat til eksisterende data og det senere draft/submission-flow; `Submit`
+kan sende en Draft videre til ReadyForApproval.
 
 ```text
-WebAPI
-  Modtager HTTP requests og returnerer HTTP responses
-
-Application
-  Koordinerer commands og queries
-
-Domain
-  Håndhæver forretningsregler,
-  aggregate-regler og statusovergange
-
-Persistence
-  Henter og gemmer data
-```
+Record ----------------------------------------> ReadyForApproval
+Draft -- Submit eller vellykket redigering ----> ReadyForApproval
+ReadyForApproval -- vellykket redigering ------> ReadyForApproval
+ReadyForApproval -- Reject --------------------> Rejected
+Rejected -- Change eller Resubmit -------------> ReadyForApproval
+ReadyForApproval -- Approve -------------------> Approved
+Approved -- eksplicit lukning via gemt eksport -> Closed
 
-Et typisk command-flow er:
-
-```text
-Frontend
-   ↓
-WebAPI Request
-   ↓
-ObjectMapper
-   ↓
-Application Command
-   ↓
-ICommandDispatcher
-   ↓
-Command Handler
-   ↓
-Domain Aggregate / Domain Service
-   ↓
-Repository Interface
-   ↓
-Persistence
-   ↓
-Database
+Draft / ReadyForApproval / Rejected -- Delete -> Deleted
 ```
 
-Ugevisning og eksport går gennem queries:
-
-```text
-Frontend
-   ↓
-WebAPI Query
-   ↓
-Application Query Handler
-   ↓
-Persistence Query
-   ↓
-DTO / Export Result
-```
+| Aktuel status | Ejeren kan redigere | Ejeren kan slette |
+| --- | --- | --- |
+| `Draft` | Ja, inden for perioden | Ja, inden for perioden |
+| `ReadyForApproval` | Ja, inden for perioden | Ja, inden for perioden |
+| `Rejected` | Ja, inden for perioden | Ja, inden for perioden |
+| `Approved` | Nej | Nej |
+| `Closed` | Nej | Nej |
+| `Deleted` | Nej | Allerede slettet |
 
----
+Enhver vellykket redigering sætter status til ReadyForApproval. `Change` ændrer
+arbejdsdato, varighed og beskrivelse; den fastholder den aktuelle TaskId.
+`Resubmit` kan sende en uændret Rejected tilbage til review uden redigering.
 
-# Aggregate-struktur
+Sletning tilføjer en audit med Deleted-status og bevarer historikken. Den aktuelle
+afvisningsårsag vises kun, mens status er Rejected. Efter redigering eller
+genindsendelse ligger den tidligere årsag fortsat i review-historikken.
 
-Domain-modellen består af følgende Aggregate Roots:
+## Review
 
-```text
-User
-Order
-TimeEntry
-```
+`TimeEntryReview` er en child entity under TimeEntry og indeholder `Id`,
+`TimeEntryId`, `ReviewerId`, `Status`, `Description` og `ReviewedAtUtc`.
+Status er `Approved` eller `Rejected`; `Description` indeholder en valideret
+`RejectionReason` ved afvisning.
 
-Entities:
+Review kræver en aktiv Employee med reviewer-grant og en reviewer-tildeling til
+den aktuelle tasks kategori. Medarbejderens hjemafdeling eller manager giver
+ikke i sig selv denne adgang. En særskilt `TimeEntryReviewPolicy` bestemmer,
+om egne registreringer må reviewes.
 
-```text
-Order
- └── Task
-
-TimeEntry
- └── TimeEntryReview
-```
+Kun ReadyForApproval kan godkendes eller afvises. En afvisning kræver en årsag.
+En vellykket beslutning opretter både en ny audit og en review-række. En afvist
+operation tilføjer ikke historik.
 
-Domain Service:
+## Gemte eksporter og eksplicit lukning
 
-```text
-TimeRegistrationDomainService
-```
+Export er et aggregate root, ikke blot en query. En eksport oprettes for et
+inkluderende arbejdsdatointerval og enten alle medarbejdere eller en navngiven
+medarbejder. Kun registreringer, hvis aktuelle audit er Approved, kan vælges.
 
-Relationerne kan illustreres således:
+Export gemmer blandt andet:
 
-```text
-                 User
-                  │
-          ManagerId│
-                  │
-        ┌─────────┴─────────┐
-        │                   │
-        ▼                   │
-      Order                 │
-        │                   │
-        │ contains          │
-        ▼                   │
-      Task                  │
-        │                   │
-        │ TaskId            │
-        ▼                   │
-    TimeEntry ◄─────────────┘
-        │
-        │ contains
-        ▼
- TimeEntryReview
-```
+- Identitet, opretter og UTC-oprettelsestidspunkt.
+- Dato- og medarbejderfilter samt samlet antal timer.
+- Et fast udvalg af `TimeEntryExport`-rækker med `TimeEntryId` og den konkrete
+  godkendte `TimeEntryAuditId`.
+- Det oprindelige CSV-indhold samt revision og oplysninger om eksplicit lukning.
 
-Den vigtigste adgangsregel er:
+CSV formateres uden for Domain. Det gemte indhold udleveres som en kopi, så
+senere downloads kan returnere den oprindelige eksport trods navneændringer,
+nyere registreringer eller ændrede aktuelle statusser.
 
-```text
-Employee.ManagerId == Order.ManagerId
-```
+**Oprettelse og download af en eksport ændrer ikke registreringernes status.**
+Payroll eller en administrator vælger en tidligere batch og udfører en særskilt
+handling: **Close time entries**.
 
-og TimeEntry peger direkte på den konkrete Task:
+`ExportClosureDomainService` bruger batchens gemte udvalg, ikke et nyt datofilter.
+Den validerer hele udvalget, før den beder hver TimeEntry om at lukke sin godkendte
+version og derefter registrerer lukkehandlingen på Export.
 
-```text
-TimeEntry.TaskId -> Task.TaskId
-```
+Overlappende batches er tilladt. Er den samme godkendte version allerede Closed
+via en anden batch, springes den over uden ny lukkeaudit. De resterende Approved
+lukkes. Gentagelse af en allerede udført batchhandling ændrer ikke historikken.
+En manglende eller ændret version afviser hele handlingen.
 
-Order findes gennem:
+TimeEntry bevarer den første faktiske lukkeaktør og det første lukketidspunkt.
+Hver batch registrerer separat sin egen lukkehandling. Application og Persistence
+sørger for, at batchmetadata og alle entry-ændringer gemmes atomisk.
 
-```text
-Task.OrderId -> Order.Id
-```
+Application håndterer også genforsøg på eksportoprettelse med samme eksport-ID:
+samme opretter og filtre genbruger den gemte batch, mens et andet request med samme
+ID afvises som konflikt. Et nyt, bevidst overlappende udvalg bruger et nyt ID.
 
----
+## Domain services og lagdeling
 
-# Aktuelle Domain-klasser
+| Domain service | Samlet forretningsansvar |
+| --- | --- |
+| `TimeRegistrationDomainService` | Kombinerer Employee-berettigelse, Departments work item, medlemskab/tildelinger og tilladt periode; kalder `TimeEntry.Record` |
+| `TimeEntryReviewDomainService` | Kombinerer reviewerens rettigheder, kategoritildeling og review-policy; kalder TimeEntrys godkendelse eller afvisning |
+| `ExportClosureDomainService` | Kontrollerer det faste batchudvalg og koordinerer lukning mellem Export og TimeEntry-aggregates |
 
-Domain bør efter ændringerne primært indeholde:
+Services indlæser eller gemmer ikke data. Application leverer indlæste aggregates,
+backend-opslåede adgangsfakta og operationstidspunkter. Aggregates håndhæver deres
+egne regler og udfører deres egne tilstandsændringer.
 
 ```text
-Domain
-├── Aggregate
-│   ├── User.cs
-│   ├── Order.cs
-│   └── TimeEntry.cs
-│
-├── Entities
-│   ├── Task.cs
-│   └── TimeEntryReview.cs
-│
-├── Services
-│   └── TimeRegistrationDomainService.cs
-│
-├── Interfaces
-│   └── ITimeEntryRepository.cs
-│
-├── ValueObjects
-│   ├── UserId.cs
-│   ├── OrderId.cs
-│   ├── OrderName.cs
-│   ├── TaskId.cs
-│   ├── TimeEntryId.cs
-│   └── TimeEntryReviewId.cs
-│
-└── Common
-    └── IUnitOfWork
+WebApi
+  Request/response, autentificeret aktør og HTTP-mapping
+    ↓
+Application handler
+  Indlæs data, fastlæg virksomhedslokal dato/UTC-tid, koordiner operationen
+    ↓
+Domain service, når reglen går på tværs af aggregates
+    ↓
+Aggregate-metoder og value objects
+    ↓
+Repositories stage'r ændringer
+    ↓
+Unit of Work / eksplicit transaktionsgrænse gemmer én gang
 ```
 
-Der skal ikke længere bruges:
+En domain service er ikke nødvendig for enhver operation. Ejerskab, redigering,
+sletning og statuslåsning af én TimeEntry håndteres på selve TimeEntry.
+Databaseisolation, rollback og genforsøg med genindlæst tilstand ligger i Persistence
+bag en transaktionskontrakt i Application.
 
-```text
-Case
-CaseId
-WorkCase
-WorkId
-TimeSheet
-TimeSheetId
-TimeSheetStatus
-Tenant
-TenantId
-PayrollPeriod
-AssignedEmployeeIds
-```
+## Read-modeller
 
----
+Ugevisning, reviewer-kø og rapportering er queries, som kan læse direkte fra de
+relevante tabeller og returnere DTOs. De behøver ikke indlæse hele Department-
+aggregatet eller udføre domain-mutationer.
 
-# Samlet model
+- Ugevisning og ugetotaler bruger ejerens egne registreringer og den aktuelle audit
+  i et mandag-søndag-interval. Deleted udelades. En uge kan krydse en månedsgrænse.
+- Reviewer-køen bruger den aktuelle audit, ReadyForApproval og aktuelle
+  kategoritildelinger. En ældre autoriseret version må ikke give adgang til en
+  nyere version på en anden task.
+- Top-kategorirapporten summerer aktuelle, ikke-slettede audits for valgte
+  inkluderende arbejdsdatoer. Den viser højst ti kategorier med deres task-totaler.
+  Draft, ReadyForApproval, Rejected, Approved og Closed tæller med.
+- Rapportens manager-scope er kategorier ejet af afdelinger, vedkommende aktuelt
+  leder. Administratorer har virksomhedsdækkende rapportadgang. Medarbejderens
+  afdeling bestemmer ikke, hvilken kategori der belastes.
 
-Den samlede Domain-model kan derfor beskrives således:
-
-```text
-User
- ├── UserId
- ├── ManagerId?
- ├── Name
- ├── Email
- ├── Role
- └── Status
-
-
-Order
- ├── OrderId
- ├── ManagerId
- ├── Name
- ├── Status
- └── Tasks[]
-       │
-       └── Task
-            ├── TaskId
-            ├── OrderId
-            ├── Title
-            └── Description
-
-
-TimeEntry
- ├── TimeEntryId
- ├── EmployeeId
- ├── TaskId
- ├── Date
- ├── Hours
- ├── Comment
- ├── Status
- └── Reviews[]
-       │
-       └── TimeEntryReview
-            ├── TimeEntryReviewId
-            ├── Decision
-            ├── Reason
-            └── ReviewedAt
-```
+Filtrering på seneste version, ejerskab og scope skal ske korrekt før summering
+og rangering. Queries giver ikke automatisk adgang til individuelle medarbejderes
+kommentarer eller review-årsager gennem aggregaterede rapporter.
 
-Den centrale forretningsregel er, at en medarbejder kun kan registrere tid på en Task, hvis Tasken tilhører en Order, som ligger inden for medarbejderens manager-scope.
+## Implementeringsgrænser
 
-`TimeEntry.Create()` opretter selve tidsregistreringen som et Domain-objekt. `TimeRegistrationDomainService` og `Order.CanRegisterTime()` kontrollerer, om registreringen er tilladt. Repository og Unit of Work sørger derefter for persistence.
+Modellen beskriver domæneregler og ansvar, ikke en garanti for, at hele M3 kan
+køres endnu. Ældre Application-flows og den samlede databasemigration er fortsat
+under omstilling. AccessPrivilege-undtagelser kræver yderligere implementering.
 
-Dermed er ansvarene adskilt mellem Domain, Application, WebAPI og Persistence, samtidig med at de vigtigste forretningsregler håndhæves i Domain.
+Normale tests opbygger tilstand gennem factories og forretningsmetoder.
+Materialisering af historiske eller fejlbehæftede versionsforløb sker i særskilte
+testfixtures. Domain udstiller ikke en offentlig adgang til vilkårlige audits for
+at understøtte tests.

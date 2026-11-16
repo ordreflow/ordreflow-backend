@@ -158,6 +158,8 @@ The Domain uses encapsulation: internal state is changed through methods that ca
 
 The Domain also contains interfaces for external requirements. Repository interfaces belong in Domain, while their implementations belong in Persistence. This means that the core owns the contract and the infrastructure provides the technical implementation.
 
+See [the domain model](Backend/Domain/TimeRegistation.md) for aggregate boundaries and business rules.
+
 ### Persistence
 
 `Persistence` is the infrastructure layer for database access. It contains:
@@ -282,8 +284,8 @@ boundary through `ICommandTransaction`. Persistence implements serializable
 isolation, a single commit, and bounded concurrency retries. Each retry reruns
 the handler after clearing tracked state, so it reloads and validates fresh
 aggregates. The decorator does not perform a second commit for these commands.
-Export creation and explicit closure use this path. Repositories stage writes;
-business orchestration stays in Application and domain services, not repositories.
+Repositories stage writes; business orchestration stays in Application and domain
+services, not repositories.
 
 ## Current Implementation Status
 
@@ -333,76 +335,6 @@ The backend is organized around a stable core and outer adapters:
 - Connection strings and credentials must be supplied through environment-specific configuration.
 - Secrets must not be committed to the repository.
 - The POC should use real PostgreSQL persistence rather than only an in-memory test database.
-
-## Temporary M3 time-registration flow
-
-UC-01 currently registers entries directly as `ReadyForApproval`, so they can
-reach the category-reviewer queue without a separate draft submission step.
-The Draft state remains in the domain for the later draft/submission workflow.
-Registration requires a configured registration period and rejects work dates
-outside that period. `Company__TimeZone` sets the company-local date used for
-creation, edit, delete, and resubmission cutoffs (for example `Europe/Copenhagen`);
-it defaults to `UTC`.
-Audit timestamps remain UTC. Custom monthly periods include the selected
-cutoff day and restart on the following day.
-
-Employees can edit or delete their own Draft, ReadyForApproval, and Rejected
-entries while their work dates are permitted. Approved and Closed entries are
-locked, and Deleted entries cannot be changed again. Every successful edit
-sets the entry to `ReadyForApproval`, including corrections of rejected entries;
-no separate resubmission is needed after editing. The previous rejection reason
-remains in review history, but is no longer the current rejection reason.
-The explicit resubmit endpoint supports resubmitting a rejected entry unchanged.
-
-### Registration responsibilities in M3
-
-`Department` is the aggregate root for `Domain.Entities.Catagory` and its Tasks.
-Registration loads the owning Department with its category/task collections.
-Department validates child ownership and delegates work-item availability to the
-category. Its `AddCatagory` and `AddTask` factories create child identities and
-parent links inside the root. Category/task setters and constructors are private;
-rename/close operations enter through Department. Employee profile, active status,
-and owned permission rows are also changed through Employee methods.
-
-`Domain.Services.TimeRegistrationDomainService` combines Employee eligibility,
-Department work-item rules, backend-resolved membership/assignment facts, and the
-permitted work-date period before creating a TimeEntry. It does not load or save
-data. `CreateTimeEntryHandler` loads those inputs, resolves company-local time,
-calls the service, and stages the result for the unit of work to save.
-Reviewer assignments are separate from registration eligibility; employees do
-not need to be category reviewers to register time.
-
-### Review and export responsibilities
-
-`TimeEntryReviewDomainService` combines reviewer eligibility and the current
-category assignment with TimeEntry's approve/reject behavior. The application
-coordinator loads facts and captures the UTC decision time. TimeEntry alone
-appends its audit versions; generic audit append and initial-audit construction
-are private implementation details. Read-side historical/corrupt-data fixtures
-simulate materialization in test-only helpers, rather than exposing a production
-backdoor for arbitrary state transitions.
-
-`ExportClosureDomainService` validates the entire fixed batch selection before
-calling each TimeEntry's guarded close operation and recording the action on the
-Export root. `CreateExportHandler` and `CloseExportTimeEntriesHandler` orchestrate
-these use cases within the command transaction pipeline. Export read handlers
-return application DTOs; WebApi builds HTTP URLs and download responses.
-
-## UC-07 payroll exports
-
-Payroll and administrators can create saved CSV batches for an inclusive date
-range and all employees or one selected employee. Only Approved entries are
-included. Creating/downloading a batch never closes entries; the frontend calls
-the separate **Close time entries** action on a previous batch. Overlapping
-batches and repeat closure are supported. See [the API and business rules](docs/UC-07-payroll-exports.md).
-
-## UC-11 top categories report
-
-Department managers and administrators can request the top ten categories for an
-inclusive work-date range, including each category's task totals. Managers see
-categories owned by departments they manage; administrators see the whole company.
-The latest version of every entry counts except Deleted, including Closed entries.
-See [the reporting API and scope rules](docs/UC-11-top-categories.md).
 
 ## Local PostgreSQL with Flox
 
