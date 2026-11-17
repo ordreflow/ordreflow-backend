@@ -11,18 +11,28 @@ public sealed class Task
     public TaskStatus Status { get; private set; }
     public TaskName Name { get; private set; } = null!;
     public string? Description { get; private set; }
+
+    // Project, ticket or task (FR-08). Descriptive only.
+    public WorkItemKind Kind { get; private set; } = WorkItemKind.Task;
+
+    // Assignment-only work can only be selected by its assignees, even before anyone is assigned (FR-08, FR-21).
+    public bool AssignmentOnly { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? ClosedAt { get; private set; }
     private Task() { }
 
-    internal static Result<Task> Create(CatagoryId category, TaskName name, DateTime createdAtUtc, string? description)
+    internal static Result<Task> Create(CatagoryId category, TaskName name, DateTime createdAtUtc, string? description,
+        WorkItemKind kind = WorkItemKind.Task, bool assignmentOnly = false)
     {
         if (category is null || name is null)
             return Result<Task>.Failure(new Error("TaskDetailsRequired", "A category and task name are required."));
         if (createdAtUtc == default || createdAtUtc.Kind != DateTimeKind.Utc)
             return Result<Task>.Failure(new Error("CreatedAtUtcRequired", "A UTC creation time is required."));
+        if (!Enum.IsDefined(kind))
+            return Result<Task>.Failure(new Error("InvalidWorkItemKind", "The work item kind is invalid."));
         return Result<Task>.Success(new Task { Id = TaskId.Create(Guid.NewGuid()).Value, CatagoryId = category,
-            Name = name, Description = description, CreatedAt = createdAtUtc, Status = TaskStatus.Active });
+            Name = name, Description = description, CreatedAt = createdAtUtc, Status = TaskStatus.Active,
+            Kind = kind, AssignmentOnly = assignmentOnly });
     }
 
     internal Result Close(DateTime atUtc)

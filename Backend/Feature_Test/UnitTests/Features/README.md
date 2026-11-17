@@ -15,7 +15,7 @@ Links below identify **related tests**, not proof of full requirement coverage. 
 | FR-05 | Admin creates and deactivates accounts | [accounts over HTTP](../../../WebApiTests/IntegrationTest/AccountsAndAccessTests.cs) (creation, validation, deactivation, reactivation, self-lockout protection) |
 | FR-06 | Local sign-in | [login handler](../../../WebApiTests/IntegrationTest/LoginPermissionTests.cs); [HTTP](../../../WebApiTests/IntegrationTest/LoginAndRoleAccessTests.cs) |
 | FR-07 | Saved Approved-entry payroll batches; explicit closure | [domain, service, and CSV rules](../../../WebApiTests/IntegrationTest/PayrollExportTests.cs); [authorization](../../../WebApiTests/IntegrationTest/PayrollExportAuthorizationTests.cs); [persistence](../../../WebApiTests/IntegrationTest/PayrollExportRepositoryTests.cs); [HTTP flow](../../TimeEntries/PayrollExportsHttpTests.cs) |
-| FR-08 | Department manager creates work under permitted categories | Not refactored yet |
+| FR-08 | Department manager creates work under permitted categories | [planning over HTTP](../../../WebApiTests/IntegrationTest/WorkPlanningHttpTests.cs); [planning rules and assignment-only work](../../../WebApiTests/IntegrationTest/WorkPlanningDomainTests.cs) |
 | FR-09 | Employee views general and assigned work | Not refactored yet |
 | FR-10 | Correct editable time entry | [corrections](../../../WebApiTests/IntegrationTest/TimeEntryCorrectionTests.cs) |
 | FR-11 | Top ten categories with task totals | [handler and scope](../../../WebApiTests/IntegrationTest/TopCategoriesHandlerTests.cs); [query and ranking](../../../WebApiTests/IntegrationTest/TopCategoriesQueryTests.cs); [HTTP contract](../../../WebApiTests/IntegrationTest/TopCategoriesHttpTests.cs) (D3 rendering is a frontend integration step) |

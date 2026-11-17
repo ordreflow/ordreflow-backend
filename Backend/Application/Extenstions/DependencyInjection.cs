@@ -24,6 +24,7 @@ public static class DependencyInjection
     services.AddScoped<ExportAccess>();
     services.AddScoped<Application.Accounts.AccountAccess>();
     services.AddScoped<DepartmentStaffingDomainService>();
+    services.AddScoped<WorkPlanningDomainService>();
     services.AddScoped<TimeRegistrationDomainService>();
     services.AddScoped<ExportClosureDomainService>();
     services.AddScoped<TimeEntryReviewDomainService>();
