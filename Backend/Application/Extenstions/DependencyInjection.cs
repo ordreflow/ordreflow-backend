@@ -22,6 +22,8 @@ public static class DependencyInjection
     services.AddScoped<IQueryDispatcher, QueryDispatcher>();
     services.AddScoped<TimeEntryReviewCoordinator>();
     services.AddScoped<ExportAccess>();
+    services.AddScoped<Application.Accounts.AccountAccess>();
+    services.AddScoped<DepartmentStaffingDomainService>();
     services.AddScoped<TimeRegistrationDomainService>();
     services.AddScoped<ExportClosureDomainService>();
     services.AddScoped<TimeEntryReviewDomainService>();

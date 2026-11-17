@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<IReviewDecisionRepository, ReviewDecisionRepository>();
         services.AddScoped<ITimeRegistrationRepository, TimeRegistrationRepository>();
         services.AddScoped<IExportRepository, ExportRepository>();
+        services.AddScoped<IAccountRepository, AccountRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<ICommandTransaction, CommandTransaction>();
