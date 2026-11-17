@@ -13,9 +13,6 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services)
     {
-        services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IOrderRepository, OrderRepository>();
-        services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
         services.AddScoped<IRegistrationPeriodModeRepository, RegistrationPeriodModeRepository>();
         services.AddScoped<ITopCategoriesQuery, TopCategoriesQuery>();

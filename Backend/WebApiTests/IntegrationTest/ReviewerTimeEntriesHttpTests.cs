@@ -88,13 +88,13 @@ public sealed class ReviewerTimeEntriesHttpTests : IClassFixture<ReviewerTimeEnt
     }
 
     [Fact]
-    public async Task Unrefactored_routes_fail_closed_for_authenticated_employees()
+    public async Task Removed_m2_routes_are_not_served_to_authenticated_employees()
     {
         var employee = AddEmployee(reviewer: true);
 
         using var response = await GetAsEmployeeAsync(employee.Id, "/api/users/me");
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Null(_factory.Dispatcher.LastQuery);
     }
 
