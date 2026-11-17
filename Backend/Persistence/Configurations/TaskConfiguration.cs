@@ -29,6 +29,16 @@ public class TaskConfiguration : IEntityTypeConfiguration<Task>
         entity.Property(x => x.Description)
             .HasColumnName("description");
 
+        entity.Property(x => x.Kind)
+            .HasColumnName("kind")
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .IsRequired();
+
+        entity.Property(x => x.AssignmentOnly)
+            .HasColumnName("assignment_only")
+            .IsRequired();
+
         entity.Property(x => x.Status)
             .HasColumnName("status")
             .HasConversion<string>()

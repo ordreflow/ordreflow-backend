@@ -31,7 +31,8 @@ public sealed class TimeRegistrationDomainService
         var catagory = department.FindCatagoryForTask(taskId)!;
         if (catagory.InternalOnly && !access.IsDepartmentMember)
             return Result<TimeEntry>.Failure(new Error("CatagoryAccessForbidden", "This category is restricted to its department."));
-        if (access.HasAssignments && !access.IsAssigned)
+        var task = catagory.Tasks.Single(item => item.Id == taskId);
+        if ((access.HasAssignments || task.AssignmentOnly) && !access.IsAssigned)
             return Result<TimeEntry>.Failure(new Error("TaskAssignmentForbidden", "This task is assigned to other employees."));
         if (recordedAtUtc.Kind != DateTimeKind.Utc)
             return Result<TimeEntry>.Failure(new Error("AuditTimeUtcRequired", "The registration timestamp must be UTC."));

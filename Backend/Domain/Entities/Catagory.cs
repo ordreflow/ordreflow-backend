@@ -33,11 +33,12 @@ public sealed class Catagory
         });
     }
 
-    internal Result<Task> AddTask(TaskName name, DateTime atUtc, string? description)
+    internal Result<Task> AddTask(TaskName name, DateTime atUtc, string? description,
+        WorkItemKind kind = WorkItemKind.Task, bool assignmentOnly = false)
     {
         if (Status != CatagoryStatus.Active)
             return Result<Task>.Failure(new Error("CatagoryClosed", "Work cannot be added to a closed category."));
-        var result = Task.Create(Id, name, atUtc, description);
+        var result = Task.Create(Id, name, atUtc, description, kind, assignmentOnly);
         if (result.IsSuccess) _tasks.Add(result.Value);
         return result;
     }

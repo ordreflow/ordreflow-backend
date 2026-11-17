@@ -24,12 +24,13 @@ public sealed class Department
         return result;
     }
 
-    public Result<WorkTask> AddTask(CatagoryId catagoryId, TaskName name, DateTime createdAtUtc, string? description = null)
+    public Result<WorkTask> AddTask(CatagoryId catagoryId, TaskName name, DateTime createdAtUtc, string? description = null,
+        WorkItemKind kind = WorkItemKind.Task, bool assignmentOnly = false)
     {
         var catagory = _catagories.SingleOrDefault(item => item.Id == catagoryId);
         return catagory is null
             ? Result<WorkTask>.Failure(new Error("CatagoryNotFound", "The category was not found in this department."))
-            : catagory.AddTask(name, createdAtUtc, description);
+            : catagory.AddTask(name, createdAtUtc, description, kind, assignmentOnly);
     }
 
     public Result RenameCatagory(CatagoryId id, CatagoryName name)
