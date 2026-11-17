@@ -9,6 +9,8 @@ public sealed class User
 	public UserId? ManagerId { get; private set; }
 	public PersonName Name { get; private set; } = null!;
 	public EmailAddress Email { get; private set; } = null!;
+	// Displayed title only (FR-13). System access is controlled by Role and department management.
+	public JobTitle? JobTitle { get; private set; }
 	public UserRole Role { get; private set; }
 	public UserStatus Status { get; private set; }
 	public DateTime CreatedAt { get; private set; }
@@ -154,6 +156,18 @@ public sealed class User
 			return Result.Failure(new Error("EmailRequired", "User email is required."));
 
 		Email = email;
+		return Result.Success();
+	}
+
+	public Result ChangeJobTitle(
+		UserRole actorRole,
+		UserStatus actorStatus,
+		JobTitle? jobTitle)
+	{
+		if (actorRole != UserRole.Admin || actorStatus != UserStatus.Active)
+			return Result.Failure(new Error("JobTitleChangeForbidden", "Only an active admin can change job titles."));
+
+		JobTitle = jobTitle;
 		return Result.Success();
 	}
 

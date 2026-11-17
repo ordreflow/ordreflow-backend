@@ -1,6 +1,7 @@
 using Application.Dtos;
 using ObjectMapper;
 using WebAPI.Contracts.Auth;
+using WebAPI.Contracts.Departments;
 using WebAPI.Contracts.Orders;
 using WebAPI.Contracts.Tasks;
 using WebAPI.Contracts.TimeEntries;
@@ -74,5 +75,26 @@ public sealed class UserToResponseMapper
         input.Role,
         input.Status,
         input.CreatedAt,
-        input.ManagerId);
+        input.ManagerId,
+        input.JobTitle);
+}
+
+public sealed class DepartmentToResponseMapper
+    : IMappingConfig<DepartmentDto, DepartmentResponse>
+{
+    public DepartmentResponse Map(DepartmentDto input) => new(
+        input.Id,
+        input.Name,
+        input.CreatedAt,
+        input.IsManagedByMe,
+        input.Members
+            .Select(member => new DepartmentMemberResponse(
+                member.UserId,
+                member.Name,
+                member.Email,
+                member.Role,
+                member.Status,
+                member.JobTitle,
+                member.IsManager))
+            .ToArray());
 }

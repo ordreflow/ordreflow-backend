@@ -48,5 +48,6 @@ public sealed class GetUsersHandler(
         user.Role.ToString(),
         user.Status.ToString(),
         user.CreatedAt,
-        user.ManagerId?.Value);
+        user.ManagerId?.Value,
+        user.JobTitle?.Value);
 }

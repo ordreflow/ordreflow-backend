@@ -7,4 +7,5 @@ public sealed record UserResponse(
     string Role,
     string Status,
     DateTime CreatedAt,
-    Guid? ManagerId = null);
+    Guid? ManagerId = null,
+    string? JobTitle = null);

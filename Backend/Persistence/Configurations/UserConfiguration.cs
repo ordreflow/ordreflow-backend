@@ -37,6 +37,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         entity.HasIndex(x => x.Email)
             .IsUnique();
 
+        entity.Property(x => x.JobTitle)
+            .HasColumnName("job_title")
+            .HasConversion(title => title!.Value, value => JobTitle.Create(value).Value)
+            .HasMaxLength(JobTitle.MaxLength);
+
         entity.Property(x => x.Role)
             .HasColumnName("role")
             .HasConversion<string>()

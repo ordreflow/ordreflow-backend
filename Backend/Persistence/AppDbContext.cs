@@ -28,6 +28,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
     public DbSet<TimeEntryReview> TimeEntryReviews => Set<TimeEntryReview>();
 
+    public DbSet<Department> Departments => Set<Department>();
+
     protected override void OnModelCreating(
         ModelBuilder modelBuilder)
     {

@@ -22,6 +22,30 @@ namespace Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Domain.Aggregate.Department", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("departments", (string)null);
+                });
+
             modelBuilder.Entity("Domain.Aggregate.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -117,6 +141,11 @@ namespace Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)")
                         .HasColumnName("email");
+
+                    b.Property<string>("JobTitle")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("job_title");
 
                     b.Property<Guid?>("ManagerId")
                         .HasColumnType("uuid")
@@ -442,6 +471,41 @@ namespace Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Aggregate.Department", b =>
+                {
+                    b.OwnsMany("Domain.Entities.DepartmentMember", "Members", b1 =>
+                        {
+                            b1.Property<Guid>("DepartmentId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("department_id");
+
+                            b1.Property<Guid>("UserId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("user_id");
+
+                            b1.Property<bool>("IsManager")
+                                .HasColumnType("boolean")
+                                .HasColumnName("is_manager");
+
+                            b1.HasKey("DepartmentId", "UserId");
+
+                            b1.HasIndex("UserId");
+
+                            b1.ToTable("department_members", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("DepartmentId");
+
+                            b1.HasOne("Domain.Aggregate.User", null)
+                                .WithMany()
+                                .HasForeignKey("UserId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired();
+                        });
+
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("Domain.Aggregate.Order", b =>

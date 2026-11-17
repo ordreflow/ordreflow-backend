@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ITimeEntryRepository, TimeEntryRepository>();
         services.AddScoped<ITopOrdersRepository, TopOrdersRepository>();
+        services.AddScoped<IDepartmentRepository, DepartmentRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IPasswordVerifier, PasswordVerifier>();

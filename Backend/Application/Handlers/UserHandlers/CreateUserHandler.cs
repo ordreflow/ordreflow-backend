@@ -32,6 +32,9 @@ public sealed class CreateUserHandler(
             return Result.Failure(new Error("PasswordRequired", "A password is required."));
         if (!Enum.TryParse<UserRole>(command.Role, true, out var role))
             return Result.Failure(new Error("InvalidRole", "The selected role is invalid."));
+        var jobTitle = JobTitle.CreateOptional(command.JobTitle);
+        if (jobTitle.IsFailure)
+            return Result.Failure(jobTitle.Errors.ToArray());
 
         var actor = await userRepository.GetAsync(actorId.Value);
         if (actor is null)
@@ -40,6 +43,13 @@ public sealed class CreateUserHandler(
         var user = actor.CreateUser(name.Value, email.Value, role);
         if (user.IsFailure)
             return Result.Failure(user.Errors.ToArray());
+
+        if (jobTitle.Value is not null)
+        {
+            var titleChange = user.Value.ChangeJobTitle(actor.Role, actor.Status, jobTitle.Value);
+            if (titleChange.IsFailure)
+                return titleChange;
+        }
 
         if (managerId is not null)
         {

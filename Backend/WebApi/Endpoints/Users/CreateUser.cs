@@ -24,7 +24,8 @@ public sealed class CreateUser(ICommandDispatcher dispatcher)
             request.Email,
             request.Password,
             request.Role,
-            request.ManagerId));
+            request.ManagerId,
+            request.JobTitle));
 
         return result.IsSuccess
             ? TypedResults.NoContent()

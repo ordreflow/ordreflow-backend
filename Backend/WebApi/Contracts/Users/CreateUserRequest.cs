@@ -5,4 +5,5 @@ public sealed record CreateUserRequest(
     string Email,
     string Password,
     string Role,
-    Guid? ManagerId = null);
+    Guid? ManagerId = null,
+    string? JobTitle = null);

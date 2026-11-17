@@ -6,4 +6,5 @@ public sealed record CreateUserCommand(
     string Email,
     string Password,
     string Role,
-    Guid? ManagerId = null);
+    Guid? ManagerId = null,
+    string? JobTitle = null);
