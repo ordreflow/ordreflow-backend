@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IExportRepository, ExportRepository>();
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<IWorkPlanningRepository, WorkPlanningRepository>();
+        services.AddScoped<IAccessibleWorkQuery, AccessibleWorkQuery>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<ICommandTransaction, CommandTransaction>();
