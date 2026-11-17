@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Persistence;
+using WebAPI.Authentication;
 
 namespace WebApiTests.IntegrationTest.Factories;
 
@@ -25,10 +26,15 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("ADMIN_NAME", "Test Admin");
     }
 
+    // Every test logs in from the same test client, so the login rate limit is high unless a test needs it low.
+    protected virtual int LoginPermitLimit => 10_000;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureTestServices(services =>
         {
+            services.Configure<LoginRateLimitOptions>(options => options.PermitLimit = LoginPermitLimit);
+
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
 
