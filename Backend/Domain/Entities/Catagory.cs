@@ -50,6 +50,22 @@ public sealed class Catagory
         return Result.Success();
     }
 
+    internal Result Update(CatagoryName name, string? description)
+    {
+        var renamed = Rename(name);
+        if (renamed.IsFailure) return renamed;
+        Description = description;
+        return Result.Success();
+    }
+
+    internal Result UpdateTask(TaskId id, TaskName name, string? description, WorkItemKind kind, bool assignmentOnly)
+    {
+        var task = _tasks.SingleOrDefault(item => item.Id == id);
+        return task is null
+            ? Result.Failure(new Error("TaskNotFound", "The task was not found in this category."))
+            : task.Update(name, description, kind, assignmentOnly);
+    }
+
     internal Result Close(DateTime atUtc)
     {
         if (Status == CatagoryStatus.Closed) return Result.Success();

@@ -100,7 +100,7 @@ public sealed class ReviewQueueHandlerTests
     }
 
     [Fact]
-    public async Task Current_audit_must_be_ready_and_on_an_assigned_task()
+    public async Task Current_audit_must_be_submitted_and_on_an_assigned_task()
     {
         using var connection = new SqliteConnection("Data Source=:memory:");
         await using var context = await CreateContextAsync(connection);
@@ -129,8 +129,9 @@ public sealed class ReviewQueueHandlerTests
         var result = await handler.HandleAsync(new GetReviewerTimeEntriesQuery(reviewerId, null, null, null));
 
         Assert.True(result.IsSuccess);
-        var row = Assert.Single(result.Value);
-        Assert.Equal(movedIn.Id.Value, row.Id);
+        Assert.Equal(new[] { movedIn.Id.Value, approved.Id.Value }.Order(), result.Value.Select(item => item.Id).Order());
+        Assert.Equal("Approved", Assert.Single(result.Value, item => item.Id == approved.Id.Value).Status);
+        var row = Assert.Single(result.Value, item => item.Id == movedIn.Id.Value);
         Assert.Equal(authorizedTaskId.Value, row.TaskId);
         Assert.Equal(employeeId.Value, row.EmployeeId);
         Assert.Equal(workDate.ToDateTime(TimeOnly.MinValue), row.Date);
@@ -175,20 +176,33 @@ public sealed class ReviewQueueHandlerTests
     }
 
     [Fact]
-    public async Task Explicit_status_filter_cannot_broaden_review_queue()
+    public async Task Status_filter_narrows_the_list_but_cannot_expose_drafts()
     {
         using var connection = new SqliteConnection("Data Source=:memory:");
         await using var context = await CreateContextAsync(connection);
         var reviewerId = await AddReviewerAsync(context);
-        var queue = new FakeReviewQueueRepository { CatagoryIds = [NewCatagoryId()] };
+        var employeeId = NewEmployeeId();
+        var taskId = NewTaskId();
+        var workDate = new DateOnly(2026, 11, 14);
+        var ready = Entry(employeeId, taskId, workDate, TimeEntryStatus.ReadyForApproval);
+        var approved = Entry(employeeId, taskId, workDate, TimeEntryStatus.ReadyForApproval);
+        AddAudit(approved, taskId, workDate, TimeEntryStatus.Approved);
+        var queue = new FakeReviewQueueRepository
+        {
+            CatagoryIds = [NewCatagoryId()],
+            TaskIds = [taskId],
+            Candidates = [ready, approved]
+        };
         var handler = new GetReviewerTimeEntriesHandler(new EmployeeAccessRepository(context), queue);
 
-        var result = await handler.HandleAsync(new GetReviewerTimeEntriesQuery(
-            reviewerId, null, null, TimeEntryStatus.Rejected));
+        var onlyApproved = await handler.HandleAsync(new GetReviewerTimeEntriesQuery(
+            reviewerId, null, null, TimeEntryStatus.Approved));
+        var drafts = await handler.HandleAsync(new GetReviewerTimeEntriesQuery(
+            reviewerId, null, null, TimeEntryStatus.Draft));
 
-        Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
-        Assert.Equal(0, queue.CatagoryLookups);
+        Assert.Equal(approved.Id.Value, Assert.Single(onlyApproved.Value).Id);
+        Assert.Empty(drafts.Value);
+        Assert.Equal(1, queue.CatagoryLookups);
     }
 
     private static async Task<AppDbContext> CreateContextAsync(SqliteConnection connection)
@@ -264,5 +278,10 @@ public sealed class ReviewQueueHandlerTests
             EntryLookups++;
             return Task.FromResult(Candidates);
         }
+
+        public Task<ReviewDisplayNames> GetDisplayNamesAsync(
+            IReadOnlyCollection<EmployeeId> employeeIds, IReadOnlyCollection<TaskId> taskIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ReviewDisplayNames(new Dictionary<Guid, string>(), new Dictionary<Guid, ReviewTaskNames>()));
     }
 }

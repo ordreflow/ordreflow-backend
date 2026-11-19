@@ -14,7 +14,17 @@ public sealed class TimeRegistrationAccessDomainTests
         var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
         var (department, category, task) = Work(false);
         Assert.False(employee.HasPermission(SystemPermission.CatagoryReviewer));
-        Assert.True(Register(employee, department, task.Id, false, false, false).IsSuccess);
+        Assert.True(Register(employee, department, task.Id, true, false, false).IsSuccess);
+    }
+
+    [Fact]
+    public void General_work_is_restricted_to_department_members_and_assignees()
+    {
+        var employee = Employee.Create("Worker", "worker@test.invalid", DateTime.UtcNow).Value;
+        var (department, _, task) = Work(false);
+        Assert.Equal("DepartmentWorkForbidden",
+            Assert.Single(Register(employee, department, task.Id, false, false, false).Errors).Code);
+        Assert.True(Register(employee, department, task.Id, false, true, true).IsSuccess);
     }
 
     [Fact]
@@ -64,7 +74,7 @@ public sealed class TimeRegistrationAccessDomainTests
         var next = WorkDate.Create(date.Value.AddDays(1)).Value;
         var result = new TimeRegistrationDomainService().Register(employee, department, task.Id, date,
             Duration.Create(2.5m).Value, TimeEntryDescription.Create(null).Value,
-            new TimeRegistrationAccess(false, false, false), WorkDatePeriod.Create(next, next).Value, DateTime.UtcNow);
+            new TimeRegistrationAccess(true, false, false), WorkDatePeriod.Create(next, next).Value, DateTime.UtcNow);
         Assert.Equal("WorkDateNotPermitted", Assert.Single(result.Errors).Code);
     }
 

@@ -8,4 +8,8 @@ public sealed record TimeEntryDto(
     string? Comment,
     Guid EmployeeId,
     string Status,
-    string? RejectionReason = null);
+    string? RejectionReason = null,
+    string? EmployeeName = null,
+    string? TaskName = null,
+    string? CategoryName = null,
+    string? DepartmentName = null);

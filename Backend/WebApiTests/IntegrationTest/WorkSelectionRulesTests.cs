@@ -4,7 +4,7 @@ using Domain.ValueObjects;
 
 namespace WebApiTests.IntegrationTest;
 
-// UC-09 (FR-09, FR-21): the list of selectable work must agree with the time-registration rules in every case.
+// UC-09 (FR-09, FR-21): selectable work must agree with time-registration access rules in every case.
 public sealed class WorkSelectionRulesTests
 {
     public static IEnumerable<object[]> AllCases()

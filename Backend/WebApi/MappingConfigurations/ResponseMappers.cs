@@ -16,7 +16,11 @@ public sealed class TimeEntryToResponseMapper
         input.Comment,
         input.EmployeeId,
         input.Status,
-        input.RejectionReason);
+        input.RejectionReason,
+        input.EmployeeName,
+        input.TaskName,
+        input.CategoryName,
+        input.DepartmentName);
 }
 
 public sealed class TimeEntryReviewToResponseMapper

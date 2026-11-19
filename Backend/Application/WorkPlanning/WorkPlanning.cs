@@ -6,6 +6,8 @@ using WorkTask = Domain.Entities.Task;
 
 namespace Application.WorkPlanning;
 
+public sealed record WorkItemAssignmentDto(Guid EmployeeId, decimal ExpectedHours, DateOnly ExpectedDeadline);
+
 public sealed record WorkItemDto(
     Guid Id,
     Guid CategoryId,
@@ -14,7 +16,8 @@ public sealed record WorkItemDto(
     string Kind,
     bool AssignmentOnly,
     string Status,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    IReadOnlyList<WorkItemAssignmentDto>? Assignments = null);
 
 public sealed record PlannableCategoryDto(
     Guid Id,
@@ -28,7 +31,7 @@ public sealed record PlannableCategoryDto(
 
 internal static class WorkPlanningProjection
 {
-    public static WorkItemDto WorkItem(WorkTask task) => new(
+    public static WorkItemDto WorkItem(WorkTask task, ILookup<TaskId, TaskAssignment>? assignments = null) => new(
         task.Id.Value,
         task.CatagoryId.Value,
         task.Name.Value,
@@ -36,9 +39,14 @@ internal static class WorkPlanningProjection
         task.Kind.ToString(),
         task.AssignmentOnly,
         task.Status.ToString(),
-        task.CreatedAt);
+        task.CreatedAt,
+        assignments?[task.Id]
+            .Select(assignment => new WorkItemAssignmentDto(
+                assignment.AssignedTo.Value, assignment.ExpectedDuration.Value, assignment.ExpectedDeadline.Value))
+            .ToArray() ?? []);
 
-    public static PlannableCategoryDto Category(Department department, Catagory catagory) => new(
+    public static PlannableCategoryDto Category(Department department, Catagory catagory,
+        ILookup<TaskId, TaskAssignment>? assignments = null) => new(
         catagory.Id.Value,
         catagory.Name.Value,
         catagory.Description,
@@ -48,7 +56,7 @@ internal static class WorkPlanningProjection
         catagory.Status.ToString(),
         catagory.Tasks
             .OrderBy(task => task.Name.Value, StringComparer.CurrentCultureIgnoreCase)
-            .Select(WorkItem)
+            .Select(task => WorkItem(task, assignments))
             .ToArray());
 }
 

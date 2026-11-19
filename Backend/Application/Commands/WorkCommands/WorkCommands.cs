@@ -18,4 +18,27 @@ public sealed record CreateWorkItemCommand(
     string Name,
     string? Description,
     string? Kind,
-    bool AssignmentOnly);
+    bool AssignmentOnly,
+    IReadOnlyList<WorkItemAssignmentInput>? Assignments = null);
+
+public sealed record WorkItemAssignmentInput(Guid EmployeeId, decimal ExpectedHours, DateOnly ExpectedDeadline);
+
+/// <summary>Changes a category's name and description. It stays in its department.</summary>
+public sealed record UpdateCategoryCommand(
+    Guid ActorId,
+    Guid CategoryId,
+    string Name,
+    string? Description);
+
+/// <summary>
+/// Changes a work item and replaces its assignments. Work stays in its category (SEC-08); assignees must belong to
+/// the owning department.
+/// </summary>
+public sealed record UpdateWorkItemCommand(
+    Guid ActorId,
+    Guid WorkItemId,
+    string Name,
+    string? Description,
+    string? Kind,
+    bool AssignmentOnly,
+    IReadOnlyList<WorkItemAssignmentInput>? Assignments);

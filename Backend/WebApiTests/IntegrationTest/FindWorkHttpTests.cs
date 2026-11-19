@@ -15,7 +15,7 @@ using WebAPI.Contracts.Accounts;
 namespace WebApiTests.IntegrationTest;
 
 // UC-09 Find selectable and assigned work (FR-09, FR-21, FR-32, SEC-02, USE-04), through the real HTTP pipeline.
-// Assigning work (UC-17) has no endpoint yet, so the tests add assignments directly in the database.
+// Assignment links are seeded directly here so these tests focus on read-side filtering.
 public sealed class FindWorkHttpTests(TestWebAppFactory factory) : ApiTestBase(factory)
 {
     [Fact]
@@ -30,6 +30,7 @@ public sealed class FindWorkHttpTests(TestWebAppFactory factory) : ApiTestBase(f
         Assert.Contains(w.AssignedToCasey, casey.Keys);
         Assert.DoesNotContain(w.AssignedToJordan, casey.Keys);
         Assert.DoesNotContain(w.UnassignedPrivate, casey.Keys);
+        Assert.DoesNotContain(w.General, (await ListAsync(w.Outsider)).Keys);
 
         Assert.Contains(w.AssignedToJordan, jordan.Keys);
         Assert.DoesNotContain(w.AssignedToCasey, jordan.Keys);
@@ -86,6 +87,7 @@ public sealed class FindWorkHttpTests(TestWebAppFactory factory) : ApiTestBase(f
         Assert.Equal(HttpStatusCode.NotFound, hidden.StatusCode);
         Assert.Equal(await missing.Content.ReadAsStringAsync(), await hidden.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.NotFound, (await w.Casey.GetAsync($"/api/work-items/{w.UnassignedPrivate}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await w.Outsider.GetAsync($"/api/work-items/{w.General}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await w.Outsider.GetAsync($"/api/work-items/{w.InternalGeneral}")).StatusCode);
 
         Assert.Empty(await ListAsync(w.Casey, search: "Jordan only"));

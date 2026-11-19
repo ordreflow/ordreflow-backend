@@ -45,6 +45,20 @@ public sealed class WorkPlanningDomainService
             : department.AddTask(catagoryId, name, createdAtUtc, description, kind, assignmentOnly);
     }
 
+    public Result UpdateCatagory(Employee actor, Department department, IReadOnlyCollection<DepartmentId> managedDepartments,
+        CatagoryId catagoryId, CatagoryName name, string? description)
+    {
+        var allowed = CanPlanIn(actor, department, managedDepartments);
+        return allowed.IsFailure ? allowed : department.UpdateCatagory(catagoryId, name, description);
+    }
+
+    public Result UpdateWork(Employee actor, Department department, IReadOnlyCollection<DepartmentId> managedDepartments,
+        TaskId taskId, TaskName name, string? description, WorkItemKind kind, bool assignmentOnly)
+    {
+        var allowed = CanPlanIn(actor, department, managedDepartments);
+        return allowed.IsFailure ? allowed : department.UpdateTask(taskId, name, description, kind, assignmentOnly);
+    }
+
     private static Result Forbidden() => Result.Failure(new Error("WorkPlanningForbidden",
         "Only a manager of the owning department or an administrator can plan work here."));
 }

@@ -29,6 +29,8 @@ public sealed class TimeRegistrationDomainService
             return Result<TimeEntry>.Failure(new Error("RegistrationAccessRequired", "Registration access facts are required."));
 
         var catagory = department.FindCatagoryForTask(taskId)!;
+        if (!access.IsDepartmentMember && !access.IsAssigned)
+            return Result<TimeEntry>.Failure(new Error("DepartmentWorkForbidden", "This work is only available to its department and assignees."));
         if (catagory.InternalOnly && !access.IsDepartmentMember)
             return Result<TimeEntry>.Failure(new Error("CatagoryAccessForbidden", "This category is restricted to its department."));
         var task = catagory.Tasks.Single(item => item.Id == taskId);

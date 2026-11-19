@@ -53,6 +53,7 @@ public sealed class AccessibleWorkQuery(AppDbContext context) : IAccessibleWorkQ
             let hasAssignments = assignments.Any(assignment => assignment.TaskId == task.Id)
             where catagory.Status == CatagoryStatus.Active && task.Status == TaskStatus.Active
             where !catagory.InternalOnly || memberOf.Contains(catagory.DepartmentId)
+            where memberOf.Contains(catagory.DepartmentId) || mine != null
             where mine != null || (!task.AssignmentOnly && !hasAssignments)
             where !assignedToMeOnly || mine != null
             select new { task, catagory, department, mine };

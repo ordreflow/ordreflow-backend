@@ -35,6 +35,19 @@ public sealed class Task
             Kind = kind, AssignmentOnly = assignmentOnly });
     }
 
+    internal Result Update(TaskName name, string? description, WorkItemKind kind, bool assignmentOnly)
+    {
+        if (name is null)
+            return Result.Failure(new Error("TaskNameRequired", "A task name is required."));
+        if (!Enum.IsDefined(kind))
+            return Result.Failure(new Error("InvalidWorkItemKind", "The work item kind is invalid."));
+        Name = name;
+        Description = description;
+        Kind = kind;
+        AssignmentOnly = assignmentOnly;
+        return Result.Success();
+    }
+
     internal Result Close(DateTime atUtc)
     {
         if (Status == TaskStatus.Closed) return Result.Success();

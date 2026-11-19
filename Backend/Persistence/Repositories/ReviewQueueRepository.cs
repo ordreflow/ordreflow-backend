@@ -51,6 +51,31 @@ public sealed class ReviewQueueRepository(AppDbContext context) : IReviewQueueRe
             .AsNoTracking()
             .Where(entry => candidateIds.Contains(entry.Id))
             .Include(entry => entry.Audits)
+            .Include(entry => entry.Reviews)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<ReviewDisplayNames> GetDisplayNamesAsync(
+        IReadOnlyCollection<EmployeeId> employeeIds, IReadOnlyCollection<TaskId> taskIds,
+        CancellationToken cancellationToken = default)
+    {
+        var employees = await context.Employees.AsNoTracking()
+            .Where(employee => employeeIds.Contains(employee.Id))
+            .Select(employee => new { employee.Id, employee.Name })
+            .ToListAsync(cancellationToken);
+
+        var tasks = await (
+            from task in context.Tasks.AsNoTracking()
+            join catagory in context.Catagories.AsNoTracking() on task.CatagoryId equals catagory.Id
+            join department in context.Departments.AsNoTracking() on catagory.DepartmentId equals department.Id
+            where taskIds.Contains(task.Id)
+            select new { task.Id, TaskName = task.Name, CatagoryName = catagory.Name, DepartmentName = department.Name })
+            .ToListAsync(cancellationToken);
+
+        return new ReviewDisplayNames(
+            employees.ToDictionary(item => item.Id.Value, item => item.Name.Value),
+            tasks.ToDictionary(item => item.Id.Value,
+                item => new ReviewTaskNames(item.TaskName.Value, item.CatagoryName.Value, item.DepartmentName.Value)));
     }
 }

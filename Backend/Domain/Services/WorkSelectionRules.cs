@@ -8,9 +8,9 @@ namespace Domain.Services;
 /// <summary>
 /// Which work an employee may find and select (FR-09, FR-21, SEC-02). It mirrors the rules that
 /// <see cref="TimeRegistrationDomainService"/> applies when time is registered, so the list never shows work the
-/// employee cannot use and never hides work they can:
-/// the category and task are active, an internal-only category requires membership of its department, and
-/// assignment-only work or work that has assignments is only for its assignees.
+/// employee cannot use and never hides work they can: the category and task are active, work is scoped to its
+/// department except for its assignees, internal-only categories require department membership, and assigned work
+/// is only for its assignees.
 /// </summary>
 public static class WorkSelectionRules
 {
@@ -19,5 +19,6 @@ public static class WorkSelectionRules
         catagory.Status == CatagoryStatus.Active &&
         task.Status == TaskStatus.Active &&
         (!catagory.InternalOnly || isDepartmentMember) &&
+        (isDepartmentMember || isAssigned) &&
         (isAssigned || (!task.AssignmentOnly && !hasAssignments));
 }

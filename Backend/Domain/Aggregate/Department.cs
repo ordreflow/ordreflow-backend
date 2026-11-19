@@ -39,6 +39,20 @@ public sealed class Department
         return category is null ? MissingCategory() : category.Rename(name);
     }
 
+    public Result UpdateCatagory(CatagoryId id, CatagoryName name, string? description)
+    {
+        var category = _catagories.SingleOrDefault(item => item.Id == id);
+        return category is null ? MissingCategory() : category.Update(name, description);
+    }
+
+    public Result UpdateTask(TaskId taskId, TaskName name, string? description, WorkItemKind kind, bool assignmentOnly)
+    {
+        var category = taskId is null ? null : FindCatagoryForTask(taskId);
+        return category is null
+            ? Result.Failure(new Error("TaskNotFound", "The task was not found in this department."))
+            : category.UpdateTask(taskId!, name, description, kind, assignmentOnly);
+    }
+
     public Result CloseCatagory(CatagoryId id, DateTime atUtc)
     {
         var category = _catagories.SingleOrDefault(item => item.Id == id);

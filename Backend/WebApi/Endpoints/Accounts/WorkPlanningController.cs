@@ -45,9 +45,33 @@ public sealed class WorkPlanningController(ICommandDispatcher commands, IQueryDi
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
         var result = await commands.DispatchAsync<CreateWorkItemCommand, Guid>(
-            new(actor, id, request.Name, request.Description, request.Kind, request.AssignmentOnly), ct);
+            new(actor, id, request.Name, request.Description, request.Kind, request.AssignmentOnly,
+                request.Assignments?.Select(assignment =>
+                    new WorkItemAssignmentInput(assignment.EmployeeId, assignment.ExpectedHours, assignment.ExpectedDeadline)).ToArray()), ct);
         return result.IsFailure
             ? result.Errors.ToErrorResult()
             : TypedResults.Created($"/api/work-items/{result.Value}", new CreatedResponse(result.Value));
+    }
+
+    [HttpPut("categories/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IResult> UpdateCategory([FromRoute] Guid id, [FromBody] UpdateCategoryRequest request, CancellationToken ct)
+    {
+        if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
+        var result = await commands.DispatchAsync<UpdateCategoryCommand, bool>(
+            new(actor, id, request.Name, request.Description), ct);
+        return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.NoContent();
+    }
+
+    [HttpPut("work-items/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IResult> UpdateWorkItem([FromRoute] Guid id, [FromBody] UpdateWorkItemRequest request, CancellationToken ct)
+    {
+        if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
+        var result = await commands.DispatchAsync<UpdateWorkItemCommand, bool>(
+            new(actor, id, request.Name, request.Description, request.Kind, request.AssignmentOnly,
+                request.Assignments?.Select(assignment =>
+                    new WorkItemAssignmentInput(assignment.EmployeeId, assignment.ExpectedHours, assignment.ExpectedDeadline)).ToArray()), ct);
+        return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.NoContent();
     }
 }

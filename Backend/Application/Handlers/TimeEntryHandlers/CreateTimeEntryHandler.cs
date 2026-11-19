@@ -49,8 +49,7 @@ public sealed class CreateTimeEntryHandler(
         if (catagory is null)
             return Result.Failure(new Error("TaskNotFound", "The task was not found in its department."));
 
-        var isDepartmentMember = !catagory.InternalOnly ||
-            await registration.IsDepartmentMemberAsync(activeEmployee.Id, department.Id);
+        var isDepartmentMember = await registration.IsDepartmentMemberAsync(activeEmployee.Id, department.Id);
         var assignment = await registration.GetAssignmentAccessAsync(taskId, activeEmployee.Id);
 
         var now = clock.GetUtcNow();

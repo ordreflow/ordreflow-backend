@@ -1,7 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Application.Interfaces;
 using Application.WorkPlanning;
+using Domain.ValueObjects;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Persistence;
 using WebApiTests.IntegrationTest.Factories;
 using WebAPI.Contracts.Accounts;
 
@@ -48,6 +53,99 @@ public sealed class WorkPlanningHttpTests(TestWebAppFactory factory) : ApiTestBa
         Assert.Equal(HttpStatusCode.Forbidden, work.StatusCode);
         Assert.DoesNotContain(await PlannableAsync(manager), item => item.Id == otherCategory);
         Assert.Empty(Assert.Single(await PlannableAsync(admin), item => item.Id == otherCategory).WorkItems);
+    }
+
+    [Fact]
+    public async Task Manager_assigns_work_to_department_employees_and_only_the_assignee_can_see_it()
+    {
+        var (admin, manager, department) = await ManagerOfNewDepartmentAsync();
+        var category = await CreateCategoryAsync(manager, department, "Customers");
+        var (workerId, worker) = await EmployeeInDepartmentAsync(admin, department, "Assigned");
+        var (_, colleague) = await EmployeeInDepartmentAsync(admin, department, "Colleague");
+        var deadline = new DateOnly(2026, 12, 1);
+
+        var taskId = await CreateWorkAsync(manager, category, new CreateWorkItemRequest(
+            "Assigned installation",
+            AssignmentOnly: true,
+            Assignments: [new CreateWorkItemAssignmentRequest(workerId, 7.5m, deadline)]));
+
+        var assignedWork = (await worker.GetFromJsonAsync<ItemsResponse<AccessibleWorkDto>>("/api/work-items"))!.Items;
+        var colleagueWork = (await colleague.GetFromJsonAsync<ItemsResponse<AccessibleWorkDto>>("/api/work-items"))!.Items;
+        var item = Assert.Single(assignedWork, workItem => workItem.Id == taskId);
+        Assert.True(item.AssignedToMe);
+        Assert.Equal((7.5m, deadline), (item.ExpectedHours, item.ExpectedDeadline));
+        Assert.DoesNotContain(colleagueWork, workItem => workItem.Id == taskId);
+
+        using var scope = Factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var assignment = await context.TaskAssinments.SingleAsync(item => item.TaskId == TaskId.Create(taskId).Value);
+        Assert.Equal(workerId, assignment.AssignedTo.Value);
+    }
+
+    [Fact]
+    public async Task Manager_cannot_assign_work_to_an_employee_outside_the_department()
+    {
+        var (admin, manager, department) = await ManagerOfNewDepartmentAsync();
+        var category = await CreateCategoryAsync(manager, department, "Customers");
+        var email = NewEmail();
+        var created = await admin.PostAsJsonAsync("/api/employees", new CreateEmployeeRequest("Outsider", email, Password));
+        var outsiderId = (await created.Content.ReadFromJsonAsync<CreatedResponse>())!.Id;
+
+        var response = await manager.PostAsJsonAsync($"/api/categories/{category}/work-items",
+            new CreateWorkItemRequest("Invalid assignment", Assignments:
+                [new CreateWorkItemAssignmentRequest(outsiderId, 2m, new DateOnly(2026, 12, 1))]));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("AssigneeDepartmentForbidden", await ErrorAsync(response));
+        Assert.Empty(Assert.Single(await PlannableAsync(manager), item => item.Id == category).WorkItems);
+    }
+
+    [Fact]
+    public async Task Manager_updates_category_and_work_item_including_assignments()
+    {
+        var (admin, manager, department) = await ManagerOfNewDepartmentAsync();
+        var category = await CreateCategoryAsync(manager, department, "Customers");
+        var (firstId, first) = await EmployeeInDepartmentAsync(admin, department, "First");
+        var (secondId, second) = await EmployeeInDepartmentAsync(admin, department, "Second");
+        var deadline = new DateOnly(2026, 12, 1);
+        var work = await CreateWorkAsync(manager, category, new CreateWorkItemRequest("Old name", AssignmentOnly: true,
+            Assignments: [new CreateWorkItemAssignmentRequest(firstId, 2m, deadline)]));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PutAsJsonAsync($"/api/categories/{category}",
+            new UpdateCategoryRequest("Renamed", "New description"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PutAsJsonAsync($"/api/work-items/{work}",
+            new UpdateWorkItemRequest("New name", "Details", "Project", AssignmentOnly: true,
+                Assignments: [new CreateWorkItemAssignmentRequest(secondId, 5m, deadline)]))).StatusCode);
+
+        var listed = Assert.Single(await PlannableAsync(manager), item => item.Id == category);
+        Assert.Equal(("Renamed", "New description"), (listed.Name, listed.Description));
+        var item = Assert.Single(listed.WorkItems);
+        Assert.Equal(("New name", "Details", "Project"), (item.Name, item.Description, item.Kind));
+        var assignment = Assert.Single(item.Assignments!);
+        Assert.Equal((secondId, 5m), (assignment.EmployeeId, assignment.ExpectedHours));
+
+        Assert.DoesNotContain((await first.GetFromJsonAsync<ItemsResponse<AccessibleWorkDto>>("/api/work-items"))!.Items,
+            workItem => workItem.Id == work);
+        Assert.Contains((await second.GetFromJsonAsync<ItemsResponse<AccessibleWorkDto>>("/api/work-items"))!.Items,
+            workItem => workItem.Id == work);
+    }
+
+    [Fact]
+    public async Task Manager_cannot_update_work_in_another_department()
+    {
+        var (admin, manager, _) = await ManagerOfNewDepartmentAsync();
+        var otherDepartment = await CreateDepartmentAsync(admin);
+        var otherCategory = await CreateCategoryAsync(admin, otherDepartment, "Other");
+        var otherWork = await CreateWorkAsync(admin, otherCategory, new CreateWorkItemRequest("Theirs"));
+
+        var category = await manager.PutAsJsonAsync($"/api/categories/{otherCategory}", new UpdateCategoryRequest("Mine"));
+        var work = await manager.PutAsJsonAsync($"/api/work-items/{otherWork}", new UpdateWorkItemRequest("Mine"));
+        var missing = await manager.PutAsJsonAsync($"/api/work-items/{Guid.NewGuid()}", new UpdateWorkItemRequest("X"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, category.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, work.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal("Theirs", Assert.Single(Assert.Single(await PlannableAsync(admin), item => item.Id == otherCategory).WorkItems).Name);
     }
 
     [Fact]
@@ -136,6 +234,17 @@ public sealed class WorkPlanningHttpTests(TestWebAppFactory factory) : ApiTestBa
         var response = await admin.PostAsJsonAsync("/api/departments", new CreateDepartmentRequest("Dept " + Guid.NewGuid().ToString("N")));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<CreatedResponse>())!.Id;
+    }
+
+    private async Task<(Guid Id, HttpClient Client)> EmployeeInDepartmentAsync(HttpClient admin, Guid department, string name)
+    {
+        var email = NewEmail();
+        var created = await admin.PostAsJsonAsync("/api/employees", new CreateEmployeeRequest(name, email, Password));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.Content.ReadFromJsonAsync<CreatedResponse>())!.Id;
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await admin.PutAsync($"/api/departments/{department}/employees/{id}", null)).StatusCode);
+        return (id, await LoginAsync(email, Password));
     }
 
     private static async Task<Guid> CreateCategoryAsync(HttpClient client, Guid department, string name, bool internalOnly = false)
