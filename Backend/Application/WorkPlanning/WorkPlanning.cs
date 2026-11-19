@@ -27,7 +27,8 @@ public sealed record PlannableCategoryDto(
     string DepartmentName,
     bool InternalOnly,
     string Status,
-    IReadOnlyList<WorkItemDto> WorkItems);
+    IReadOnlyList<WorkItemDto> WorkItems,
+    IReadOnlyList<Guid>? ReviewerIds = null);
 
 internal static class WorkPlanningProjection
 {
@@ -46,7 +47,7 @@ internal static class WorkPlanningProjection
             .ToArray() ?? []);
 
     public static PlannableCategoryDto Category(Department department, Catagory catagory,
-        ILookup<TaskId, TaskAssignment>? assignments = null) => new(
+        ILookup<TaskId, TaskAssignment>? assignments = null, ILookup<CatagoryId, EmployeeId>? reviewers = null) => new(
         catagory.Id.Value,
         catagory.Name.Value,
         catagory.Description,
@@ -57,7 +58,8 @@ internal static class WorkPlanningProjection
         catagory.Tasks
             .OrderBy(task => task.Name.Value, StringComparer.CurrentCultureIgnoreCase)
             .Select(task => WorkItem(task, assignments))
-            .ToArray());
+            .ToArray(),
+        reviewers?[catagory.Id].Select(reviewer => reviewer.Value).ToArray() ?? []);
 }
 
 internal static class WorkPlanningInput

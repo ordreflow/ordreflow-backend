@@ -8,12 +8,14 @@ using Domain.Aggregate;
 using Domain.Interfaces;
 using Domain.Services;
 using Domain.ValueObjects;
+using CatagoryReviewer = Domain.Entities.CatagoryReviewer;
 using TaskAssignment = Domain.Entities.TaskAssignment;
 
 namespace Application.Handlers;
 
 public sealed class CreateCategoryHandler(
     AccountAccess access,
+    IAccountRepository accounts,
     IWorkPlanningRepository work,
     WorkPlanningDomainService planning,
     TimeProvider clock) : ICommandHandler<CreateCategoryCommand, Guid>
@@ -34,11 +36,19 @@ public sealed class CreateCategoryHandler(
         if (department is null) return Result<Guid>.Failure(WorkPlanningErrors.DepartmentNotFound);
 
         var managed = await work.GetManagedDepartmentIdsAsync(actor.Value.Id, ct);
+        if (planning.CanPlanIn(actor.Value, department, managed).IsFailure)
+            return Result<Guid>.Failure(WorkPlanningErrors.Forbidden);
+
+        var reviewers = await CategoryReviewerInput.PrepareAsync(command.ReviewerIds, department, work, accounts, ct);
+        if (reviewers.IsFailure) return Result<Guid>.Failure(reviewers.Errors.ToArray());
+
         var catagory = planning.CreateCatagory(actor.Value, department, managed, name.Value, command.InternalOnly,
             description.Value, clock.GetUtcNow().UtcDateTime);
+        if (catagory.IsFailure) return Result<Guid>.Failure(catagory.Errors.ToArray());
 
-        return catagory.IsFailure
-            ? Result<Guid>.Failure(catagory.Errors.ToArray())
+        var granted = await CategoryReviewerInput.ApplyAsync(catagory.Value.Id, reviewers.Value, work, ct);
+        return granted.IsFailure
+            ? Result<Guid>.Failure(granted.Errors.ToArray())
             : Result<Guid>.Success(catagory.Value.Id.Value);
     }
 }
@@ -90,6 +100,7 @@ public sealed class CreateWorkItemHandler(
 
 public sealed class UpdateCategoryHandler(
     AccountAccess access,
+    IAccountRepository accounts,
     IWorkPlanningRepository work,
     WorkPlanningDomainService planning) : ICommandHandler<UpdateCategoryCommand, bool>
 {
@@ -109,8 +120,27 @@ public sealed class UpdateCategoryHandler(
         if (department is null) return Result<bool>.Failure(WorkPlanningErrors.CategoryNotFound);
 
         var managed = await work.GetManagedDepartmentIdsAsync(actor.Value.Id, ct);
+        if (planning.CanPlanIn(actor.Value, department, managed).IsFailure)
+            return Result<bool>.Failure(WorkPlanningErrors.Forbidden);
+
+        IReadOnlyList<Domain.Aggregate.Employee>? reviewers = null;
+        if (command.ReviewerIds is not null)
+        {
+            var prepared = await CategoryReviewerInput.PrepareAsync(command.ReviewerIds, department, work, accounts, ct);
+            if (prepared.IsFailure) return Result<bool>.Failure(prepared.Errors.ToArray());
+            reviewers = prepared.Value;
+        }
+
         var updated = planning.UpdateCatagory(actor.Value, department, managed, catagoryId.Value, name.Value, description.Value);
-        return updated.IsFailure ? Result<bool>.Failure(updated.Errors.ToArray()) : Result<bool>.Success(true);
+        if (updated.IsFailure) return Result<bool>.Failure(updated.Errors.ToArray());
+
+        if (reviewers is not null)
+        {
+            var granted = await CategoryReviewerInput.ApplyAsync(catagoryId.Value, reviewers, work, ct);
+            if (granted.IsFailure) return Result<bool>.Failure(granted.Errors.ToArray());
+        }
+
+        return Result<bool>.Success(true);
     }
 }
 
@@ -151,6 +181,51 @@ public sealed class UpdateWorkItemHandler(
         await work.ReplaceAssignmentsAsync(taskId.Value, WorkAssignmentInput.ToAssignments(taskId.Value, prepared.Value), ct);
         return Result<bool>.Success(true);
     }
+}
+
+internal static class CategoryReviewerInput
+{
+    /// <summary>Loads the reviewers (tracked): active employees, each once, members or managers of the department.</summary>
+    public static async Task<Result<IReadOnlyList<Employee>>> PrepareAsync(
+        IReadOnlyList<Guid>? reviewerIds, Department department,
+        IWorkPlanningRepository work, IAccountRepository accounts, CancellationToken ct)
+    {
+        var reviewers = new List<Employee>();
+        foreach (var id in (reviewerIds ?? []).Distinct())
+        {
+            var employeeId = EmployeeId.Create(id);
+            if (employeeId.IsFailure) return Fail(employeeId.Errors.ToArray());
+            var employee = await accounts.GetEmployeeAsync(employeeId.Value, ct);
+            if (employee is null || !employee.HasPermission(SystemPermission.Employee))
+                return Fail(new Error("ReviewerUnavailable", "A reviewer must be an active employee."));
+            if (!await work.IsDepartmentStaffAsync(employee.Id, department.Id, ct))
+                return Fail(new Error("ReviewerDepartmentForbidden", "Reviewers must belong to the category's department."));
+            reviewers.Add(employee);
+        }
+
+        return Result<IReadOnlyList<Employee>>.Success(reviewers);
+    }
+
+    /// <summary>Makes the employees the category's reviewers and grants them the category reviewer permission.</summary>
+    public static async Task<Result> ApplyAsync(
+        CatagoryId catagoryId, IReadOnlyList<Employee> reviewers, IWorkPlanningRepository work, CancellationToken ct)
+    {
+        var links = new List<CatagoryReviewer>(reviewers.Count);
+        foreach (var reviewer in reviewers)
+        {
+            var granted = reviewer.GrantPermission(SystemPermission.CatagoryReviewer);
+            if (granted.IsFailure) return granted;
+            var link = CatagoryReviewer.Create(reviewer.Id, catagoryId);
+            if (link.IsFailure) return Result.Failure(link.Errors.ToArray());
+            links.Add(link.Value);
+        }
+
+        await work.ReplaceReviewersAsync(catagoryId, links, ct);
+        return Result.Success();
+    }
+
+    private static Result<IReadOnlyList<Employee>> Fail(params Error[] errors) =>
+        Result<IReadOnlyList<Employee>>.Failure(errors);
 }
 
 internal static class WorkAssignmentInput
@@ -221,10 +296,13 @@ public sealed class ListPlannableCategoriesHandler(AccountAccess access, IWorkPl
             .Select(task => task.Id)
             .ToArray();
         var assignments = (await work.ListAssignmentsAsync(taskIds)).ToLookup(assignment => assignment.TaskId);
+        var catagoryIds = departments.SelectMany(department => department.Catagories).Select(catagory => catagory.Id).ToArray();
+        var reviewers = (await work.ListReviewersAsync(catagoryIds))
+            .ToLookup(reviewer => reviewer.CatagoryId, reviewer => reviewer.EmployeeId);
 
         return Result<IReadOnlyList<PlannableCategoryDto>>.Success(departments
             .SelectMany(department => department.Catagories.Select(catagory =>
-                WorkPlanningProjection.Category(department, catagory, assignments)))
+                WorkPlanningProjection.Category(department, catagory, assignments, reviewers)))
             .OrderBy(category => category.DepartmentName, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(category => category.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToArray());

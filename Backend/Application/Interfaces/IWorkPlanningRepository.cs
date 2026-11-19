@@ -1,5 +1,6 @@
 using Domain.Aggregate;
 using Domain.ValueObjects;
+using CatagoryReviewer = Domain.Entities.CatagoryReviewer;
 using TaskAssignment = Domain.Entities.TaskAssignment;
 
 namespace Application.Interfaces;
@@ -16,6 +17,14 @@ public interface IWorkPlanningRepository
     Task<IReadOnlyList<DepartmentId>> GetManagedDepartmentIdsAsync(EmployeeId manager, CancellationToken ct = default);
 
     Task<bool> IsDepartmentMemberAsync(EmployeeId employee, DepartmentId department, CancellationToken ct = default);
+
+    /// <summary>Whether the employee is a member or a manager of the department.</summary>
+    Task<bool> IsDepartmentStaffAsync(EmployeeId employee, DepartmentId department, CancellationToken ct = default);
+
+    Task<IReadOnlyList<CatagoryReviewer>> ListReviewersAsync(IReadOnlyCollection<CatagoryId> catagories, CancellationToken ct = default);
+
+    /// <summary>Replaces every reviewer of the category with the given ones.</summary>
+    Task ReplaceReviewersAsync(CatagoryId catagory, IReadOnlyCollection<CatagoryReviewer> reviewers, CancellationToken ct = default);
 
     Task AddAssignmentsAsync(IReadOnlyCollection<TaskAssignment> assignments, CancellationToken ct = default);
 

@@ -2,6 +2,7 @@ using Application.Interfaces;
 using Domain.Aggregate;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
+using CatagoryReviewer = Domain.Entities.CatagoryReviewer;
 using TaskAssignment = Domain.Entities.TaskAssignment;
 
 namespace Persistence.Repositories;
@@ -30,6 +31,32 @@ public sealed class WorkPlanningRepository(AppDbContext context) : IWorkPlanning
     public Task<bool> IsDepartmentMemberAsync(EmployeeId employee, DepartmentId department, CancellationToken ct = default) =>
         context.DepartmentEmployees.AsNoTracking().AnyAsync(
             member => member.EmployeeId == employee && member.DepartmentId == department, ct);
+
+    public async Task<bool> IsDepartmentStaffAsync(EmployeeId employee, DepartmentId department, CancellationToken ct = default) =>
+        await IsDepartmentMemberAsync(employee, department, ct) ||
+        await context.DepartmentManagers.AsNoTracking().AnyAsync(
+            link => link.ManagerId == employee && link.DepartmentId == department, ct);
+
+    public async Task<IReadOnlyList<CatagoryReviewer>> ListReviewersAsync(
+        IReadOnlyCollection<CatagoryId> catagories, CancellationToken ct = default) =>
+        catagories.Count == 0
+            ? []
+            : await context.CatagoryReviewers.AsNoTracking()
+                .Where(reviewer => catagories.Contains(reviewer.CatagoryId))
+                .ToListAsync(ct);
+
+    public async Task ReplaceReviewersAsync(
+        CatagoryId catagory, IReadOnlyCollection<CatagoryReviewer> reviewers, CancellationToken ct = default)
+    {
+        var existing = await context.CatagoryReviewers
+            .Where(reviewer => reviewer.CatagoryId == catagory)
+            .ToListAsync(ct);
+        var wanted = reviewers.Select(reviewer => reviewer.EmployeeId).ToHashSet();
+
+        context.CatagoryReviewers.RemoveRange(existing.Where(reviewer => !wanted.Contains(reviewer.EmployeeId)));
+        var kept = existing.Select(reviewer => reviewer.EmployeeId).ToHashSet();
+        await context.CatagoryReviewers.AddRangeAsync(reviewers.Where(reviewer => !kept.Contains(reviewer.EmployeeId)), ct);
+    }
 
     public Task AddAssignmentsAsync(IReadOnlyCollection<TaskAssignment> assignments, CancellationToken ct = default) =>
         context.TaskAssinments.AddRangeAsync(assignments, ct);

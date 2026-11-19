@@ -33,7 +33,7 @@ public sealed class WorkPlanningController(ICommandDispatcher commands, IQueryDi
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
         var result = await commands.DispatchAsync<CreateCategoryCommand, Guid>(
-            new(actor, id, request.Name, request.InternalOnly, request.Description), ct);
+            new(actor, id, request.Name, request.InternalOnly, request.Description, request.ReviewerIds), ct);
         return result.IsFailure
             ? result.Errors.ToErrorResult()
             : TypedResults.Created($"/api/categories/{result.Value}", new CreatedResponse(result.Value));
@@ -59,7 +59,7 @@ public sealed class WorkPlanningController(ICommandDispatcher commands, IQueryDi
     {
         if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
         var result = await commands.DispatchAsync<UpdateCategoryCommand, bool>(
-            new(actor, id, request.Name, request.Description), ct);
+            new(actor, id, request.Name, request.Description, request.ReviewerIds), ct);
         return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.NoContent();
     }
 

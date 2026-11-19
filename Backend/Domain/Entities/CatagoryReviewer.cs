@@ -1,3 +1,4 @@
+using Core.Tools.OperationResult;
 using Domain.ValueObjects;
 
 namespace Domain.Entities;
@@ -12,4 +13,9 @@ public sealed class CatagoryReviewer
 {
     public EmployeeId EmployeeId { get; set; } = null!;
     public CatagoryId CatagoryId { get; set; } = null!;
+
+    public static Result<CatagoryReviewer> Create(EmployeeId employeeId, CatagoryId catagoryId) =>
+        employeeId is null || catagoryId is null
+            ? Result<CatagoryReviewer>.Failure(new Error("ReviewerRequired", "A reviewer and a category are required."))
+            : Result<CatagoryReviewer>.Success(new CatagoryReviewer { EmployeeId = employeeId, CatagoryId = catagoryId });
 }

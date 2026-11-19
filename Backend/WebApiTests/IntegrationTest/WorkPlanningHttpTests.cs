@@ -149,6 +149,32 @@ public sealed class WorkPlanningHttpTests(TestWebAppFactory factory) : ApiTestBa
     }
 
     [Fact]
+    public async Task Category_reviewers_get_the_reviewer_permission_and_must_be_department_staff()
+    {
+        var (admin, manager, department) = await ManagerOfNewDepartmentAsync();
+        var (reviewerId, reviewer) = await EmployeeInDepartmentAsync(admin, department, "Reviewer");
+        var outsiderEmail = NewEmail();
+        var outsider = await admin.PostAsJsonAsync("/api/employees", new CreateEmployeeRequest("Outsider", outsiderEmail, Password));
+        var outsiderId = (await outsider.Content.ReadFromJsonAsync<CreatedResponse>())!.Id;
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await reviewer.GetAsync("/api/time_entries/reviewer?fromDate=2026-11-16&toDate=2026-11-22")).StatusCode);
+
+        var rejected = await manager.PostAsJsonAsync($"/api/departments/{department}/categories",
+            new CreateCategoryRequest("Bad", ReviewerIds: [outsiderId]));
+        Assert.Equal("ReviewerDepartmentForbidden", await ErrorAsync(rejected));
+
+        var category = await CreateCategoryAsync(manager, department, "Customers", reviewers: [reviewerId]);
+
+        Assert.Equal([reviewerId], Assert.Single(await PlannableAsync(manager), item => item.Id == category).ReviewerIds);
+        var me = (await reviewer.GetFromJsonAsync<Application.Accounts.EmployeeDto>("/api/employees/me"))!;
+        Assert.Contains("CatagoryReviewer", me.Permissions);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PutAsJsonAsync($"/api/categories/{category}",
+            new UpdateCategoryRequest("Customers", ReviewerIds: []))).StatusCode);
+        Assert.Empty(Assert.Single(await PlannableAsync(manager), item => item.Id == category).ReviewerIds!);
+    }
+
+    [Fact]
     public async Task Removing_the_grant_or_the_link_ends_planning_access()
     {
         var (admin, manager, department) = await ManagerOfNewDepartmentAsync();
@@ -247,9 +273,11 @@ public sealed class WorkPlanningHttpTests(TestWebAppFactory factory) : ApiTestBa
         return (id, await LoginAsync(email, Password));
     }
 
-    private static async Task<Guid> CreateCategoryAsync(HttpClient client, Guid department, string name, bool internalOnly = false)
+    private static async Task<Guid> CreateCategoryAsync(HttpClient client, Guid department, string name,
+        bool internalOnly = false, IReadOnlyList<Guid>? reviewers = null)
     {
-        var response = await client.PostAsJsonAsync($"/api/departments/{department}/categories", new CreateCategoryRequest(name, internalOnly));
+        var response = await client.PostAsJsonAsync($"/api/departments/{department}/categories",
+            new CreateCategoryRequest(name, internalOnly, ReviewerIds: reviewers));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<CreatedResponse>())!.Id;
     }
