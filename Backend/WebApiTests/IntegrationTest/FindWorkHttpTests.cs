@@ -257,7 +257,8 @@ public sealed class FindWorkPerformanceTests(TestWebAppFactory factory) : ApiTes
                                 ExpectedDuration = PlannedDuration.Create(1m).Value,
                                 ExpectedDeadline = TargetCompletionDate.Create(new DateOnly(2026, 12, 1)).Value });
                         var visibleCategory = !internalOnly || d == 0;
-                        if (visibleCategory && (!assignmentOnly || assigned)) expected++;
+                        var inScope = d == 0 || assigned; // Work outside the worker's department is only for assignees.
+                        if (visibleCategory && inScope && (!assignmentOnly || assigned)) expected++;
                     }
                 }
             }

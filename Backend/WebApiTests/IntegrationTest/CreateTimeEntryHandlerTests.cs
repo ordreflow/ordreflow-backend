@@ -63,7 +63,7 @@ public sealed class CreateTimeEntryHandlerTests
         Assert.Equal(string.Empty, audit.Description.Value);
         Assert.Equal(TimeEntryStatus.ReadyForApproval, audit.Status);
         Assert.Equal(DateTimeKind.Utc, audit.AuditTime.Kind);
-        Assert.Equal(0, work.MembershipLookups);
+        Assert.Equal(1, work.MembershipLookups);
     }
 
     [Fact]
@@ -71,6 +71,7 @@ public sealed class CreateTimeEntryHandlerTests
     {
         var employee = Employee();
         var work = Work(internalOnly: true);
+        work.IsDepartmentMember = false;
         work.Assignment = new TaskAssignmentAccess(true, true);
         var handler = Handler(employee, work);
 
@@ -280,7 +281,7 @@ public sealed class CreateTimeEntryHandlerTests
             Department = department;
         }
         public TaskAssignmentAccess Assignment { get; set; }
-        public bool IsDepartmentMember { get; set; }
+        public bool IsDepartmentMember { get; set; } = true;
         public int DepartmentLookups { get; private set; }
         public int MembershipLookups { get; private set; }
         public TimeEntry? Added { get; private set; }

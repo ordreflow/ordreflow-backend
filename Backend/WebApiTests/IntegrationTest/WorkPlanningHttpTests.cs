@@ -95,7 +95,7 @@ public sealed class WorkPlanningHttpTests(TestWebAppFactory factory) : ApiTestBa
             new CreateWorkItemRequest("Invalid assignment", Assignments:
                 [new CreateWorkItemAssignmentRequest(outsiderId, 2m, new DateOnly(2026, 12, 1))]));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal("AssigneeDepartmentForbidden", await ErrorAsync(response));
         Assert.Empty(Assert.Single(await PlannableAsync(manager), item => item.Id == category).WorkItems);
     }

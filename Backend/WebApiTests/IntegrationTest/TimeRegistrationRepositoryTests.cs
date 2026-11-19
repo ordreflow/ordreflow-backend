@@ -81,6 +81,7 @@ public sealed class TimeRegistrationRepositoryTests
         context.Departments.Add(department);
         context.Catagories.Add(catagory);
         context.Tasks.Add(task);
+        context.DepartmentEmployees.Add(new DepartmentEmployee { EmployeeId = employee.Id, DepartmentId = department.Id });
         context.RegistrationPeriodModes.Add(
             RegistrationPeriodMode.Create(employee.Id, RegistrationInterval.Weekly, null).Value);
         await context.SaveChangesAsync();
