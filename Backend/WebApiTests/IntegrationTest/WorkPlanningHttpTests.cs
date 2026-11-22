@@ -231,6 +231,63 @@ public sealed class WorkPlanningHttpTests(TestWebAppFactory factory) : ApiTestBa
         Assert.Equal(HttpStatusCode.NotFound, (await manager.PostAsJsonAsync($"/api/departments/{Guid.NewGuid()}/categories", new CreateCategoryRequest("X"))).StatusCode);
     }
 
+    [Fact]
+    public async Task Deactivated_work_and_categories_cannot_be_selected_until_reactivated()
+    {
+        var (admin, manager, department) = await ManagerOfNewDepartmentAsync();
+        var (_, worker) = await EmployeeInDepartmentAsync(admin, department, "Worker");
+        var category = await CreateCategoryAsync(manager, department, "Customers");
+        var kept = await CreateWorkAsync(manager, category, new CreateWorkItemRequest("Kept"));
+        var paused = await CreateWorkAsync(manager, category, new CreateWorkItemRequest("Paused"));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PostAsync($"/api/work-items/{paused}/deactivate", null)).StatusCode);
+        // Repeating the request is harmless.
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PostAsync($"/api/work-items/{paused}/deactivate", null)).StatusCode);
+
+        var listed = Assert.Single(await PlannableAsync(manager), item => item.Id == category);
+        Assert.Equal("Active", listed.Status);
+        Assert.Equal("Closed", Assert.Single(listed.WorkItems, item => item.Id == paused).Status);
+        var selectable = await SelectableWorkAsync(worker);
+        Assert.Contains(kept, selectable);
+        Assert.DoesNotContain(paused, selectable);
+
+        // A deactivated category hides all its work and accepts no new work, but keeps each item's own status.
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PostAsync($"/api/categories/{category}/deactivate", null)).StatusCode);
+        Assert.Equal("Closed", Assert.Single(await PlannableAsync(manager), item => item.Id == category).Status);
+        Assert.DoesNotContain(kept, await SelectableWorkAsync(worker));
+        Assert.Equal("CatagoryClosed", await ErrorOrCodeAsync(manager.PostAsJsonAsync($"/api/categories/{category}/work-items", new CreateWorkItemRequest("New"))));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PostAsync($"/api/categories/{category}/activate", null)).StatusCode);
+        selectable = await SelectableWorkAsync(worker);
+        Assert.Contains(kept, selectable);
+        Assert.DoesNotContain(paused, selectable);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await manager.PostAsync($"/api/work-items/{paused}/activate", null)).StatusCode);
+        Assert.Contains(paused, await SelectableWorkAsync(worker));
+        Assert.All(Assert.Single(await PlannableAsync(manager), item => item.Id == category).WorkItems,
+            item => Assert.Equal("Active", item.Status));
+    }
+
+    [Fact]
+    public async Task Only_planners_of_the_department_can_change_activation()
+    {
+        var (admin, manager, department) = await ManagerOfNewDepartmentAsync();
+        var (_, worker) = await EmployeeInDepartmentAsync(admin, department, "Worker");
+        var otherCategory = await CreateCategoryAsync(admin, await CreateDepartmentAsync(admin), "Other");
+        var otherWork = await CreateWorkAsync(admin, otherCategory, new CreateWorkItemRequest("Other work"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsync($"/api/categories/{otherCategory}/deactivate", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostAsync($"/api/work-items/{otherWork}/deactivate", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await worker.PostAsync($"/api/work-items/{otherWork}/deactivate", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await manager.PostAsync($"/api/categories/{Guid.NewGuid()}/deactivate", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await manager.PostAsync($"/api/work-items/{Guid.NewGuid()}/activate", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Anonymous().PostAsync($"/api/work-items/{otherWork}/deactivate", null)).StatusCode);
+
+        var listed = Assert.Single(await PlannableAsync(admin), item => item.Id == otherCategory);
+        Assert.Equal("Active", listed.Status);
+        Assert.Equal("Active", Assert.Single(listed.WorkItems).Status);
+    }
+
     [Theory]
     [InlineData("/api/categories/plannable")]
     public async Task Planning_requires_sign_in(string url) =>
@@ -288,6 +345,9 @@ public sealed class WorkPlanningHttpTests(TestWebAppFactory factory) : ApiTestBa
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<CreatedResponse>())!.Id;
     }
+
+    private static async Task<IReadOnlyList<Guid>> SelectableWorkAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<ItemsResponse<AccessibleWorkDto>>("/api/work-items"))!.Items.Select(item => item.Id).ToArray();
 
     private static async Task<IReadOnlyList<PlannableCategoryDto>> PlannableAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<ItemsResponse<PlannableCategoryDto>>("/api/categories/plannable"))!.Items;

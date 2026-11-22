@@ -57,4 +57,6 @@ public sealed class Task
         ClosedAt = atUtc;
         return Result.Success();
     }
+
+    internal void Reopen() { Status = TaskStatus.Active; ClosedAt = null; }
 }

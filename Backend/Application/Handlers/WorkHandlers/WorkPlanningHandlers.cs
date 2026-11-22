@@ -183,6 +183,60 @@ public sealed class UpdateWorkItemHandler(
     }
 }
 
+public sealed class SetCategoryActiveHandler(
+    AccountAccess access,
+    IWorkPlanningRepository work,
+    WorkPlanningDomainService planning,
+    TimeProvider clock) : ICommandHandler<SetCategoryActiveCommand, bool>
+{
+    public async Task<Result<bool>> HandleAsync(SetCategoryActiveCommand command, CancellationToken ct = default)
+    {
+        var actor = await access.RequireEmployeeAsync(command.ActorId, ct);
+        if (actor.IsFailure) return Result<bool>.Failure(WorkPlanningErrors.Forbidden);
+
+        var catagoryId = CatagoryId.Create(command.CategoryId);
+        if (catagoryId.IsFailure) return Result<bool>.Failure(catagoryId.Errors.ToArray());
+
+        var department = await work.GetDepartmentByCatagoryAsync(catagoryId.Value, ct);
+        if (department is null) return Result<bool>.Failure(WorkPlanningErrors.CategoryNotFound);
+
+        var managed = await work.GetManagedDepartmentIdsAsync(actor.Value.Id, ct);
+        if (planning.CanPlanIn(actor.Value, department, managed).IsFailure)
+            return Result<bool>.Failure(WorkPlanningErrors.Forbidden);
+
+        var changed = planning.SetCatagoryActive(actor.Value, department, managed, catagoryId.Value, command.Active,
+            clock.GetUtcNow().UtcDateTime);
+        return changed.IsFailure ? Result<bool>.Failure(changed.Errors.ToArray()) : Result<bool>.Success(true);
+    }
+}
+
+public sealed class SetWorkItemActiveHandler(
+    AccountAccess access,
+    IWorkPlanningRepository work,
+    WorkPlanningDomainService planning,
+    TimeProvider clock) : ICommandHandler<SetWorkItemActiveCommand, bool>
+{
+    public async Task<Result<bool>> HandleAsync(SetWorkItemActiveCommand command, CancellationToken ct = default)
+    {
+        var actor = await access.RequireEmployeeAsync(command.ActorId, ct);
+        if (actor.IsFailure) return Result<bool>.Failure(WorkPlanningErrors.Forbidden);
+
+        var taskId = TaskId.Create(command.WorkItemId);
+        if (taskId.IsFailure) return Result<bool>.Failure(taskId.Errors.ToArray());
+
+        var department = await work.GetDepartmentByTaskAsync(taskId.Value, ct);
+        if (department is null) return Result<bool>.Failure(WorkPlanningErrors.WorkItemNotFound);
+
+        var managed = await work.GetManagedDepartmentIdsAsync(actor.Value.Id, ct);
+        if (planning.CanPlanIn(actor.Value, department, managed).IsFailure)
+            return Result<bool>.Failure(WorkPlanningErrors.Forbidden);
+
+        var changed = planning.SetWorkActive(actor.Value, department, managed, taskId.Value, command.Active,
+            clock.GetUtcNow().UtcDateTime);
+        return changed.IsFailure ? Result<bool>.Failure(changed.Errors.ToArray()) : Result<bool>.Success(true);
+    }
+}
+
 internal static class CategoryReviewerInput
 {
     /// <summary>Loads the reviewers (tracked): active employees, each once, members or managers of the department.</summary>

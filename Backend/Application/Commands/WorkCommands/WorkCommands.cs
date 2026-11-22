@@ -42,6 +42,15 @@ public sealed record UpdateCategoryCommand(
 /// Changes a work item and replaces its assignments. Work stays in its category (SEC-08); assignees must belong to
 /// the owning department.
 /// </summary>
+/// <summary>
+/// Activates or deactivates a category. A deactivated category and all its work cannot be selected for time
+/// registration or receive new work; existing time entries are kept.
+/// </summary>
+public sealed record SetCategoryActiveCommand(Guid ActorId, Guid CategoryId, bool Active);
+
+/// <summary>Activates or deactivates a work item. Deactivated work cannot be selected for time registration.</summary>
+public sealed record SetWorkItemActiveCommand(Guid ActorId, Guid WorkItemId, bool Active);
+
 public sealed record UpdateWorkItemCommand(
     Guid ActorId,
     Guid WorkItemId,

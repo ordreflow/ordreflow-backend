@@ -63,6 +63,42 @@ public sealed class WorkPlanningController(ICommandDispatcher commands, IQueryDi
         return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.NoContent();
     }
 
+    /// <summary>A deactivated category and all its work can no longer be selected for time registration.</summary>
+    [HttpPost("categories/{id:guid}/deactivate")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public Task<IResult> DeactivateCategory([FromRoute] Guid id, CancellationToken ct) =>
+        SetCategoryActive(id, active: false, ct);
+
+    [HttpPost("categories/{id:guid}/activate")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public Task<IResult> ActivateCategory([FromRoute] Guid id, CancellationToken ct) =>
+        SetCategoryActive(id, active: true, ct);
+
+    /// <summary>Deactivated work can no longer be selected for time registration.</summary>
+    [HttpPost("work-items/{id:guid}/deactivate")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public Task<IResult> DeactivateWorkItem([FromRoute] Guid id, CancellationToken ct) =>
+        SetWorkItemActive(id, active: false, ct);
+
+    [HttpPost("work-items/{id:guid}/activate")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public Task<IResult> ActivateWorkItem([FromRoute] Guid id, CancellationToken ct) =>
+        SetWorkItemActive(id, active: true, ct);
+
+    private async Task<IResult> SetCategoryActive(Guid id, bool active, CancellationToken ct)
+    {
+        if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
+        var result = await commands.DispatchAsync<SetCategoryActiveCommand, bool>(new(actor, id, active), ct);
+        return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.NoContent();
+    }
+
+    private async Task<IResult> SetWorkItemActive(Guid id, bool active, CancellationToken ct)
+    {
+        if (!HttpContext.TryGetCurrentUserId(out var actor)) return TypedResults.Unauthorized();
+        var result = await commands.DispatchAsync<SetWorkItemActiveCommand, bool>(new(actor, id, active), ct);
+        return result.IsFailure ? result.Errors.ToErrorResult() : TypedResults.NoContent();
+    }
+
     [HttpPut("work-items/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IResult> UpdateWorkItem([FromRoute] Guid id, [FromBody] UpdateWorkItemRequest request, CancellationToken ct)

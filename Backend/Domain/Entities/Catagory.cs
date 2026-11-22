@@ -84,6 +84,14 @@ public sealed class Catagory
         return task is null ? Result.Failure(new Error("TaskNotFound", "The task was not found in this category.")) : task.Close(atUtc);
     }
 
+    internal Result ReopenTask(TaskId id)
+    {
+        var task = _tasks.SingleOrDefault(item => item.Id == id);
+        if (task is null) return Result.Failure(new Error("TaskNotFound", "The task was not found in this category."));
+        task.Reopen();
+        return Result.Success();
+    }
+
     internal Result CanRegisterTime(TaskId id)
     {
         var task = _tasks.SingleOrDefault(item => item.Id == id);

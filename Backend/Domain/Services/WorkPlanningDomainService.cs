@@ -59,6 +59,29 @@ public sealed class WorkPlanningDomainService
         return allowed.IsFailure ? allowed : department.UpdateTask(taskId, name, description, kind, assignmentOnly);
     }
 
+    /// <summary>
+    /// Deactivating a category hides it and all its work from time registration without changing the work's own
+    /// status, so reactivating the category restores the work as it was. Existing time entries are kept.
+    /// </summary>
+    public Result SetCatagoryActive(Employee actor, Department department, IReadOnlyCollection<DepartmentId> managedDepartments,
+        CatagoryId catagoryId, bool active, DateTime atUtc)
+    {
+        var allowed = CanPlanIn(actor, department, managedDepartments);
+        if (allowed.IsFailure) return allowed;
+        return active ? department.ReopenCatagory(catagoryId) : department.CloseCatagory(catagoryId, atUtc);
+    }
+
+    /// <summary>Deactivated work cannot be selected for new time registrations. Existing time entries are kept.</summary>
+    public Result SetWorkActive(Employee actor, Department department, IReadOnlyCollection<DepartmentId> managedDepartments,
+        TaskId taskId, bool active, DateTime atUtc)
+    {
+        var allowed = CanPlanIn(actor, department, managedDepartments);
+        if (allowed.IsFailure) return allowed;
+        var catagory = taskId is null ? null : department.FindCatagoryForTask(taskId);
+        if (catagory is null) return Result.Failure(new Error("TaskNotFound", "The task was not found in this department."));
+        return active ? department.ReopenTask(catagory.Id, taskId!) : department.CloseTask(catagory.Id, taskId!, atUtc);
+    }
+
     private static Result Forbidden() => Result.Failure(new Error("WorkPlanningForbidden",
         "Only a manager of the owning department or an administrator can plan work here."));
 }

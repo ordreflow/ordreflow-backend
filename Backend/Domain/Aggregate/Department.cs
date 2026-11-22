@@ -73,6 +73,12 @@ public sealed class Department
         return category is null ? MissingCategory() : category.CloseTask(taskId, atUtc);
     }
 
+    public Result ReopenTask(CatagoryId categoryId, TaskId taskId)
+    {
+        var category = _catagories.SingleOrDefault(item => item.Id == categoryId);
+        return category is null ? MissingCategory() : category.ReopenTask(taskId);
+    }
+
     public Catagory? FindCatagoryForTask(TaskId taskId) =>
         _catagories.SingleOrDefault(category => category.Tasks.Any(task => task.Id == taskId));
 
