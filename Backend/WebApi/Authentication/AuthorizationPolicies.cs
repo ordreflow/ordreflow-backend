@@ -1,32 +1,48 @@
+using Domain.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
-using Persistence.Identity;
 
 namespace WebAPI.Authentication;
 
-// Coarse role gates on the endpoints. The domain still checks scope, e.g. a manager's own employees.
 public static class AuthorizationPolicies
 {
-    public const string AnyRole = nameof(AnyRole);
-    public const string ManagerOrAdmin = nameof(ManagerOrAdmin);
-    public const string AdminOnly = nameof(AdminOnly);
+    public const string Employee = nameof(Employee);
+    public const string Administrator = nameof(Administrator);
+    public const string Payroll = nameof(Payroll);
+    public const string DepartmentManager = nameof(DepartmentManager);
+    public const string CatagoryReviewer = nameof(CatagoryReviewer);
+    public const string Export = nameof(Export);
+    public const string TimeReports = nameof(TimeReports);
+    public const string WorkPlanning = nameof(WorkPlanning);
+
+    // Legacy M2 endpoints are unavailable until their M3 permission and scope rules are implemented.
+    public const string UnavailableUntilRefactored = nameof(UnavailableUntilRefactored);
 
     public static void Configure(AuthorizationOptions options)
     {
-        var anyRole = new AuthorizationPolicyBuilder()
+        options.DefaultPolicy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
-            .RequireRole(IdentityRoles.Employee, IdentityRoles.Manager, IdentityRoles.Admin)
             .Build();
 
-        // A plain [Authorize] requires a valid token with one of the three roles.
-        options.DefaultPolicy = anyRole;
-        options.AddPolicy(AnyRole, anyRole);
+        AddPermissionPolicy(options, Employee, SystemPermission.Employee);
+        AddPermissionPolicy(options, Administrator, SystemPermission.Administrator);
+        AddPermissionPolicy(options, Payroll, SystemPermission.Payroll);
+        AddPermissionPolicy(options, DepartmentManager, SystemPermission.DepartmentManager);
+        AddPermissionPolicy(options, CatagoryReviewer, SystemPermission.CatagoryReviewer);
+        options.AddPolicy(Export, policy => policy.RequireAuthenticatedUser()
+            .AddRequirements(new SystemPermissionRequirement(SystemPermission.Payroll, SystemPermission.Administrator)));
+        options.AddPolicy(TimeReports, policy => policy.RequireAuthenticatedUser()
+            .AddRequirements(new SystemPermissionRequirement(SystemPermission.DepartmentManager, SystemPermission.Administrator)));
+        options.AddPolicy(WorkPlanning, policy => policy.RequireAuthenticatedUser()
+            .AddRequirements(new SystemPermissionRequirement(SystemPermission.DepartmentManager, SystemPermission.Administrator)));
 
-        options.AddPolicy(ManagerOrAdmin, policy => policy
+        options.AddPolicy(UnavailableUntilRefactored, policy => policy
             .RequireAuthenticatedUser()
-            .RequireRole(IdentityRoles.Manager, IdentityRoles.Admin));
-
-        options.AddPolicy(AdminOnly, policy => policy
-            .RequireAuthenticatedUser()
-            .RequireRole(IdentityRoles.Admin));
+            .RequireAssertion(_ => false));
     }
+
+    private static void AddPermissionPolicy(
+        AuthorizationOptions options, string name, SystemPermission permission) =>
+        options.AddPolicy(name, policy => policy
+            .RequireAuthenticatedUser()
+            .AddRequirements(new SystemPermissionRequirement(permission)));
 }

@@ -6,139 +6,57 @@ namespace Domain.Entities;
 
 public sealed class Task
 {
-	public TaskId TaskId { get; private set; } = null!;
-	public OrderId? OrderId { get; private set; }
+    public TaskId Id { get; private set; } = null!;
+    public CatagoryId CatagoryId { get; private set; } = null!;
+    public TaskStatus Status { get; private set; }
+    public TaskName Name { get; private set; } = null!;
+    public string? Description { get; private set; }
 
-	public string Title { get; private set; } = null!;
+    // Project, ticket or task (FR-08). Descriptive only.
+    public WorkItemKind Kind { get; private set; } = WorkItemKind.Task;
 
-	public string Description { get; private set; } = null!;
-	public TaskStatus Status { get; private set; } = TaskStatus.Open;
-	public DateTime? ClosedAt { get; private set; }
+    // Assignment-only work can only be selected by its assignees, even before anyone is assigned (FR-08, FR-21).
+    public bool AssignmentOnly { get; private set; }
+    public DateTime CreatedAt { get; private set; }
+    public DateTime? ClosedAt { get; private set; }
+    private Task() { }
 
-	private Task()
-	{
-	}
+    internal static Result<Task> Create(CatagoryId category, TaskName name, DateTime createdAtUtc, string? description,
+        WorkItemKind kind = WorkItemKind.Task, bool assignmentOnly = false)
+    {
+        if (category is null || name is null)
+            return Result<Task>.Failure(new Error("TaskDetailsRequired", "A category and task name are required."));
+        if (createdAtUtc == default || createdAtUtc.Kind != DateTimeKind.Utc)
+            return Result<Task>.Failure(new Error("CreatedAtUtcRequired", "A UTC creation time is required."));
+        if (!Enum.IsDefined(kind))
+            return Result<Task>.Failure(new Error("InvalidWorkItemKind", "The work item kind is invalid."));
+        return Result<Task>.Success(new Task { Id = TaskId.Create(Guid.NewGuid()).Value, CatagoryId = category,
+            Name = name, Description = description, CreatedAt = createdAtUtc, Status = TaskStatus.Active,
+            Kind = kind, AssignmentOnly = assignmentOnly });
+    }
 
-	private Task(
-		TaskId id,
-		string title,
-		string description)
-	{
-		TaskId = id;
-		Title = title;
-		Description = description;
-	}
+    internal Result Update(TaskName name, string? description, WorkItemKind kind, bool assignmentOnly)
+    {
+        if (name is null)
+            return Result.Failure(new Error("TaskNameRequired", "A task name is required."));
+        if (!Enum.IsDefined(kind))
+            return Result.Failure(new Error("InvalidWorkItemKind", "The work item kind is invalid."));
+        Name = name;
+        Description = description;
+        Kind = kind;
+        AssignmentOnly = assignmentOnly;
+        return Result.Success();
+    }
 
-	internal Result AttachTo(OrderId orderId)
-	{
-		if (orderId is null)
-			return Result.Failure(new Error("CaseRequired", "A work item must belong to a case."));
+    internal Result Close(DateTime atUtc)
+    {
+        if (Status == TaskStatus.Closed) return Result.Success();
+        if (atUtc.Kind != DateTimeKind.Utc || atUtc < CreatedAt)
+            return Result.Failure(new Error("ClosureTimeInvalid", "The closing time must be UTC and not precede creation."));
+        Status = TaskStatus.Closed;
+        ClosedAt = atUtc;
+        return Result.Success();
+    }
 
-		if (OrderId is not null && OrderId != orderId)
-			return Result.Failure(new Error("WorkItemAlreadyOwned", "The work item already belongs to another case."));
-
-		OrderId = orderId;
-		return Result.Success();
-	}
-
-	internal void Detach() => OrderId = null;
-
-	public static Result<Task> Create(
-		string title,
-		string description)
-	{
-		if (string.IsNullOrWhiteSpace(title))
-		{
-			return Result<Task>.Failure(
-				new Error("WorkTitleRequired", "Work item title is required."));
-		}
-
-		title = title.Trim();
-
-		if (title.Length > 200)
-		{
-			return Result<Task>.Failure(
-				new Error("WorkTitleTooLong", "Work item title cannot exceed 200 characters."));
-		}
-
-		if (description is null)
-		{
-			return Result<Task>.Failure(
-				new Error("WorkDescriptionRequired", "Work item description is required."));
-		}
-
-		description = description.Trim();
-
-		if (description.Length > 2000)
-		{
-			return Result<Task>.Failure(
-				new Error("WorkDescriptionTooLong", "Work item description cannot exceed 2000 characters."));
-		}
-
-		return Result<Task>.Success(
-			new Task(
-				TaskId.Create(Guid.NewGuid()).Value,
-				title,
-				description));
-	}
-
-	internal Result ChangeTitle(string title)
-	{
-		if (string.IsNullOrWhiteSpace(title))
-		{
-			return Result.Failure(
-				new Error("WorkTitleRequired", "Work item title is required."));
-		}
-
-		title = title.Trim();
-
-		if (title.Length > 200)
-		{
-			return Result.Failure(
-				new Error("WorkTitleTooLong", "Work item title cannot exceed 200 characters."));
-		}
-
-		Title = title;
-		return Result.Success();
-	}
-
-	internal Result ChangeDescription(string description)
-	{
-		if (description is null)
-		{
-			return Result.Failure(
-				new Error("WorkDescriptionRequired", "Work item description is required."));
-		}
-
-		description = description.Trim();
-
-		if (description.Length > 2000)
-		{
-			return Result.Failure(
-				new Error("WorkDescriptionTooLong", "Work item description cannot exceed 2000 characters."));
-		}
-
-		Description = description;
-		return Result.Success();
-	}
-
-	internal Result Close(DateTime closedAt)
-	{
-		if (Status == TaskStatus.Closed)
-			return Result.Failure(new Error("TaskAlreadyClosed", "The task is already closed."));
-
-		Status = TaskStatus.Closed;
-		ClosedAt = closedAt;
-		return Result.Success();
-	}
-
-	internal Result Reopen()
-	{
-		if (Status == TaskStatus.Open)
-			return Result.Failure(new Error("TaskAlreadyOpen", "The task is already open."));
-
-		Status = TaskStatus.Open;
-		ClosedAt = null;
-		return Result.Success();
-	}
+    internal void Reopen() { Status = TaskStatus.Active; ClosedAt = null; }
 }

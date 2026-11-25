@@ -8,12 +8,12 @@ using WebAPI.Authentication;
 namespace WebAPI.endpoints.TimeEntries;
 
 /// <summary>
-/// Moves a returned time entry back to Draft without an edit. Editing also moves it to Draft automatically.
+/// Resubmits an unchanged rejected entry. Editing already submits it for approval.
 /// </summary>
 public sealed class ResubmitTimeEntry(ICommandDispatcher dispatcher)
     : EndpointBase
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.Employee)]
     [HttpPost("time_entries/{id:guid}/resubmit")]
     public async Task<IResult> HandleAsync([FromRoute] Guid id)
     {

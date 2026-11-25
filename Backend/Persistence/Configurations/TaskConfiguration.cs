@@ -1,40 +1,52 @@
 namespace Persistence.Configurations;
 
-using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Domain.Entities;
+using Task = Domain.Entities.Task;
+
 public class TaskConfiguration : IEntityTypeConfiguration<Task>
 {
     public void Configure(EntityTypeBuilder<Task> entity)
     {
         entity.ToTable("tasks");
 
-        entity.HasKey(x => x.TaskId);
+        entity.HasKey(x => x.Id);
 
-        entity.Property(x => x.TaskId)
+        entity.Property(x => x.Id)
             .HasColumnName("id")
-            .HasConversion(id => id.Value, value => TaskId.Create(value).Value)
             .ValueGeneratedNever();
 
-        entity.Property(x => x.OrderId)
-            .HasColumnName("order_id")
-            .HasConversion(id => id!.Value, value => OrderId.Create(value).Value);
+        entity.Property(x => x.CatagoryId)
+            .HasColumnName("catagory_id")
+            .IsRequired();
 
-        entity.Property(x => x.Title)
-            .HasColumnName("title")
+        entity.Property(x => x.Name)
+            .HasColumnName("name")
             .HasMaxLength(200)
             .IsRequired();
 
         entity.Property(x => x.Description)
-            .HasColumnName("description")
-            .HasMaxLength(2000)
+            .HasColumnName("description");
+
+        entity.Property(x => x.Kind)
+            .HasColumnName("kind")
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .IsRequired();
+
+        entity.Property(x => x.AssignmentOnly)
+            .HasColumnName("assignment_only")
             .IsRequired();
 
         entity.Property(x => x.Status)
             .HasColumnName("status")
             .HasConversion<string>()
-            .HasMaxLength(20)
+            .IsRequired();
+
+        entity.Property(x => x.CreatedAt)
+            .HasColumnName("created_at")
+            .HasColumnType("timestamp with time zone")
             .IsRequired();
 
         entity.Property(x => x.ClosedAt)

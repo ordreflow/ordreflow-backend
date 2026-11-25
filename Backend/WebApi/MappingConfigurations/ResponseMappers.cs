@@ -1,35 +1,9 @@
 using Application.Dtos;
 using ObjectMapper;
 using WebAPI.Contracts.Auth;
-using WebAPI.Contracts.Orders;
-using WebAPI.Contracts.Tasks;
 using WebAPI.Contracts.TimeEntries;
-using WebAPI.Contracts.Users;
 
 namespace WebAPI.MappingConfigurations;
-
-public sealed class OrderToResponseMapper
-    : IMappingConfig<OrderDto, OrderResponse>
-{
-    public OrderResponse Map(OrderDto input) => new(
-        input.Id,
-        input.Name,
-        input.Status,
-        input.CreatedAt,
-        input.ClosedAt);
-}
-
-public sealed class TaskToResponseMapper
-    : IMappingConfig<TaskDto, TaskResponse>
-{
-    public TaskResponse Map(TaskDto input) => new(
-        input.Id,
-        input.OrderId,
-        input.Title,
-        input.Description,
-        input.Status,
-        input.ClosedAt);
-}
 
 public sealed class TimeEntryToResponseMapper
     : IMappingConfig<TimeEntryDto, TimeEntryResponse>
@@ -41,7 +15,12 @@ public sealed class TimeEntryToResponseMapper
         input.Hours,
         input.Comment,
         input.EmployeeId,
-        input.Status);
+        input.Status,
+        input.RejectionReason,
+        input.EmployeeName,
+        input.TaskName,
+        input.CategoryName,
+        input.DepartmentName);
 }
 
 public sealed class TimeEntryReviewToResponseMapper
@@ -62,17 +41,4 @@ public sealed class LoginToResponseMapper
         input.AccessToken,
         "Bearer",
         input.ExpiresAt);
-}
-
-public sealed class UserToResponseMapper
-    : IMappingConfig<UserDto, UserResponse>
-{
-    public UserResponse Map(UserDto input) => new(
-        input.Id,
-        input.Name,
-        input.Email,
-        input.Role,
-        input.Status,
-        input.CreatedAt,
-        input.ManagerId);
 }

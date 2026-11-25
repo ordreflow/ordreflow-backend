@@ -1,7 +1,7 @@
 namespace Persistence.Configurations;
 
+using Domain.Aggregate;
 using Domain.Entities;
-using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,25 +15,32 @@ public class TimeEntryReviewConfiguration : IEntityTypeConfiguration<TimeEntryRe
 
         entity.Property(x => x.Id)
             .HasColumnName("id")
-            .HasConversion(id => id.Value, value => TimeEntryReviewID.Create(value).Value)
             .ValueGeneratedNever();
 
         entity.Property(x => x.TimeEntryId)
             .HasColumnName("time_entry_id")
-            .HasConversion(id => id.Value, value => TimeEntryId.Create(value).Value)
             .IsRequired();
 
-        entity.Property(x => x.Decision)
-            .HasColumnName("decision")
+        entity.Property(x => x.ReviewerId)
+            .HasColumnName("reviewer_id")
+            .IsRequired();
+
+        entity.Property(x => x.Description)
+            .HasColumnName("description");
+
+        entity.Property(x => x.Status)
+            .HasColumnName("status")
             .HasConversion<string>()
-            .HasMaxLength(20)
             .IsRequired();
 
-        entity.Property(x => x.Reason)
-            .HasColumnName("reason");
-
-        entity.Property(x => x.ReviewedAt)
-            .HasColumnName("reviewed_at")
+        entity.Property(x => x.ReviewedAtUtc)
+            .HasColumnName("reviewed_at_utc")
+            .HasColumnType("timestamp with time zone")
             .IsRequired();
+
+        entity.HasOne<Employee>()
+            .WithMany()
+            .HasForeignKey(x => x.ReviewerId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

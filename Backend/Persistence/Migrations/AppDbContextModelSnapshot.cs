@@ -22,23 +22,46 @@ namespace Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Domain.Aggregate.Order", b =>
+            modelBuilder.Entity("Domain.Aggregate.AccessPrivilege", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<DateTime?>("ClosedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("closed_at");
+                    b.Property<DateOnly>("EarliestWorkDate")
+                        .HasColumnType("date")
+                        .HasColumnName("earliest_work_date");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime>("ExpiresAtUtc")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("expires_at_utc");
 
-                    b.Property<Guid>("ManagerId")
+                    b.Property<DateTime>("IssuedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at_utc");
+
+                    b.Property<Guid>("IssuedBy")
                         .HasColumnType("uuid")
-                        .HasColumnName("manager_id");
+                        .HasColumnName("issued_by");
+
+                    b.Property<Guid>("IssuedTo")
+                        .HasColumnType("uuid")
+                        .HasColumnName("issued_to");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IssuedBy");
+
+                    b.HasIndex("IssuedTo");
+
+                    b.ToTable("access_privileges", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Aggregate.Department", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -46,65 +69,14 @@ namespace Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("ManagerId");
-
-                    b.ToTable("orders", (string)null);
+                    b.ToTable("departments", (string)null);
                 });
 
-            modelBuilder.Entity("Domain.Aggregate.TimeEntry", b =>
+            modelBuilder.Entity("Domain.Aggregate.Employee", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Comment")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("comment");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("date")
-                        .HasColumnName("date");
-
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("employee_id");
-
-                    b.Property<decimal>("Hours")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)")
-                        .HasColumnName("hours");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<Guid>("TaskId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("task_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeId");
-
-                    b.HasIndex("TaskId");
-
-                    b.ToTable("time_entries", (string)null);
-                });
-
-            modelBuilder.Entity("Domain.Aggregate.User", b =>
-                {
-                    b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -118,41 +90,168 @@ namespace Persistence.Migrations
                         .HasColumnType("character varying(320)")
                         .HasColumnName("email");
 
-                    b.Property<Guid?>("ManagerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("manager_id");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("role");
-
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasColumnType("text")
                         .HasColumnName("status");
 
-                    b.HasKey("UserId");
+                    b.Property<string>("Title")
+                        .HasColumnType("text")
+                        .HasColumnName("title");
 
-                    b.HasIndex("Email")
-                        .IsUnique();
+                    b.HasKey("Id");
 
-                    b.HasIndex("ManagerId");
-
-                    b.ToTable("users", (string)null);
+                    b.ToTable("employees", (string)null);
                 });
 
-            modelBuilder.Entity("Domain.Entities.Task", b =>
+            modelBuilder.Entity("Domain.Aggregate.Export", b =>
                 {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<byte[]>("CsvContent")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("csv_content");
+
+                    b.Property<DateOnly>("DateFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("date_from");
+
+                    b.Property<DateOnly>("DateTo")
+                        .HasColumnType("date")
+                        .HasColumnName("date_to");
+
+                    b.Property<Guid>("ExportedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("exported_by");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<Guid?>("SelectedEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("selected_employee_id");
+
+                    b.Property<DateTime?>("TimeEntriesClosedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("time_entries_closed_at_utc");
+
+                    b.Property<Guid?>("TimeEntriesClosedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("time_entries_closed_by");
+
+                    b.Property<decimal>("TotalHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("total_hours");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExportedBy");
+
+                    b.HasIndex("SelectedEmployeeId");
+
+                    b.HasIndex("TimeEntriesClosedBy");
+
+                    b.HasIndex("CreatedAt", "Id");
+
+                    b.ToTable("exports", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_exports_closure", "(time_entries_closed_by IS NULL) = (time_entries_closed_at_utc IS NULL)");
+
+                            t.HasCheckConstraint("CK_exports_dates", "date_from <= date_to");
+                        });
+                });
+
+            modelBuilder.Entity("Domain.Aggregate.RegistrationPeriodMode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AdminId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("admin_id");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_date");
+
+                    b.Property<int?>("DayInMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("day_in_month");
+
+                    b.Property<string>("Interval")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("interval");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdminId");
+
+                    b.ToTable("registration_period_modes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_registration_period_modes_day_in_month", "day_in_month IS NULL OR day_in_month BETWEEN 1 AND 28");
+                        });
+                });
+
+            modelBuilder.Entity("Domain.Aggregate.TimeEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("time_entries", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.AccessTask", b =>
+                {
+                    b.Property<Guid>("AccessId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("access_id");
+
                     b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.HasKey("AccessId", "TaskId");
+
+                    b.HasIndex("TaskId");
+
+                    b.ToTable("access_tasks", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Catagory", b =>
+                {
+                    b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -160,33 +259,270 @@ namespace Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("closed_at");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("department_id");
+
                     b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
+                        .HasColumnType("text")
                         .HasColumnName("description");
 
-                    b.Property<Guid>("OrderId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("order_id");
+                    b.Property<bool>("InternalOnly")
+                        .HasColumnType("boolean")
+                        .HasColumnName("internal_only");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<string>("Title")
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
-                        .HasColumnName("title");
+                        .HasColumnName("name");
 
-                    b.HasKey("TaskId");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
 
-                    b.HasIndex("OrderId");
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.ToTable("catagories", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.CatagoryReviewer", b =>
+                {
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("CatagoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("catagory_id");
+
+                    b.HasKey("EmployeeId", "CatagoryId");
+
+                    b.HasIndex("CatagoryId");
+
+                    b.ToTable("catagory_reviewers", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.DepartmentEmployee", b =>
+                {
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("department_id");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.HasKey("DepartmentId", "EmployeeId");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("department_employees", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.DepartmentManager", b =>
+                {
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("department_id");
+
+                    b.Property<Guid>("ManagerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("manager_id");
+
+                    b.HasKey("DepartmentId", "ManagerId");
+
+                    b.HasIndex("ManagerId");
+
+                    b.ToTable("department_managers", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.EmployeeSystemAccess", b =>
+                {
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("Permission")
+                        .HasColumnType("text")
+                        .HasColumnName("permission");
+
+                    b.HasKey("EmployeeId", "Permission");
+
+                    b.ToTable("employee_system_accesses", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Task", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("AssignmentOnly")
+                        .HasColumnType("boolean")
+                        .HasColumnName("assignment_only");
+
+                    b.Property<Guid>("CatagoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("catagory_id");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatagoryId");
 
                     b.ToTable("tasks", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.TaskAssignment", b =>
+                {
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<Guid>("AssignedTo")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_to");
+
+                    b.Property<DateOnly>("ExpectedDeadline")
+                        .HasColumnType("date")
+                        .HasColumnName("expected_deadline");
+
+                    b.Property<decimal>("ExpectedDuration")
+                        .HasColumnType("numeric")
+                        .HasColumnName("expected_duration");
+
+                    b.HasKey("TaskId", "AssignedTo");
+
+                    b.HasIndex("AssignedTo");
+
+                    b.ToTable("task_assinments", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.TimeEntryAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<DateTime>("AuditTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("audit_time");
+
+                    b.Property<Guid?>("ClosedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("closed_by");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<decimal>("Duration")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("duration");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<Guid>("TimeEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("time_entry_id");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date")
+                        .HasColumnName("work_date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("ClosedBy");
+
+                    b.HasIndex("Status", "WorkDate");
+
+                    b.HasIndex("TaskId", "TimeEntryId");
+
+                    b.HasIndex("TimeEntryId", "AuditTime")
+                        .IsUnique();
+
+                    b.ToTable("time_entry_audits", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.TimeEntryExport", b =>
+                {
+                    b.Property<Guid>("ExportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("export_id");
+
+                    b.Property<Guid>("TimeEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("time_entry_id");
+
+                    b.Property<Guid>("TimeEntryAuditId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("time_entry_audit_id");
+
+                    b.HasKey("ExportId", "TimeEntryId");
+
+                    b.HasIndex("TimeEntryAuditId");
+
+                    b.HasIndex("TimeEntryId");
+
+                    b.ToTable("time_entry_exports", (string)null);
                 });
 
             modelBuilder.Entity("Domain.Entities.TimeEntryReview", b =>
@@ -195,19 +531,22 @@ namespace Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("Decision")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("decision");
-
-                    b.Property<string>("Reason")
+                    b.Property<string>("Description")
                         .HasColumnType("text")
-                        .HasColumnName("reason");
+                        .HasColumnName("description");
 
-                    b.Property<DateTime>("ReviewedAt")
+                    b.Property<DateTime>("ReviewedAtUtc")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reviewed_at");
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<Guid>("ReviewerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewer_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
 
                     b.Property<Guid>("TimeEntryId")
                         .HasColumnType("uuid")
@@ -215,83 +554,11 @@ namespace Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ReviewerId");
+
                     b.HasIndex("TimeEntryId");
 
                     b.ToTable("time_entry_reviews", (string)null);
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ConcurrencyStamp")
-                        .IsConcurrencyToken()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("NormalizedName")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedName")
-                        .IsUnique()
-                        .HasDatabaseName("RoleNameIndex");
-
-                    b.ToTable("AspNetRoles", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("0f3c2a6e-6d1b-4c8e-9a51-1b7f2e4d9c01"),
-                            ConcurrencyStamp = "0f3c2a6e-6d1b-4c8e-9a51-1b7f2e4d9c01",
-                            Name = "Employee",
-                            NormalizedName = "EMPLOYEE"
-                        },
-                        new
-                        {
-                            Id = new Guid("5a8e4b2d-3f7c-4e19-8b6a-2c9d1e7f4a02"),
-                            ConcurrencyStamp = "5a8e4b2d-3f7c-4e19-8b6a-2c9d1e7f4a02",
-                            Name = "Manager",
-                            NormalizedName = "MANAGER"
-                        },
-                        new
-                        {
-                            Id = new Guid("9b1d7e3a-2c4f-4a8b-9e6d-3f5a2b8c1d03"),
-                            ConcurrencyStamp = "9b1d7e3a-2c4f-4a8b-9e6d-3f5a2b8c1d03",
-                            Name = "Admin",
-                            NormalizedName = "ADMIN"
-                        });
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ClaimType")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ClaimValue")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RoleId");
-
-                    b.ToTable("AspNetRoleClaims", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
@@ -339,21 +606,6 @@ namespace Persistence.Migrations
                     b.ToTable("AspNetUserLogins", (string)null);
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("UserId", "RoleId");
-
-                    b.HasIndex("RoleId");
-
-                    b.ToTable("AspNetUserRoles", (string)null);
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -393,6 +645,9 @@ namespace Persistence.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -422,14 +677,14 @@ namespace Persistence.Migrations
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId")
+                        .IsUnique();
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -438,26 +693,66 @@ namespace Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
 
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("Domain.Aggregate.Order", b =>
+            modelBuilder.Entity("Domain.Aggregate.AccessPrivilege", b =>
                 {
-                    b.HasOne("Domain.Aggregate.User", null)
+                    b.HasOne("Domain.Aggregate.Employee", null)
                         .WithMany()
-                        .HasForeignKey("ManagerId")
+                        .HasForeignKey("IssuedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("IssuedTo")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Aggregate.Export", b =>
+                {
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ExportedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("SelectedEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("TimeEntriesClosedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Domain.Aggregate.RegistrationPeriodMode", b =>
+                {
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("AdminId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("Domain.Aggregate.TimeEntry", b =>
                 {
-                    b.HasOne("Domain.Aggregate.User", null)
+                    b.HasOne("Domain.Aggregate.Employee", null)
                         .WithMany()
                         .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.AccessTask", b =>
+                {
+                    b.HasOne("Domain.Aggregate.AccessPrivilege", null)
+                        .WithMany("Tasks")
+                        .HasForeignKey("AccessId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -468,38 +763,158 @@ namespace Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Domain.Aggregate.User", b =>
+            modelBuilder.Entity("Domain.Entities.Catagory", b =>
                 {
-                    b.HasOne("Domain.Aggregate.User", null)
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.Department", null)
+                        .WithMany("Catagories")
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.CatagoryReviewer", b =>
+                {
+                    b.HasOne("Domain.Entities.Catagory", null)
+                        .WithMany()
+                        .HasForeignKey("CatagoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.DepartmentEmployee", b =>
+                {
+                    b.HasOne("Domain.Aggregate.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.DepartmentManager", b =>
+                {
+                    b.HasOne("Domain.Aggregate.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.Employee", null)
                         .WithMany()
                         .HasForeignKey("ManagerId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.EmployeeSystemAccess", b =>
+                {
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany("Accesses")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Domain.Entities.Task", b =>
                 {
-                    b.HasOne("Domain.Aggregate.Order", null)
+                    b.HasOne("Domain.Entities.Catagory", null)
                         .WithMany("Tasks")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasForeignKey("CatagoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.TaskAssignment", b =>
+                {
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedTo")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Task", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.TimeEntryAudit", b =>
+                {
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ClosedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Domain.Entities.Task", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.TimeEntry", null)
+                        .WithMany("Audits")
+                        .HasForeignKey("TimeEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.TimeEntryExport", b =>
+                {
+                    b.HasOne("Domain.Aggregate.Export", null)
+                        .WithMany("TimeEntries")
+                        .HasForeignKey("ExportId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.TimeEntryAudit", null)
+                        .WithMany()
+                        .HasForeignKey("TimeEntryAuditId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Aggregate.TimeEntry", null)
+                        .WithMany()
+                        .HasForeignKey("TimeEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("Domain.Entities.TimeEntryReview", b =>
                 {
+                    b.HasOne("Domain.Aggregate.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Domain.Aggregate.TimeEntry", null)
                         .WithMany("Reviews")
                         .HasForeignKey("TimeEntryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
-                {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
-                        .WithMany()
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -521,21 +936,6 @@ namespace Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
-                {
-                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
-                        .WithMany()
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Persistence.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
                 {
                     b.HasOne("Persistence.Identity.ApplicationUser", null)
@@ -547,21 +947,43 @@ namespace Persistence.Migrations
 
             modelBuilder.Entity("Persistence.Identity.ApplicationUser", b =>
                 {
-                    b.HasOne("Domain.Aggregate.User", null)
+                    b.HasOne("Domain.Aggregate.Employee", null)
                         .WithOne()
-                        .HasForeignKey("Persistence.Identity.ApplicationUser", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasForeignKey("Persistence.Identity.ApplicationUser", "EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Domain.Aggregate.Order", b =>
+            modelBuilder.Entity("Domain.Aggregate.AccessPrivilege", b =>
                 {
                     b.Navigation("Tasks");
                 });
 
+            modelBuilder.Entity("Domain.Aggregate.Department", b =>
+                {
+                    b.Navigation("Catagories");
+                });
+
+            modelBuilder.Entity("Domain.Aggregate.Employee", b =>
+                {
+                    b.Navigation("Accesses");
+                });
+
+            modelBuilder.Entity("Domain.Aggregate.Export", b =>
+                {
+                    b.Navigation("TimeEntries");
+                });
+
             modelBuilder.Entity("Domain.Aggregate.TimeEntry", b =>
                 {
+                    b.Navigation("Audits");
+
                     b.Navigation("Reviews");
+                });
+
+            modelBuilder.Entity("Domain.Entities.Catagory", b =>
+                {
+                    b.Navigation("Tasks");
                 });
 #pragma warning restore 612, 618
         }

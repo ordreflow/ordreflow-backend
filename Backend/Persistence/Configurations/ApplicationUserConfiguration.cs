@@ -1,7 +1,6 @@
 namespace Persistence.Configurations;
 
 using Domain.Aggregate;
-using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Persistence.Identity;
@@ -10,14 +9,13 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
 {
     public void Configure(EntityTypeBuilder<ApplicationUser> entity)
     {
-        entity.Property(x => x.UserId)
-            .HasConversion(id => id.Value, value => UserId.Create(value).Value)
+        entity.Property(x => x.EmployeeId)
             .IsRequired();
 
-        // Each domain user has at most one login account.
-        entity.HasOne<User>()
+        // Each employee has at most one Identity login account.
+        entity.HasOne<Employee>()
             .WithOne()
-            .HasForeignKey<ApplicationUser>(x => x.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .HasForeignKey<ApplicationUser>(x => x.EmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

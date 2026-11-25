@@ -1,6 +1,8 @@
 namespace Persistence;
 
+using Domain.Aggregate;
 using Domain.Interfaces.IUnitOfWork;
+using Microsoft.EntityFrameworkCore;
 
 public class UnitOfWork : IUnitOfWork
 {
@@ -13,6 +15,13 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException error) when (error.Entries.Any(entry => entry.Entity is TimeEntry))
+        {
+            throw new ConcurrentTimeEntryException(error);
+        }
     }
 }

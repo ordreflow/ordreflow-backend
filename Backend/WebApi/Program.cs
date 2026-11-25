@@ -3,8 +3,11 @@ using Application.Extenstions;
 using Application.Interfaces;
 using Domain.Interfaces.IUnitOfWork;
 using Domain.Interfaces;
+using Domain.ValueObjects;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -38,9 +41,29 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Identity
 builder.Services
-    .AddIdentityCore<ApplicationUser>(options => options.User.RequireUniqueEmail = true)
-    .AddRoles<IdentityRole<Guid>>()
+    .AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+
+        // Lock an account for a while after repeated wrong passwords (FR-06, SEC-04).
+        // A locked account gets the same "invalid credentials" answer, so the lockout isn't disclosed.
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    })
     .AddEntityFrameworkStores<AppDbContext>();
+
+// The API runs behind the frontend's nginx (and Caddy, which terminates HTTPS, in test), so the client IP
+// and scheme come from X-Forwarded-For/-Proto. Two hops: Caddy -> nginx -> API.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 2;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+builder.Services.AddLoginRateLimiting();
 
 // Authentication (JWT settings come from the JWT_* environment variables)
 var jwtOptions = JwtOptions.FromEnvironment();
@@ -51,7 +74,7 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        // Keep the claim names from the token, so "sub" and "role" are read as-is.
+        // Preserve "sub" so authorization can resolve the internal employee ID.
         options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -60,11 +83,16 @@ builder.Services
             IssuerSigningKey = jwtOptions.SigningKey,
             ValidateIssuerSigningKey = true,
             NameClaimType = JwtRegisteredClaimNames.Sub,
-            RoleClaimType = JwtTokenGenerator.RoleClaimType,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
 builder.Services.AddAuthorization(AuthorizationPolicies.Configure);
+builder.Services.AddScoped<IAuthorizationHandler, SystemPermissionAuthorizationHandler>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById(
+    builder.Configuration["Company:TimeZone"] ?? "UTC"));
+builder.Services.AddSingleton(new TimeEntryReviewPolicy(
+    builder.Configuration.GetValue("TimeEntryReviews:AllowSelfReview", true)));
 
 builder.Services.AddApplication();
 
@@ -105,6 +133,15 @@ await IdentitySeeder.SeedAdminAsync(
     Environment.GetEnvironmentVariable("ADMIN_PASSWORD"),
     Environment.GetEnvironmentVariable("ADMIN_NAME"));
 
+app.UseForwardedHeaders();
+
+// Test and production are only served over HTTPS (Caddy); HSTS keeps browsers on HTTPS (SEC-04).
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
+app.UseHttpsRedirection();
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -115,8 +152,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-app.UseHttpsRedirection();
 
 app.Run();
 

@@ -1,9 +1,0 @@
-namespace Application.Commands;
-
-public sealed record CreateUserCommand(
-    Guid ActorId,
-    string Name,
-    string Email,
-    string Password,
-    string Role,
-    Guid? ManagerId = null);

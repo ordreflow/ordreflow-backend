@@ -1,335 +1,298 @@
-﻿using Core.Tools.OperationResult;
+using Core.Tools.OperationResult;
 using Domain.Entities;
 using Domain.ValueObjects;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Domain.Aggregate;
 
 public sealed class TimeEntry
 {
+    private TimeEntry() { }
+    private readonly List<TimeEntryAudit> _audits = new();
     private readonly List<TimeEntryReview> _reviews = new();
+    public TimeEntryId Id { get; private set; } = null!;
+    public long Revision { get; private set; }
+    
+    // Who belongs the timeentry to
+    public EmployeeId EmployeeId { get; private set; } = null!;
+    
+    // Same list as first, just only in readmode
+    public IReadOnlyCollection<TimeEntryAudit> Audits => _audits.AsReadOnly();
+    public IReadOnlyCollection<TimeEntryReview> Reviews => _reviews.AsReadOnly();
 
-    public  TimeEntryId Id { get; private set; }
+    [NotMapped]
+    public TimeEntryAudit? CurrentAudit => GetCurrentAudit();
 
-    public UserId EmployeeId { get; private set; } = null!;
+    [NotMapped]
+    public TimeEntryStatus? CurrentStatus => CurrentAudit?.Status;
 
-    public TaskId TaskId { get; private set; } = null!;
+    [NotMapped]
+    public TaskId? CurrentTaskId => CurrentAudit?.TaskId;
 
-    public DateTime Date { get; private set; }
+    [NotMapped]
+    public WorkDate? CurrentWorkDate => CurrentAudit?.WorkDate;
 
-    public decimal Hours { get; private set; }
+    [NotMapped]
+    public Duration? CurrentDuration => CurrentAudit?.Duration;
 
-    public string? Comment { get; private set; }
+    [NotMapped]
+    public RejectionReason? CurrentRejectionReason => CurrentStatus == TimeEntryStatus.Rejected
+        ? _reviews.MaxBy(review => review.ReviewedAtUtc)?.Description
+        : null;
 
-
-    public TimeEntryStatus Status { get; private set; } = TimeEntryStatus.Draft;
-
-    public IReadOnlyCollection<TimeEntryReview> Reviews =>
-        _reviews.AsReadOnly();
-
-    private TimeEntry()
-    {
-    }
-
-    private TimeEntry(
-        UserId employeeId,
-        TaskId taskId,
-        DateTime date,
-        decimal hours,
-        string? comment)
-    {
-        Id = TimeEntryId.Create(Guid.NewGuid()).Value;
-        EmployeeId = employeeId;
-        TaskId = taskId;
-        Date = date;
-        Hours = hours;
-        Comment = comment;
-    }
-
-    public static Result<TimeEntry> Create(
-        UserId employeeId,
-        TaskId taskId,
-        DateTime date,
-        decimal hours,
-        string? comment)
+    private static Result<TimeEntry> Create(EmployeeId employeeId, TimeEntryAudit initialAudit)
     {
         if (employeeId is null)
-            return Result<TimeEntry>.Failure(
-                new Error("EmployeeRequired", "An employee is required."));
+            return Result<TimeEntry>.Failure(new Error("EmployeeRequired", "An employee is required."));
+        if (initialAudit is null)
+            return Result<TimeEntry>.Failure(new Error("AuditRequired", "An initial audit is required."));
 
+        if (initialAudit.TimeEntryId is null)
+            return Result<TimeEntry>.Failure(new Error("TimeEntryIdRequired", "The audit must identify its time entry."));
+
+        var entry = new TimeEntry
+        {
+            Id = initialAudit.TimeEntryId,
+            EmployeeId = employeeId
+        };
+        var added = entry.AddAudit(initialAudit);
+        return added.IsFailure
+            ? Result<TimeEntry>.Failure(added.Errors.ToArray())
+            : Result<TimeEntry>.Success(entry);
+    }
+
+    public static Result<TimeEntry> Record(
+        EmployeeId employeeId,
+        TaskId taskId,
+        WorkDate workDate,
+        Duration duration,
+        TimeEntryDescription description,
+        WorkDatePeriod permittedPeriod,
+        DateTime recordedAtUtc)
+    {
+        if (employeeId is null)
+            return Result<TimeEntry>.Failure(new Error("EmployeeRequired", "An employee is required."));
         if (taskId is null)
-            return Result<TimeEntry>.Failure(
-                new Error("WorkItemRequired", "A work item is required."));
+            return Result<TimeEntry>.Failure(new Error("TaskRequired", "A task is required."));
+        if (workDate is null || duration is null || description is null)
+            return Result<TimeEntry>.Failure(new Error("TimeEntryDetailsRequired", "Date, duration and description are required."));
+        if (permittedPeriod is null || !permittedPeriod.Contains(workDate))
+            return Result<TimeEntry>.Failure(new Error("WorkDateNotPermitted", "The work date is outside the permitted registration period."));
 
-        if (date == default)
-            return Result<TimeEntry>.Failure(
-                new Error("InvalidDate", "Date is required."));
-
-        if (hours <= 0 || hours > 24)
-            return Result<TimeEntry>.Failure(
-                new Error(
-                    "InvalidHours",
-                    "Hours must be greater than 0 and cannot exceed 24."));
-
-        comment = comment?.Trim();
-
-        if (comment?.Length > 1000)
-            return Result<TimeEntry>.Failure(
-                new Error(
-                    "CommentTooLong",
-                    "Comment cannot exceed 1000 characters."));
-
-        return Result<TimeEntry>.Success(
-            new TimeEntry(
-                employeeId,
-                taskId,
-                date,
-                hours,
-                comment));
-    }
-
-    public Result ChangeHours(UserId actorId, decimal hours)
-        => Update(actorId, Date, hours, Comment);
-
-    public Result ChangeDate(UserId actorId, DateTime date)
-        => Update(actorId, date, Hours, Comment);
-
-    public Result ChangeComment(UserId actorId, string? comment)
-        => Update(actorId, Date, Hours, comment);
-
-    public Result Update(UserId actorId, DateTime date, decimal hours, string? comment)
-    {
-        var editResult = CanEdit(actorId);
-
-        if (editResult.IsFailure)
-            return editResult;
-
-        if (hours <= 0 || hours > 24)
-            return Result.Failure(
-                new Error(
-                    "InvalidHours",
-                    "Hours must be greater than 0 and cannot exceed 24."));
-
-        if (date == default)
-            return Result.Failure(
-                new Error("InvalidDate", "Date is required."));
-
-        comment = comment?.Trim();
-
-        if (comment?.Length > 1000)
-            return Result.Failure(
-                new Error(
-                    "CommentTooLong",
-                    "Comment cannot exceed 1000 characters."));
-
-        Date = date;
-        Hours = hours;
-        Comment = comment;
-        Status = TimeEntryStatus.Draft;
-
-        return Result.Success();
-    }
-
-    public Result Accept(
-        UserId reviewerId,
-        UserId employeeId,
-        UserId? employeeManagerId,
-        UserRole reviewerRole,
-        UserStatus reviewerStatus)
-    {
-        var reviewResult = CanReview(
-            reviewerId,
+        var entryId = TimeEntryId.Create(Guid.NewGuid()).Value;
+        var audit = TimeEntryAudit.Create(
+            entryId,
             employeeId,
-            employeeManagerId,
-            reviewerRole,
-            reviewerStatus);
+            taskId,
+            workDate,
+            duration,
+            description,
+            // Temporary UC-01 workflow: registration submits directly for review.
+            TimeEntryStatus.ReadyForApproval,
+            recordedAtUtc);
+        return audit.IsFailure
+            ? Result<TimeEntry>.Failure(audit.Errors.ToArray())
+            : Create(employeeId, audit.Value);
+    }
 
-        if (reviewResult.IsFailure)
-            return reviewResult;
+    public Result Submit(EmployeeId employeeId, DateTime submittedAtUtc)
+    {
+        var owner = EnsureOwner(employeeId);
+        if (owner.IsFailure)
+            return owner;
 
-        if (Status != TimeEntryStatus.Draft)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotOpen",
-                    "Only an open time entry can be accepted."));
+        var current = GetCurrentAudit();
+        if (current?.Status != TimeEntryStatus.Draft)
+            return Result.Failure(new Error("TimeEntryNotSubmittable", "Only a draft time entry can be submitted."));
 
-        var review = TimeEntryReview.Create(
-            Id,
-            ReviewDecision.Accepted,
-            null);
+        return AppendVersion(current, employeeId, TimeEntryStatus.ReadyForApproval, submittedAtUtc);
+    }
 
-        if (review.IsFailure)
-            return Result.Failure(review.Errors.ToArray());
+    public Result Change(
+        EmployeeId employeeId,
+        WorkDate workDate,
+        Duration duration,
+        TimeEntryDescription description,
+        WorkDatePeriod permittedPeriod,
+        DateTime changedAtUtc)
+    {
+        var owner = EnsureOwner(employeeId);
+        if (owner.IsFailure)
+            return owner;
 
-        Status = TimeEntryStatus.Accepted;
+        var current = GetCurrentAudit();
+        if (current is null || current.Status is not (TimeEntryStatus.Draft or TimeEntryStatus.ReadyForApproval or TimeEntryStatus.Rejected))
+            return Result.Failure(new Error("TimeEntryNotEditable", "The time entry is not in an editable state."));
+        if (workDate is null || duration is null || description is null)
+            return Result.Failure(new Error("TimeEntryDetailsRequired", "Date, duration and description are required."));
+        if (permittedPeriod is null ||
+            !permittedPeriod.Contains(current.WorkDate) ||
+            !permittedPeriod.Contains(workDate))
+            return Result.Failure(new Error("WorkDateNotPermitted", "The current and new work dates must be inside the permitted period."));
 
-        _reviews.Add(review.Value);
+        var audit = TimeEntryAudit.Create(
+            Id, employeeId, current.TaskId, workDate, duration, description, TimeEntryStatus.ReadyForApproval, changedAtUtc);
+        return audit.IsFailure
+            ? Result.Failure(audit.Errors.ToArray())
+            : AddAudit(audit.Value);
+    }
 
+    public Result Delete(EmployeeId employeeId, WorkDatePeriod permittedPeriod, DateTime deletedAtUtc)
+    {
+        var owner = EnsureOwner(employeeId);
+        if (owner.IsFailure)
+            return owner;
+
+        var current = GetCurrentAudit();
+        if (current is null || current.Status is not (TimeEntryStatus.Draft or TimeEntryStatus.ReadyForApproval or TimeEntryStatus.Rejected))
+            return Result.Failure(new Error("TimeEntryNotEditable", "The time entry is not in a deletable state."));
+        if (permittedPeriod is null || !permittedPeriod.Contains(current.WorkDate))
+            return Result.Failure(new Error("WorkDateNotPermitted", "The work date is outside the permitted registration period."));
+
+        var audit = TimeEntryAudit.Create(
+            Id, employeeId, current.TaskId, current.WorkDate, current.Duration, current.Description,
+            TimeEntryStatus.Deleted, deletedAtUtc);
+        return audit.IsFailure
+            ? Result.Failure(audit.Errors.ToArray())
+            : AddAudit(audit.Value);
+    }
+
+    public Result Resubmit(
+        EmployeeId employeeId,
+        WorkDatePeriod permittedPeriod,
+        DateTime submittedAtUtc)
+    {
+        var owner = EnsureOwner(employeeId);
+        if (owner.IsFailure)
+            return owner;
+
+        var current = GetCurrentAudit();
+        if (current?.Status != TimeEntryStatus.Rejected)
+            return Result.Failure(new Error("TimeEntryNotRejected", "Only a rejected time entry can be resubmitted."));
+        if (permittedPeriod is null || !permittedPeriod.Contains(current.WorkDate))
+            return Result.Failure(new Error("WorkDateNotPermitted", "The work date is outside the permitted registration period."));
+
+        return AppendVersion(current, employeeId, TimeEntryStatus.ReadyForApproval, submittedAtUtc);
+    }
+
+    private Result AddAudit(TimeEntryAudit audit)
+    {
+        if (audit is null)
+            return Result.Failure(new Error("AuditRequired", "An audit is required."));
+        if (audit.TimeEntryId != Id)
+            return Result.Failure(new Error("AuditEntryMismatch", "The audit belongs to a different time entry."));
+        if (audit.AuditTime == default)
+            return Result.Failure(new Error("AuditTimeRequired", "The audit time is required."));
+
+        var current = GetCurrentAudit();
+        if (current is not null && audit.AuditTime <= current.AuditTime)
+            return Result.Failure(new Error("AuditTimeNotIncreasing", "The audit must be later than the current version."));
+
+        _audits.Add(audit);
+        Revision++;
         return Result.Success();
     }
 
-    public Result Return(
-        UserId reviewerId,
-        UserId employeeId,
-        UserId? employeeManagerId,
-        UserRole reviewerRole,
-        UserStatus reviewerStatus,
-        string reason)
+    public TimeEntryAudit? GetCurrentAudit() => _audits.MaxBy(audit => audit.AuditTime);
+
+    public Result CanCloseForExport(TimeEntryAuditId approvedAuditId, DateTime closedAtUtc)
     {
-        var reviewResult = CanReview(
-            reviewerId,
-            employeeId,
-            employeeManagerId,
-            reviewerRole,
-            reviewerStatus);
-
-        if (reviewResult.IsFailure)
-            return reviewResult;
-
-        if (Status != TimeEntryStatus.Draft)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotOpen",
-                    "Only an open time entry can be returned."));
-
-        var review = TimeEntryReview.Create(
-            Id,
-            ReviewDecision.Returned,
-            reason);
-
-        if (review.IsFailure)
-            return Result.Failure(review.Errors.ToArray());
-
-        Status = TimeEntryStatus.Returned;
-
-        _reviews.Add(review.Value);
-
+        var ordered = _audits.OrderBy(audit => audit.AuditTime).ToArray();
+        var current = ordered.LastOrDefault();
+        // A different overlapping batch may already have closed this exact approved version.
+        if (current?.Status == TimeEntryStatus.Closed && ordered.Length >= 2 &&
+            ordered[^2].Id == approvedAuditId && ordered[^2].Status == TimeEntryStatus.Approved)
+            return Result.Success();
+        if (current?.Status != TimeEntryStatus.Approved || current.Id != approvedAuditId)
+            return Result.Failure(new Error("ExportSelectionConflict", "An exported entry no longer matches its approved version."));
+        if (closedAtUtc.Kind != DateTimeKind.Utc || closedAtUtc <= current.AuditTime)
+            return Result.Failure(new Error("ExportClosureConflict", "The closing time must be UTC and later than the approved version."));
         return Result.Success();
     }
 
-    public Result Resubmit(UserId actorId)
+    public Result CloseForExport(TimeEntryAuditId approvedAuditId, EmployeeId actor, DateTime closedAtUtc)
     {
-        var editResult = CanEdit(actorId);
-
-        if (editResult.IsFailure)
-            return editResult;
-
-        if (Status != TimeEntryStatus.Returned)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotReturned",
-                    "Only a returned time entry can be resubmitted."));
-
-        Status = TimeEntryStatus.Draft;
-
-        return Result.Success();
+        if (actor is null)
+            return Result.Failure(new Error("ActorRequired", "A closing actor is required."));
+        var valid = CanCloseForExport(approvedAuditId, closedAtUtc);
+        if (valid.IsFailure || CurrentStatus == TimeEntryStatus.Closed)
+            return valid;
+        var current = GetCurrentAudit()!;
+        var audit = TimeEntryAudit.Create(Id, actor, current.TaskId, current.WorkDate, current.Duration,
+            current.Description, TimeEntryStatus.Closed, closedAtUtc, closedBy: actor);
+        return audit.IsFailure ? Result.Failure(audit.Errors.ToArray()) : AddAudit(audit.Value);
     }
 
-    public Result Finalize(
-        UserId reviewerId,
-        UserId employeeId,
-        UserId? employeeManagerId,
-        UserRole reviewerRole,
-        UserStatus reviewerStatus)
+    public Result Approve(EmployeeId reviewerId, DateTime reviewedAtUtc, bool allowSelfReview) =>
+        Decide(reviewerId, ReviewStatus.Approved, null, reviewedAtUtc, allowSelfReview);
+
+    public Result Reject(EmployeeId reviewerId, string? reason, DateTime reviewedAtUtc, bool allowSelfReview) =>
+        Decide(reviewerId, ReviewStatus.Rejected, reason, reviewedAtUtc, allowSelfReview);
+
+    private Result Decide(
+        EmployeeId reviewerId, ReviewStatus decision, string? reason, DateTime reviewedAtUtc, bool allowSelfReview)
     {
-        var reviewResult = CanReview(
-            reviewerId,
-            employeeId,
-            employeeManagerId,
-            reviewerRole,
-            reviewerStatus);
-
-        if (reviewResult.IsFailure)
-            return reviewResult;
-
-        if (Status != TimeEntryStatus.Accepted)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotAccepted",
-                    "Only an accepted time entry can be finalized."));
-
-        var review = TimeEntryReview.Create(
-            Id,
-            ReviewDecision.Finalized,
-            null);
-
-        if (review.IsFailure)
-            return Result.Failure(review.Errors.ToArray());
-
-        Status = TimeEntryStatus.Finalized;
-
-        _reviews.Add(review.Value);
-
-        return Result.Success();
-    }
-
-    public Result CanEdit(UserId actorId)
-    {
-        if (actorId is null || actorId != EmployeeId)
-            return Result.Failure(
-                new Error(
-                    "EntryOwnerMismatch",
-                    "Only the employee can edit this time entry."));
-
-        if (Status is not (TimeEntryStatus.Draft or TimeEntryStatus.Returned))
-            return Result.Failure(
-                new Error(
-                    "TimeEntryNotEditable",
-                    "Only open or returned time entries can be edited."));
-
-        return Result.Success();
-    }
-
-    public bool CanView(
-        UserId actorId,
-        UserRole actorRole,
-        UserStatus actorStatus,
-        UserId? employeeManagerId)
-    {
-        if (actorStatus != UserStatus.Active)
-            return false;
-
-        if (actorId is not null && actorId == EmployeeId)
-            return true;
-
-        if (actorRole == UserRole.Admin)
-            return true;
-
-        return actorRole == UserRole.Manager && employeeManagerId == actorId;
-    }
-
-    private Result CanReview(
-        UserId reviewerId,
-        UserId employeeId,
-        UserId? employeeManagerId,
-        UserRole reviewerRole,
-        UserStatus reviewerStatus)
-    {
-        if (employeeId is null || employeeId != EmployeeId)
-            return Result.Failure(
-                new Error(
-                    "EmployeeMismatch",
-                    "The employee does not own this time entry."));
-
-        if (reviewerStatus != UserStatus.Active ||
-            reviewerRole is not (UserRole.Manager or UserRole.Admin))
-            return Result.Failure(
-                new Error(
-                    "ReviewForbidden",
-                    "Only an active manager or admin can review time entries."));
-
         if (reviewerId is null)
-            return Result.Failure(
-                new Error(
-                    "ReviewerRequired",
-                    "A reviewer is required."));
+            return Result.Failure(new Error("ReviewerRequired", "A reviewer is required."));
+        var current = GetCurrentAudit();
+        if (current?.Status != TimeEntryStatus.ReadyForApproval)
+            return Result.Failure(new Error("TimeEntryNotReady", "Only a ready time entry can be reviewed."));
+        if (!allowSelfReview && reviewerId == EmployeeId)
+            return Result.Failure(new Error("SelfReviewForbidden", "Reviewing your own entry is not permitted."));
 
-        if (reviewerRole == UserRole.Manager &&
-            employeeManagerId != reviewerId)
-            return Result.Failure(
-                new Error(
-                    "ReviewScopeForbidden",
-                    "The manager cannot review this employee's time entry."));
+        var review = TimeEntryReview.Create(Id, reviewerId, decision, reason, reviewedAtUtc);
+        if (review.IsFailure)
+            return Result.Failure(review.Errors.ToArray());
 
+        var status = decision == ReviewStatus.Approved
+            ? TimeEntryStatus.Approved
+            : TimeEntryStatus.Rejected;
+        var audit = TimeEntryAudit.Create(
+            Id,
+            reviewerId,
+            current.TaskId,
+            current.WorkDate,
+            current.Duration,
+            current.Description,
+            status,
+            reviewedAtUtc);
+        if (audit.IsFailure)
+            return Result.Failure(audit.Errors.ToArray());
+
+        var appended = AddAudit(audit.Value);
+        if (appended.IsFailure)
+            return appended;
+
+        _reviews.Add(review.Value);
         return Result.Success();
+    }
+
+    private Result EnsureOwner(EmployeeId employeeId)
+    {
+        if (employeeId is null)
+            return Result.Failure(new Error("EmployeeRequired", "An employee is required."));
+        return employeeId == EmployeeId
+            ? Result.Success()
+            : Result.Failure(new Error("EntryOwnerMismatch", "Only the owning employee can change this time entry."));
+    }
+
+    private Result AppendVersion(
+        TimeEntryAudit current,
+        EmployeeId actorId,
+        TimeEntryStatus status,
+        DateTime auditTimeUtc)
+    {
+        var audit = TimeEntryAudit.Create(
+            Id,
+            actorId,
+            current.TaskId,
+            current.WorkDate,
+            current.Duration,
+            current.Description,
+            status,
+            auditTimeUtc);
+        return audit.IsFailure
+            ? Result.Failure(audit.Errors.ToArray())
+            : AddAudit(audit.Value);
     }
 }

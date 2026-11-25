@@ -5,6 +5,13 @@ namespace Application;
 
 public class Dispatcher(IServiceProvider serviceProvider) : ICommandDispatcher
 {
+    public Task<Result<TValue>> DispatchAsync<TCommand, TValue>(TCommand command, CancellationToken cancellationToken = default)
+    {
+        var handler = serviceProvider.GetService(typeof(ICommandHandler<TCommand, TValue>)) as ICommandHandler<TCommand, TValue>
+            ?? throw new InvalidOperationException($"No result-returning handler found for {typeof(TCommand).FullName}");
+        return handler.HandleAsync(command, cancellationToken);
+    }
+
     public Task<Result> DispatchAsync<TCommand>(TCommand command)
     {
         Type serviceType = typeof(ICommandHandler<TCommand>);

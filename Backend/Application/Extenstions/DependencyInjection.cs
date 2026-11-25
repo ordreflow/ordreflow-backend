@@ -2,8 +2,11 @@
 
 using System.Reflection;
 using Domain.Interfaces.IUnitOfWork;
-using Domain.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Application.Exports;
+using Application.Handlers;
+using Domain.Services;
+using Application.Interfaces;
 
 namespace Application.Extenstions;
 
@@ -17,9 +20,13 @@ public static class DependencyInjection
 
     services.AddScoped<QueryDispatcher>();
     services.AddScoped<IQueryDispatcher, QueryDispatcher>();
-
+    services.AddScoped<TimeEntryReviewCoordinator>();
+    services.AddScoped<ExportAccess>();
+    services.AddScoped<Application.Accounts.AccountAccess>();
+    services.AddScoped<DepartmentStaffingDomainService>();
+    services.AddScoped<WorkPlanningDomainService>();
     services.AddScoped<TimeRegistrationDomainService>();
-    services.AddScoped<TaskRemovalDomainService>();
+    services.AddScoped<ExportClosureDomainService>();
     services.AddScoped<TimeEntryReviewDomainService>();
 
     services.AddScoped<ICommandDispatcher>(provider =>
@@ -32,32 +39,19 @@ public static class DependencyInjection
 
         return new UnitOfWorkCommandDispatcherDecorator(
             innerDispatcher,
-            unitOfWork);
+            unitOfWork,
+            provider.GetRequiredService<ICommandTransaction>());
     });
 
     // Command handlers
     var assembly = Assembly.GetExecutingAssembly();
 
-    var handlerTypes = assembly.GetTypes()
-        .Where(t =>
-            t.IsClass &&
-            !t.IsAbstract &&
-            t.GetInterfaces()
-                .Any(i =>
-                    i.IsGenericType &&
-                    i.GetGenericTypeDefinition() ==
-                    typeof(ICommandHandler<>)))
-        .ToList();
-
-    foreach (var handlerType in handlerTypes)
+    foreach (var handlerType in assembly.GetTypes().Where(type => type.IsClass && !type.IsAbstract))
     {
-        var interfaceType = handlerType.GetInterfaces()
-            .First(i =>
-                i.IsGenericType &&
-                i.GetGenericTypeDefinition() ==
-                typeof(ICommandHandler<>));
-
-        services.AddScoped(interfaceType, handlerType);
+        foreach (var contract in handlerType.GetInterfaces().Where(contract => contract.IsGenericType &&
+            (contract.GetGenericTypeDefinition() == typeof(ICommandHandler<>) ||
+             contract.GetGenericTypeDefinition() == typeof(ICommandHandler<,>))))
+            services.AddScoped(contract, handlerType);
     }
 
     // Query handlers
@@ -85,4 +79,3 @@ public static class DependencyInjection
 }
     
 }
-

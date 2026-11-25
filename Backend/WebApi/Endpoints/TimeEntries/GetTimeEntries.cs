@@ -16,12 +16,16 @@ public sealed class GetTimeEntries(
     IMapper mapper)
     : ApiEndpoint.WithRequest<ViewTimeEntriesRequest>.AndResponse<IResult>
 {
-    [Authorize(Policy = AuthorizationPolicies.AnyRole)]
+    [Authorize(Policy = AuthorizationPolicies.Employee)]
     [HttpGet("time_entries")]
     public override async Task<IResult> HandleAsync( [FromQuery] ViewTimeEntriesRequest request)
     {
         if (!HttpContext.TryGetCurrentUserId(out var employeeId))
             return TypedResults.Unauthorized();
+
+        if (request.FromDate == default || request.ToDate == DateOnly.MaxValue ||
+            request.ToDate < request.FromDate)
+            return new[] { new Error("InvalidDateRange", "A valid date range with an exclusive end boundary is required.") }.ToErrorResult();
 
         var result = await dispatcher.DispatchAsync<GetMyTimeEntriesForWeekQuery, Result<IReadOnlyList<TimeEntryDto>>>(
             new GetMyTimeEntriesForWeekQuery(
@@ -30,7 +34,7 @@ public sealed class GetTimeEntries(
                 request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue)));
 
         if (result.IsFailure)
-            return TypedResults.BadRequest(result.Errors);
+            return result.Errors.ToErrorResult();
 
         var response = new ViewTimeEntriesResponse(result.Value
             .Select(mapper.Map<TimeEntryResponse>)

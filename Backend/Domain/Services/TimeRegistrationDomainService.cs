@@ -4,51 +4,41 @@ using Domain.ValueObjects;
 
 namespace Domain.Services;
 
+// Coordinates business rules across Employee, Department, and TimeEntry.
+// Loading data, resolving the company-local date, and saving belong to Application.
 public sealed class TimeRegistrationDomainService
 {
-    public Result Register(
-        User employee,
-        Order order,
-        TimeEntry entry)
+    public Result ValidateEmployee(Employee? employee) =>
+        employee is not null && employee.HasPermission(SystemPermission.Employee)
+            ? Result.Success()
+            : Result.Failure(new Error("EmployeeAccessForbidden", "Active employee permission is required."));
+
+    public Result<TimeEntry> Register(Employee employee, Department department, TaskId taskId,
+        WorkDate workDate, Duration duration, TimeEntryDescription description,
+        TimeRegistrationAccess access, WorkDatePeriod permittedPeriod, DateTime recordedAtUtc)
     {
-        if (employee is null)
-            return Result.Failure(
-                new Error(
-                    "EmployeeRequired",
-                    "An employee is required."));
+        var employeeAccess = ValidateEmployee(employee);
+        if (employeeAccess.IsFailure)
+            return Result<TimeEntry>.Failure(employeeAccess.Errors.ToArray());
+        if (department is null)
+            return Result<TimeEntry>.Failure(new Error("DepartmentRequired", "The owning department is required."));
+        var available = department.CanRegisterTime(taskId);
+        if (available.IsFailure)
+            return Result<TimeEntry>.Failure(available.Errors.ToArray());
+        if (access is null)
+            return Result<TimeEntry>.Failure(new Error("RegistrationAccessRequired", "Registration access facts are required."));
 
-        if (employee.Status != UserStatus.Active)
-            return Result.Failure(
-                new Error(
-                    "UserInactive",
-                    "An inactive user cannot register time."));
+        var catagory = department.FindCatagoryForTask(taskId)!;
+        if (!access.IsDepartmentMember && !access.IsAssigned)
+            return Result<TimeEntry>.Failure(new Error("DepartmentWorkForbidden", "This work is only available to its department and assignees."));
+        if (catagory.InternalOnly && !access.IsDepartmentMember)
+            return Result<TimeEntry>.Failure(new Error("CatagoryAccessForbidden", "This category is restricted to its department."));
+        var task = catagory.Tasks.Single(item => item.Id == taskId);
+        if ((access.HasAssignments || task.AssignmentOnly) && !access.IsAssigned)
+            return Result<TimeEntry>.Failure(new Error("TaskAssignmentForbidden", "This task is assigned to other employees."));
+        if (recordedAtUtc.Kind != DateTimeKind.Utc)
+            return Result<TimeEntry>.Failure(new Error("AuditTimeUtcRequired", "The registration timestamp must be UTC."));
 
-        if (order is null)
-            return Result.Failure(
-                new Error(
-                    "OrderRequired",
-                    "An order is required."));
-
-        if (entry is null)
-            return Result.Failure(
-                new Error(
-                    "TimeEntryRequired",
-                    "A time entry is required."));
-
-        if (entry.EmployeeId != employee.UserId)
-            return Result.Failure(
-                new Error(
-                    "EntryOwnerMismatch",
-                    "The employee does not own this time entry."));
-
-        var orderValidation = order.CanRegisterTime(
-            entry.TaskId,
-            employee.UserId,
-            employee.ManagerId);
-
-        if (orderValidation.IsFailure)
-            return orderValidation;
-
-        return Result.Success();
+        return TimeEntry.Record(employee.Id, taskId, workDate, duration, description, permittedPeriod, recordedAtUtc);
     }
 }

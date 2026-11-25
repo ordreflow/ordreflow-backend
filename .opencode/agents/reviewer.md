@@ -1,6 +1,6 @@
 ---
 description: Performs an independent read-only review of backend changes for correctness, regressions, API behavior, security, persistence, architecture, and tests.
-mode: all
+mode: subagent
 permission:
   edit: deny
   bash: deny
