@@ -73,6 +73,41 @@ public sealed class AccountsAndAccessTests(TestWebAppFactory factory) : ApiTestB
     }
 
     [Fact]
+    public async Task Admin_sets_a_new_password_that_replaces_the_old_one()
+    {
+        var admin = await AdminAsync();
+        var email = NewEmail();
+        var id = await CreateEmployeeAsync(admin, email);
+        const string newPassword = "N3w-Passw0rd!";
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await admin.PutAsJsonAsync($"/api/employees/{id}/password", new SetEmployeePasswordRequest(newPassword))).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await Anonymous().PostAsJsonAsync("/api/auth/login", new LoginRequest(email, Password))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await Anonymous().PostAsJsonAsync("/api/auth/login", new LoginRequest(email, newPassword))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Invalid_new_passwords_are_rejected_and_keep_the_old_password()
+    {
+        var admin = await AdminAsync();
+        var email = NewEmail();
+        var id = await CreateEmployeeAsync(admin, email);
+
+        Assert.Equal("PasswordRequired", await ErrorAsync(
+            await admin.PutAsJsonAsync($"/api/employees/{id}/password", new SetEmployeePasswordRequest(" "))));
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await admin.PutAsJsonAsync($"/api/employees/{id}/password", new SetEmployeePasswordRequest("short"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await admin.PutAsJsonAsync($"/api/employees/{Guid.NewGuid()}/password", new SetEmployeePasswordRequest("N3w-Passw0rd!"))).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await Anonymous().PostAsJsonAsync("/api/auth/login", new LoginRequest(email, Password))).StatusCode);
+    }
+
+    [Fact]
     public async Task Admin_cannot_lock_themselves_out()
     {
         var admin = await AdminAsync();
@@ -294,6 +329,7 @@ public sealed class AccountsAndAccessTests(TestWebAppFactory factory) : ApiTestB
             await actor.PutAsJsonAsync($"/api/employees/{target}", new UpdateEmployeeRequest("X", "Boss")),
             await actor.PutAsJsonAsync($"/api/employees/{actorId}/permissions", new SetEmployeePermissionsRequest(["Employee", "Administrator"])),
             await actor.PostAsync($"/api/employees/{target}/deactivate", null),
+            await actor.PutAsJsonAsync($"/api/employees/{target}/password", new SetEmployeePasswordRequest(Password)),
             await actor.PostAsJsonAsync("/api/departments", new CreateDepartmentRequest("Mine")),
             await actor.PutAsync($"/api/departments/{department}/employees/{target}", null),
             await actor.PutAsync($"/api/departments/{department}/managers/{actorId}", null),
