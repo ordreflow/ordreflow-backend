@@ -111,6 +111,26 @@ public sealed class SetEmployeePermissionsHandler(AccountAccess access, IAccount
     }
 }
 
+public sealed class SetEmployeePasswordHandler(
+    AccountAccess access,
+    IAccountRepository accounts,
+    IEmployeeAccountProvisioner provisioner) : ICommandHandler<SetEmployeePasswordCommand, bool>
+{
+    public async Task<Result<bool>> HandleAsync(SetEmployeePasswordCommand command, CancellationToken ct = default)
+    {
+        var admin = await access.RequireAdministratorAsync(command.ActorId, ct);
+        if (admin.IsFailure) return Result<bool>.Failure(admin.Errors.ToArray());
+        if (string.IsNullOrWhiteSpace(command.Password))
+            return Result<bool>.Failure(new Error("PasswordRequired", "A password is required."));
+
+        var employee = await EmployeeCommands.FindAsync(accounts, command.EmployeeId, ct);
+        if (employee.IsFailure) return Result<bool>.Failure(employee.Errors.ToArray());
+
+        var changed = await provisioner.SetPasswordAsync(employee.Value.Id.Value, command.Password);
+        return changed.IsFailure ? Result<bool>.Failure(changed.Errors.ToArray()) : Result<bool>.Success(true);
+    }
+}
+
 public sealed class DeactivateEmployeeHandler(AccountAccess access, IAccountRepository accounts)
     : ICommandHandler<DeactivateEmployeeCommand, bool>
 {

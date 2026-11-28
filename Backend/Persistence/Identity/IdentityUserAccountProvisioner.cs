@@ -46,4 +46,35 @@ public class IdentityUserAccountProvisioner(UserManager<ApplicationUser> userMan
         await transaction.CommitAsync();
         return Result.Success();
     }
+
+    public async Task<Result> SetPasswordAsync(Guid employeeId, string password)
+    {
+        var typedEmployeeId = EmployeeId.Create(employeeId);
+        if (typedEmployeeId.IsFailure || string.IsNullOrWhiteSpace(password))
+            return Result.Failure(new Error("InvalidAccount", "A valid employee and password are required."));
+
+        var employeeKey = typedEmployeeId.Value;
+        var account = await userManager.Users.SingleOrDefaultAsync(user => user.EmployeeId == employeeKey);
+        if (account is null)
+            return Result.Failure(new Error("LoginNotFound", "The employee has no login account."));
+
+        // Validate before touching the hash, so a rejected password leaves the old one working.
+        var errors = new List<IdentityError>();
+        foreach (var validator in userManager.PasswordValidators)
+        {
+            var validation = await validator.ValidateAsync(userManager, account, password);
+            if (!validation.Succeeded) errors.AddRange(validation.Errors);
+        }
+        if (errors.Count > 0)
+            return Result.Failure(errors.Select(error => new Error(error.Code, error.Description)).ToArray());
+
+        // Hash, unlock and rotate the security stamp in one save.
+        account.PasswordHash = userManager.PasswordHasher.HashPassword(account, password);
+        account.AccessFailedCount = 0;
+        account.LockoutEnd = null;
+        var updated = await userManager.UpdateSecurityStampAsync(account);
+        return updated.Succeeded
+            ? Result.Success()
+            : Result.Failure(updated.Errors.Select(error => new Error(error.Code, error.Description)).ToArray());
+    }
 }

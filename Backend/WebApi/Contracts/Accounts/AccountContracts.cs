@@ -10,6 +10,8 @@ public sealed record CreateEmployeeRequest(
 
 public sealed record UpdateEmployeeRequest(string Name, string? Title = null);
 
+public sealed record SetEmployeePasswordRequest(string Password);
+
 public sealed record SetEmployeePermissionsRequest(IReadOnlyCollection<string> Permissions);
 
 public sealed record CreateDepartmentRequest(string Name);

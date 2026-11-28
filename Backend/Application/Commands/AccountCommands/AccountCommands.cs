@@ -15,6 +15,9 @@ public sealed record UpdateEmployeeProfileCommand(Guid ActorId, Guid EmployeeId,
 /// <summary>Replaces the employee's system access with exactly the given grants (FR-13).</summary>
 public sealed record SetEmployeePermissionsCommand(Guid ActorId, Guid EmployeeId, IReadOnlyCollection<string> Permissions);
 
+/// <summary>Sets a new login password for the employee. Only administrators may do this.</summary>
+public sealed record SetEmployeePasswordCommand(Guid ActorId, Guid EmployeeId, string Password);
+
 public sealed record DeactivateEmployeeCommand(Guid ActorId, Guid EmployeeId);
 
 public sealed record ActivateEmployeeCommand(Guid ActorId, Guid EmployeeId);
